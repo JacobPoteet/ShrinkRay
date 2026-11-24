@@ -27,7 +27,7 @@ public class EncodePlannerTests
         Assert.Equal("out.mkv", ValueAfter(args, "-o"));
         Assert.Equal("av_mkv", ValueAfter(args, "-f"));
         Assert.Equal("nvenc_h265_10bit", ValueAfter(args, "-e"));
-        Assert.Equal("24", ValueAfter(args, "-q"));
+        Assert.Equal("28", ValueAfter(args, "-q"));
         Assert.Equal("slowest", ValueAfter(args, "--encoder-preset"));
         Assert.Contains("--markers", args);
         Assert.Contains("--all-subtitles", args);
@@ -52,6 +52,28 @@ public class EncodePlannerTests
         var args = EncodePlanner.Build(Fixtures.Probe("mkv_h264_fonts"), "in.mkv", "out.mkv", settings).Arguments;
 
         Assert.Equal("27", ValueAfter(args, "-q"));
+    }
+
+    [Fact]
+    public void Show_override_sets_the_cq()
+    {
+        var settings = new ShrinkRaySettings { ShowCqOverrides = ShrinkRaySettings.NewOverrides([new("Example Show", 25)]) };
+
+        var args = EncodePlanner.Build(Fixtures.Probe("mkv_h264_fonts"), "in.mkv", "out.mkv", settings, "example show").Arguments;
+
+        Assert.Equal("25", ValueAfter(args, "-q"));
+    }
+
+    [Theory]
+    [InlineData("Other Show")]
+    [InlineData(null)]
+    public void Shows_without_an_override_use_the_default(string? show)
+    {
+        var settings = new ShrinkRaySettings { ShowCqOverrides = ShrinkRaySettings.NewOverrides([new("Example Show", 25)]) };
+
+        var args = EncodePlanner.Build(Fixtures.Probe("mkv_h264_fonts"), "in.mkv", "out.mkv", settings, show).Arguments;
+
+        Assert.Equal("28", ValueAfter(args, "-q"));
     }
 
     [Theory]

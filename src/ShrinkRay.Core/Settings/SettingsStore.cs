@@ -81,6 +81,7 @@ public static class SettingsStore
             LibraryRoot = file.LibraryRoot?.Trim() ?? "",
             ScratchFolder = file.ScratchFolder?.Trim() ?? "",
             Cq = file.Cq ?? ShrinkRaySettings.DefaultCq,
+            ShowCqOverrides = ReadOverrides(file.ShowCqOverrides),
             MinimumSavings = file.MinimumSavings ?? ShrinkRaySettings.DefaultMinimumSavings,
             ReplaceOriginals = file.ReplaceOriginals ?? true,
             RestoreFonts = file.RestoreFonts ?? true,
@@ -102,6 +103,9 @@ public static class SettingsStore
             LibraryRoot = s.LibraryRoot,
             ScratchFolder = s.ScratchFolder,
             Cq = s.Cq,
+            ShowCqOverrides = s.ShowCqOverrides
+                .OrderBy(o => o.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(o => o.Key, o => (int?)o.Value),
             MinimumSavings = s.MinimumSavings,
             ReplaceOriginals = s.ReplaceOriginals,
             RestoreFonts = s.RestoreFonts,
@@ -123,10 +127,16 @@ public static class SettingsStore
         s.ScratchFolder = s.ScratchFolder?.Trim() ?? "";
 
         // NVENC's constant quality scale runs 0 to 51; 0 means lossless and is never wanted here.
-        if (s.Cq is < 1 or > 51)
+        if (!IsValidCq(s.Cq))
         {
             s.Cq = ShrinkRaySettings.DefaultCq;
         }
+
+        // Drop blank show names and CQ values out of range, so a bad entry falls back to the default.
+        s.ShowCqOverrides = ShrinkRaySettings.NewOverrides(
+            s.ShowCqOverrides
+                .Where(o => !string.IsNullOrWhiteSpace(o.Key) && IsValidCq(o.Value))
+                .Select(o => KeyValuePair.Create(o.Key.Trim(), o.Value)));
 
         if (!double.IsFinite(s.MinimumSavings) || s.MinimumSavings < 0 || s.MinimumSavings >= 1)
         {
@@ -135,6 +145,14 @@ public static class SettingsStore
 
         return s;
     }
+
+    private static bool IsValidCq(int cq) => cq is >= 1 and <= 51;
+
+    private static Dictionary<string, int> ReadOverrides(Dictionary<string, int?>? entries) =>
+        ShrinkRaySettings.NewOverrides(
+            (entries ?? [])
+                .Where(o => o.Value is not null)
+                .Select(o => KeyValuePair.Create(o.Key, o.Value!.Value)));
 
     private static string PathOr(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
@@ -153,6 +171,7 @@ public static class SettingsStore
         public string? LibraryRoot { get; set; }
         public string? ScratchFolder { get; set; }
         public int? Cq { get; set; }
+        public Dictionary<string, int?>? ShowCqOverrides { get; set; }
         public double? MinimumSavings { get; set; }
         public bool? ReplaceOriginals { get; set; }
         public bool? RestoreFonts { get; set; }

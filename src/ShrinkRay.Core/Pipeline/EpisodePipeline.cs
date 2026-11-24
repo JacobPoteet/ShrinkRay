@@ -126,7 +126,8 @@ public sealed class EpisodePipeline
         await _fs.CopyFileAsync(sourcePath, localSource, ct);
 
         _journal.Record(sourcePath, SwapState.Encoded);
-        var plan = EncodePlanner.Build(source, localSource, encoded, _settings);
+        var show = ShowFolder.NameFor(sourcePath, _settings.LibraryRoot);
+        var plan = EncodePlanner.Build(source, localSource, encoded, _settings, show);
         await _encoder.EncodeAsync(plan, progress, ct);
 
         var candidate = encoded;

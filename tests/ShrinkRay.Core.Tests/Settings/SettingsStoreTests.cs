@@ -21,7 +21,7 @@ public sealed class SettingsStoreTests : IDisposable
     {
         var s = new ShrinkRaySettings();
 
-        Assert.Equal(24, s.Cq);
+        Assert.Equal(28, s.Cq);
         Assert.Equal(0.15, s.MinimumSavings);
         Assert.True(s.ReplaceOriginals);
         Assert.True(s.RestoreFonts);
@@ -45,7 +45,7 @@ public sealed class SettingsStoreTests : IDisposable
     {
         var s = SettingsStore.Load(SettingsPath);
 
-        Assert.Equal(24, s.Cq);
+        Assert.Equal(28, s.Cq);
     }
 
     [Theory]
@@ -61,7 +61,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         var s = SettingsStore.Load(SettingsPath);
 
-        Assert.Equal(24, s.Cq);
+        Assert.Equal(28, s.Cq);
         Assert.True(s.ReplaceOriginals);
     }
 
@@ -126,7 +126,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.Equal("ffprobe.exe", s.FfprobePath);
         Assert.Equal("ffmpeg.exe", s.FfmpegPath);
         Assert.Equal("", s.LibraryRoot);
-        Assert.Equal(24, s.Cq);
+        Assert.Equal(28, s.Cq);
         Assert.True(s.ReplaceOriginals);
         Assert.Equal(new TimeOnly(23, 0), s.EncodeWindowStart);
     }
@@ -137,7 +137,49 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData(52)]
     public void Out_of_range_cq_falls_back(int cq)
     {
-        Assert.Equal(24, SettingsStore.FromJson($$"""{ "cq": {{cq}} }""").Cq);
+        Assert.Equal(28, SettingsStore.FromJson($$"""{ "cq": {{cq}} }""").Cq);
+    }
+
+    [Fact]
+    public void Show_overrides_round_trip_and_ignore_case()
+    {
+        var settings = new ShrinkRaySettings { ShowCqOverrides = ShrinkRaySettings.NewOverrides([new("Example Show", 25)]) };
+
+        SettingsStore.Save(SettingsPath, settings);
+        var loaded = SettingsStore.Load(SettingsPath);
+
+        Assert.Contains("\"Example Show\": 25", File.ReadAllText(SettingsPath));
+        Assert.Equal(25, loaded.CqForShow("EXAMPLE SHOW"));
+        Assert.Equal(28, loaded.CqForShow("Other Show"));
+        Assert.Equal(28, loaded.CqForShow(null));
+    }
+
+    [Fact]
+    public void Bad_show_overrides_are_dropped()
+    {
+        var s = SettingsStore.FromJson("""
+            { "showCqOverrides": { "Good Show": 25, "Null Show": null, "Zero Show": 0, "High Show": 60, "  ": 22 } }
+            """);
+
+        Assert.Equal(["Good Show"], s.ShowCqOverrides.Keys);
+    }
+
+    [Fact]
+    public void Missing_or_null_overrides_give_an_empty_map()
+    {
+        Assert.Empty(SettingsStore.FromJson("{}").ShowCqOverrides);
+        Assert.Empty(SettingsStore.FromJson("""{ "showCqOverrides": null }""").ShowCqOverrides);
+    }
+
+    [Fact]
+    public void Clone_copies_the_override_map()
+    {
+        var s = new ShrinkRaySettings();
+        var copy = s.Clone();
+
+        copy.ShowCqOverrides["Example Show"] = 25;
+
+        Assert.Empty(s.ShowCqOverrides);
     }
 
     [Theory]
@@ -167,7 +209,7 @@ public sealed class SettingsStoreTests : IDisposable
 
         Assert.Equal("ffmpeg.exe", n.FfmpegPath);
         Assert.Equal("", n.ScratchFolder);
-        Assert.Equal(24, n.Cq);
+        Assert.Equal(28, n.Cq);
         Assert.Equal(99, s.Cq);
     }
 

@@ -80,6 +80,31 @@ public class EpisodePipelineTests
     }
 
     [Fact]
+    public async Task Show_override_reaches_the_encoder()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Settings.LibraryRoot = @"X:\TV";
+        rig.Settings.ShowCqOverrides["Example Show"] = 25;
+
+        await rig.RunAsync();
+
+        var args = Assert.Single(rig.Encoder.Plans).Arguments.ToList();
+        Assert.Equal("25", args[args.IndexOf("-q") + 1]);
+    }
+
+    [Fact]
+    public async Task Other_shows_get_the_default_cq()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Settings.ShowCqOverrides["Different Show"] = 25;
+
+        await rig.RunAsync();
+
+        var args = Assert.Single(rig.Encoder.Plans).Arguments.ToList();
+        Assert.Equal("28", args[args.IndexOf("-q") + 1]);
+    }
+
+    [Fact]
     public async Task Fonts_are_restored_before_verification()
     {
         var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font().Build();

@@ -24,8 +24,10 @@ public static class EncodePlanner
     /// container and extension, every audio track, the chapters, and every subtitle the
     /// container can hold.
     /// </summary>
+    /// <param name="showFolderName">The show's folder name. A matching entry in
+    /// <see cref="ShrinkRaySettings.ShowCqOverrides"/> sets the CQ; otherwise the default applies.</param>
     /// <exception cref="ArgumentException">The source is not eligible, or the output extension differs.</exception>
-    public static EncodePlan Build(MediaInfo source, string inputPath, string outputPath, ShrinkRaySettings settings)
+    public static EncodePlan Build(MediaInfo source, string inputPath, string outputPath, ShrinkRaySettings settings, string? showFolderName = null)
     {
         var eligibility = Eligibility.Evaluate(source);
         if (!eligibility.IsEligible)
@@ -50,7 +52,7 @@ public static class EncodePlanner
             "-f", container == ContainerKind.Mkv ? "av_mkv" : "av_mp4",
             "--markers",
             "-e", VideoEncoder,
-            "-q", settings.Cq.ToString(CultureInfo.InvariantCulture),
+            "-q", settings.CqForShow(showFolderName).ToString(CultureInfo.InvariantCulture),
             "--encoder-preset", EncoderPreset,
             // HandBrake auto-crops by default and can misjudge dark scenes. Keep the full frame.
             "--crop", "0:0:0:0",
