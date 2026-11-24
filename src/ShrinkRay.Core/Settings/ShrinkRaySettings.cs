@@ -1,6 +1,6 @@
 namespace ShrinkRay.Core.Settings;
 
-/// <summary>User settings, stored as JSON in the user's application data folder.</summary>
+/// <summary>User settings, stored as JSON by <see cref="SettingsStore"/>.</summary>
 public sealed class ShrinkRaySettings
 {
     public const int DefaultCq = 24;
@@ -37,4 +37,20 @@ public sealed class ShrinkRaySettings
     public TimeOnly EncodeWindowEnd { get; set; } = DefaultEncodeWindowEnd;
 
     public ShrinkRaySettings Clone() => (ShrinkRaySettings)MemberwiseClone();
+
+    /// <summary>
+    /// True when an encode may start at this time of day. Always true with the window off.
+    /// A window whose start is after its end runs overnight; equal start and end means all day.
+    /// </summary>
+    public bool IsInsideEncodeWindow(TimeOnly now)
+    {
+        if (!EncodeWindowEnabled || EncodeWindowStart == EncodeWindowEnd)
+        {
+            return true;
+        }
+
+        return EncodeWindowStart < EncodeWindowEnd
+            ? now >= EncodeWindowStart && now < EncodeWindowEnd
+            : now >= EncodeWindowStart || now < EncodeWindowEnd;
+    }
 }
