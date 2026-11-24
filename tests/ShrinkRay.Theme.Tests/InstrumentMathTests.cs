@@ -144,6 +144,20 @@ public class KnobMathTests
         Assert.Equal(expected, KnobMath.Step(index, 6, delta, wrap));
 
     [Fact]
+    public void The_recommended_tick_points_out_from_the_center_between_the_skirt_and_the_labels()
+    {
+        var (inner, outer) = KnobMath.TickEnds(90);
+        Assert.Equal(60 + KnobMath.TickInner, inner.X, 6);
+        Assert.Equal(62, inner.Y, 6);
+        Assert.Equal(60 + KnobMath.TickOuter, outer.X, 6);
+        Assert.Equal(62, outer.Y, 6);
+
+        // A two-digit label reaches about 7 units from the label circle, so the tick stops short of it.
+        Assert.True(KnobMath.TickInner > KnobMath.SkirtRadius);
+        Assert.True(KnobMath.TickOuter <= KnobMath.LabelRadius - 8);
+    }
+
+    [Fact]
     public void Stepping_a_knob_without_detents_selects_nothing() => Assert.Equal(-1, KnobMath.Step(0, 0, 1, true));
 }
 

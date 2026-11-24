@@ -13,6 +13,15 @@ public static class KnobMath
     public static readonly Point Center = new(60, 62);
     public const double LabelRadius = 50;
 
+    /// <summary>Outer edge of the knurled skirt, which the knob's body draws at radius 36.</summary>
+    public const double SkirtRadius = 36;
+
+    /// <summary>The recommended-detent tick runs between these radii: clear of the skirt and inside the labels.</summary>
+    public const double TickInner = 37.5;
+
+    /// <summary>A label's text reaches about 7 units either side of its center, so the tick stops 8 short of the label circle.</summary>
+    public const double TickOuter = 41.5;
+
     /// <summary>Angle of detent <paramref name="index"/> out of <paramref name="count"/>. One detent points up.</summary>
     public static double DetentAngle(int index, int count)
     {
@@ -36,6 +45,10 @@ public static class KnobMath
         var rad = angle * System.Math.PI / 180;
         return new Point(Center.X + radius * System.Math.Sin(rad), Center.Y - radius * System.Math.Cos(rad));
     }
+
+    /// <summary>The two ends of the radial tick that marks a detent at <paramref name="angle"/>, inner first.</summary>
+    public static (Point Inner, Point Outer) TickEnds(double angle) =>
+        (LabelCenter(angle, TickInner), LabelCenter(angle, TickOuter));
 
     /// <summary>Next index for one step. Clicks wrap around; arrow keys stop at the ends.</summary>
     public static int Step(int index, int count, int delta, bool wrap)

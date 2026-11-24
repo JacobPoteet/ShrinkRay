@@ -1,6 +1,7 @@
 using ShrinkRay.App.Services;
 using ShrinkRay.Core.Encode;
 using ShrinkRay.Core.Library;
+using ShrinkRay.Core.Media;
 using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Settings;
 using ShrinkRay.Core.Swap;
@@ -204,14 +205,18 @@ public sealed partial class MainViewModel
 
     private void ChooseLibrary()
     {
-        var folder = _s.FolderPicker?.PickFolder("Choose the TV library folder", _settings.LibraryRoot);
+        var folder = _s.FolderPicker?.PickFolder("Choose the TV library or one show's folder", _settings.LibraryRoot);
         if (folder is not null)
         {
-            SetLibraryRoot(folder, null);
+            SetLibraryRoot(folder);
         }
     }
 
-    private void SetLibraryRoot(string folder, string? loadShow)
+    /// <summary>
+    /// Makes a folder the library: a TV root lists its shows, and a show folder lists just that
+    /// show and loads it.
+    /// </summary>
+    private void SetLibraryRoot(string folder)
     {
         _settings.LibraryRoot = folder.TrimEnd('\\', '/');
         if (_settings.LibraryRoot.EndsWith(':'))
@@ -221,12 +226,14 @@ public sealed partial class MainViewModel
 
         Save();
         Raise(nameof(LibraryRoot), nameof(LibraryLabel));
-        _ = ScanLibraryAsync(loadShow ?? _loaded?.Name);
+        var show = LibraryScanner.IsShowFolder(_s.Disk, _settings.LibraryRoot) ? Path.GetFileName(_settings.LibraryRoot.TrimEnd('\\')) : null;
+        _ = ScanLibraryAsync(show ?? _loaded?.Name);
     }
 
     /// <summary>
-    /// Handles a folder dropped on the window. A show folder (season folders or episodes inside)
-    /// loads as a tape, making its parent the library root; any other folder becomes the root.
+    /// Handles a folder dropped on the window. A show already listed loads as a tape. Any other
+    /// folder becomes the library, as Choose does: a show folder (or a season folder, which
+    /// stands for its show) is the library's one show, and anything else is a TV root.
     /// </summary>
     /// <returns>False when the drop was refused, such as during an encode.</returns>
     public bool DropFolder(string path)
@@ -237,30 +244,21 @@ public sealed partial class MainViewModel
         }
 
         var folder = path.TrimEnd('\\', '/');
-        if (EpisodeName.SeasonFromFolder(Path.GetFileName(folder)) is not null && Path.GetDirectoryName(folder) is { } showFolder)
+        if (ShowFolder.IsSeasonFolder(Path.GetFileName(folder)) && Path.GetDirectoryName(folder) is { } showFolder)
         {
             folder = showFolder;
         }
 
-        var looksLikeShow = _s.Disk.EnumerateFiles(folder).Any(f => LibraryScanner.VideoExtensions.Contains(Path.GetExtension(f)))
-            || _s.Disk.EnumerateDirectories(folder).Any(d => EpisodeName.SeasonFromFolder(Path.GetFileName(d)) is not null);
-        var parent = Path.GetDirectoryName(folder);
-        if (!looksLikeShow || parent is null)
+        if (LibraryScanner.IsShowFolder(_s.Disk, folder)
+            && _scans.TryGetValue(Path.GetFileName(folder), out var scan)
+            && string.Equals(scan.Folder.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase))
         {
-            SetLibraryRoot(folder, null);
-            return true;
-        }
-
-        var name = Path.GetFileName(folder);
-        if (string.Equals(parent.TrimEnd('\\'), _settings.LibraryRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)
-            && _scans.TryGetValue(name, out var scan))
-        {
-            SelectedShow = Shows.FirstOrDefault(r => string.Equals(r.FolderName, name, StringComparison.OrdinalIgnoreCase));
+            SelectedShow = Shows.FirstOrDefault(r => string.Equals(r.FolderName, scan.Name, StringComparison.OrdinalIgnoreCase));
             LoadShow(scan);
             return true;
         }
 
-        SetLibraryRoot(parent, name);
+        SetLibraryRoot(folder);
         return true;
     }
 
@@ -285,7 +283,8 @@ public sealed partial class MainViewModel
         _tracks.Clear();
         foreach (var episode in scan.Episodes)
         {
-            _tracks.Add(TrackViewModel.From(episode, Classify(episode), _s.Ledger.Get(episode.Path), _s.Journal.Latest(episode.Path)?.Reason));
+            var last = _s.Journal.Latest(episode.Path);
+            _tracks.Add(TrackViewModel.From(episode, Classify(episode), _s.Ledger.Get(episode.Path), last?.Reason, last?.Timestamp));
         }
 
         Seasons.Clear();
@@ -324,6 +323,26 @@ public sealed partial class MainViewModel
         _prefs = _prefs with { LastShow = null };
         SavePreferences();
         RefreshAll();
+    }
+
+    private void ResetCq()
+    {
+        if (_loaded is null || IsEncoding)
+        {
+            return;
+        }
+
+        // Removed outright: an override can sit on the default's detent without equalling it.
+        if (_settings.ShowCqOverrides.Remove(_loaded.Name))
+        {
+            Save();
+        }
+
+        _cqIndex = RecommendedCqIndex;
+        Raise(nameof(CqIndex), nameof(Cq));
+        RefreshDeck();
+        ResetCqCommand.Refresh();
+        Raise(nameof(CursorInfo));
     }
 
     private void SelectSeason(int season) => ShowSeason(season);
@@ -563,7 +582,7 @@ public sealed partial class MainViewModel
                 track.SetSkipped("SKIP", result.Message);
                 break;
             default:
-                track.SetFailed(result.Message);
+                track.SetFailed(result.Message, _s.Now());
                 break;
         }
     }
@@ -784,7 +803,8 @@ public sealed partial class MainViewModel
     {
         Raise(nameof(LabelTitle), nameof(LabelSide), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq),
             nameof(FooterTitle), nameof(SavedGigabytes), nameof(SavedDigits), nameof(BeforeText), nameof(AfterText),
-            nameof(AfterFraction), nameof(EpisodesDoneText), nameof(HandledFraction), nameof(SeasonFooter));
+            nameof(AfterFraction), nameof(EpisodesDoneText), nameof(HandledFraction), nameof(SeasonFooter),
+            nameof(CqSourceText), nameof(HasCqOverride), nameof(RecommendedCqIndex), nameof(LastFailureText), nameof(LastFailureDetail));
         RefreshReadouts();
     }
 
@@ -830,6 +850,7 @@ public sealed partial class MainViewModel
         LoadTapeCommand.Refresh();
         EncodeCommand.Refresh();
         EjectCommand.Refresh();
+        ResetCqCommand.Refresh();
         ChooseLibraryCommand.Refresh();
         ChooseScratchCommand.Refresh();
         RescanCommand.Refresh();

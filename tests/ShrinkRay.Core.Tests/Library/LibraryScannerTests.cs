@@ -33,6 +33,57 @@ public class LibraryScannerTests
     }
 
     [Fact]
+    public void A_tv_root_lists_the_shows_in_it()
+    {
+        var (disk, _, _, scanner) = Rig();
+        disk.AddFile(Ep("Show A", 1, 1), 10);
+        disk.AddFile($@"{Root}\Show B\Show B - S01E01.mkv", 10);
+
+        Assert.False(LibraryScanner.IsShowFolder(disk, Root));
+        Assert.Equal([$@"{Root}\Show A", $@"{Root}\Show B"], scanner.ListShowFolders(Root));
+    }
+
+    [Theory]
+    [InlineData("Season 01")]
+    [InlineData("Season 1")]
+    [InlineData("Specials")]
+    [InlineData("S01")]
+    public void A_show_folder_with_season_folders_is_its_own_one_show(string season)
+    {
+        var (disk, _, _, scanner) = Rig();
+        disk.AddFile($@"{Root}\The Show\{season}\The Show - S01E01.mkv", 10);
+        disk.AddFile($@"{Root}\The Show\Featurettes\Making of.mkv", 10);
+
+        Assert.True(LibraryScanner.IsShowFolder(disk, $@"{Root}\The Show"));
+        Assert.Equal([$@"{Root}\The Show"], scanner.ListShowFolders($@"{Root}\The Show\"));
+    }
+
+    [Fact]
+    public async Task A_show_folder_with_loose_episodes_is_its_own_one_show()
+    {
+        var (disk, probe, _, scanner) = Rig();
+        var path = $@"{Root}\Mini Series\Mini Series - S01E02 - Part Two.mkv";
+        disk.AddFile(path, 10);
+        probe.Results[path] = CountingProbe.H264(path);
+
+        var folders = scanner.ListShowFolders($@"{Root}\Mini Series");
+        var scan = await scanner.ScanShowAsync(Assert.Single(folders), default);
+
+        Assert.Equal("Mini Series", scan.Name);
+        Assert.Equal("S01E02", Assert.Single(scan.Episodes).Code);
+    }
+
+    [Fact]
+    public void A_folder_of_unnumbered_videos_is_not_a_show()
+    {
+        var (disk, _, _, _) = Rig();
+        disk.AddFile($@"{Root}\Clips\Holiday.mkv", 10);
+        disk.AddFile($@"{Root}\Clips\Extras\Trailer.mkv", 10);
+
+        Assert.False(LibraryScanner.IsShowFolder(disk, $@"{Root}\Clips"));
+    }
+
+    [Fact]
     public async Task Scans_episodes_in_season_order_with_probe_details()
     {
         var (disk, probe, _, scanner) = Rig();

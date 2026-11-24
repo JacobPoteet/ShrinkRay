@@ -13,6 +13,10 @@ public class ShowFolderTests
     [InlineData(@"X:\TV\Example Show\S2\Example Show S02E01.mkv", "", "Example Show")]
     [InlineData(@"X:\TV\Example Show\Example Show S01E01.mkv", "", "Example Show")]
     [InlineData(@"X:\Other\Example Show\Season 03\Ep.mkv", @"X:\TV", "Example Show")]
+    [InlineData(@"X:\TV\Example Show\Season 1\Example Show S01E01.mkv", @"X:\TV\Example Show", "Example Show")]
+    [InlineData(@"X:\TV\Example Show\Specials\Example Show S00E01.mkv", @"X:\TV\Example Show\", "Example Show")]
+    [InlineData(@"X:\TV\Example Show\Series 2\Example Show S02E01.mkv", @"X:\TV\Example Show", "Example Show")]
+    [InlineData(@"X:\TV\Example Show\Example Show S01E01.mkv", @"X:\TV\Example Show", "Example Show")]
     public void Finds_the_show_folder(string episode, string root, string expected)
     {
         Assert.Equal(expected, ShowFolder.NameFor(episode, root));

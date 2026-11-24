@@ -186,7 +186,7 @@
                                       AutomationProperties.Name="Example switch, off" />
                         <ToggleButton Style="{StaticResource SR.ToggleSwitch}" Content="On" IsChecked="True" VerticalAlignment="Center"
                                       Margin="22,0,22,0" AutomationProperties.Name="Example switch, on" />
-                        <sr:RotaryKnob Width="96" Height="90" Labels="20,22,24,26,28,30" SelectedIndex="2"
+                        <sr:RotaryKnob Width="96" Height="90" Labels="20,22,24,26,28,30" SelectedIndex="2" RecommendedIndex="4"
                                        Caption="Quality CQ" />
                     </StackPanel>
                     <TextBlock Style="{StaticResource Caption}" Margin="0,22,0,0"
@@ -405,7 +405,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel HorizontalAlignment="Left">
-                            <sr:RotaryKnob x:Name="QualityKnob" Labels="20,22,24,26,28,30" SelectedIndex="2" Caption="Quality CQ"
+                            <sr:RotaryKnob x:Name="QualityKnob" Labels="20,22,24,26,28,30" SelectedIndex="2" RecommendedIndex="4" Caption="Quality CQ"
                                            Width="110" Height="103" />
                             <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="Quality · CQ" HorizontalAlignment="Center" />
                         </StackPanel>

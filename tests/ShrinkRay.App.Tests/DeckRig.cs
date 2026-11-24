@@ -21,7 +21,7 @@ internal sealed class DeckRig
     public FakeDisk Disk { get; } = new();
     public FakeProbe Probe { get; } = new();
     public MemoryJournal Store { get; } = new();
-    public SwapJournal Journal { get; }
+    public SwapJournal Journal { get; private set; }
     public ShrinkLedger Ledger { get; } = new();
     public ScriptedRunner Runner { get; }
     public RecordingGate Gate { get; } = new();
@@ -41,6 +41,9 @@ internal sealed class DeckRig
         Journal = new SwapJournal(Store);
         Runner = new ScriptedRunner(this);
     }
+
+    /// <summary>Reads the journal store again, as a restart does. Entries appended to <see cref="Store"/> take effect.</summary>
+    public void ReopenJournal() => Journal = new SwapJournal(Store);
 
     public static string Episode(string show, int season, int episode, string ext = ".mkv") =>
         $@"{Root}\{show}\Season {season:00}\{show} - S{season:00}E{episode:00} - Title {episode}{ext}";

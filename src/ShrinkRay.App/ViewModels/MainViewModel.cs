@@ -88,6 +88,7 @@ public sealed partial class MainViewModel : ObservableObject
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
         EjectCommand = new RelayCommand(Eject, () => _loaded is not null && !IsEncoding);
+        ResetCqCommand = new RelayCommand(ResetCq, () => HasCqOverride && !IsEncoding);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
@@ -118,6 +119,9 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand SkipCommand { get; }
 
     public RelayCommand EjectCommand { get; }
+
+    /// <summary>Clears the loaded show's CQ override, turning the knob back to the default.</summary>
+    public RelayCommand ResetCqCommand { get; }
 
     public RelayCommand ChooseLibraryCommand { get; }
 
@@ -256,6 +260,15 @@ public sealed partial class MainViewModel : ObservableObject
             return Shows.Count == 0 ? "NOTHING LEFT TO SHRINK" : "";
         }
     }
+
+    /// <summary>
+    /// The latest failure in the deck's show, as monitor A prints it: the episode and why. It
+    /// clears once that episode runs again. Empty when nothing failed.
+    /// </summary>
+    public string LastFailureText => LastFailed is { } t ? $"LAST FAIL {t.Code} · {t.Detail}".ToUpperInvariant() : "";
+
+    /// <summary>The same failure in full, for the line's tooltip.</summary>
+    public string LastFailureDetail => LastFailed is { } t ? $"{t.Code}: {t.Detail}" : "";
 
     public string RecoveryText
     {
@@ -435,6 +448,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             RefreshDeck();
+            ResetCqCommand.Refresh();
             Raise(nameof(CursorInfo));
         }
     }
@@ -442,6 +456,19 @@ public sealed partial class MainViewModel : ObservableObject
     public int Cq => CqDetents[_cqIndex];
 
     public bool IsKnobEnabled => _loaded is not null && !IsEncoding;
+
+    /// <summary>
+    /// The detent the knob marks as recommended: the deck's default CQ, which shows without an
+    /// override use and Reset returns to. Out of the box that is <see cref="ShrinkRaySettings.DefaultCq"/>.
+    /// </summary>
+    public int RecommendedCqIndex => NearestDetent(_settings.Cq);
+
+    /// <summary>True when the show in the deck has its own CQ rather than the default.</summary>
+    public bool HasCqOverride => _loaded is not null && _settings.ShowCqOverrides.ContainsKey(_loaded.Name);
+
+    /// <summary>The readout under the knob: the CQ the show encodes at, and whether it is the show's own or the default.</summary>
+    public string CqSourceText => string.Create(CultureInfo.InvariantCulture,
+        $"CQ {_settings.CqForShow(_loaded?.Name)} · {(HasCqOverride ? "Show" : "Default")}");
 
     public string EstimateText => $"Est −{Format.Percent(SizeEstimate.SavingsFor(Cq))} per ep";
 
@@ -503,8 +530,42 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>A start equal to the end opens the window all day, as the settings read it.</summary>
     public string WindowDymo => !_settings.EncodeWindowEnabled || _settings.EncodeWindowStart == _settings.EncodeWindowEnd ? "Runs any time"
-        : _settings.EncodeWindowStart > _settings.EncodeWindowEnd ? "Runs overnight"
+        : IsMostlyOvernight(_settings.EncodeWindowStart, _settings.EncodeWindowEnd) ? "Runs overnight"
         : "Runs by day";
+
+    /// <summary>Night, for the window's label, runs from 22:00 to 07:00.</summary>
+    public static readonly TimeOnly NightStart = new(22, 0);
+
+    public static readonly TimeOnly NightEnd = new(7, 0);
+
+    /// <summary>
+    /// True when more than half of a window's minutes fall between <see cref="NightStart"/> and
+    /// <see cref="NightEnd"/>. A window whose start is after its end wraps past midnight.
+    /// </summary>
+    public static bool IsMostlyOvernight(TimeOnly start, TimeOnly end)
+    {
+        const int day = 24 * 60;
+        var from = (start.Hour * 60) + start.Minute;
+        var length = ((((end.Hour * 60) + end.Minute - from) % day) + day) % day;
+        if (length == 0)
+        {
+            length = day;
+        }
+
+        var nightFrom = (NightStart.Hour * 60) + NightStart.Minute;
+        var nightLength = ((((NightEnd.Hour * 60) + NightEnd.Minute - nightFrom) % day) + day) % day;
+        var night = 0;
+        for (var i = 0; i < length; i++)
+        {
+            var sinceNightFell = ((from + i - nightFrom) % day + day) % day;
+            if (sinceNightFell < nightLength)
+            {
+                night++;
+            }
+        }
+
+        return night * 2 > length;
+    }
 
     /// <summary>
     /// Moves a time to the next or previous <see cref="WindowStepMinutes"/> mark, wrapping at
@@ -696,6 +757,11 @@ public sealed partial class MainViewModel : ObservableObject
     private double Ratio => SizeEstimate.RatioFor(IsEncoding ? _runCq : Cq);
 
     private TrackViewModel? NextQueued => _tracks.FirstOrDefault(t => t.IsQueueable);
+
+    private TrackViewModel? LastFailed => _tracks
+        .Where(t => t.Kind == TrackKind.Failed)
+        .OrderByDescending(t => t.FailedAt ?? DateTimeOffset.MinValue)
+        .FirstOrDefault();
 
     /// <summary>The run lamp's word for a phase.</summary>
     public static string PhaseWord(EpisodePhase phase) => phase switch

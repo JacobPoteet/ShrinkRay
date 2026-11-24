@@ -65,6 +65,21 @@
             </Style.Triggers>
         </Style>
 
+        <!-- A short keycap that fits beside a readout, such as the knob's Reset -->
+        <Style x:Key="SmallKey" TargetType="Button" BasedOn="{StaticResource TextKey}">
+            <Setter Property="Height" Value="18" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <sr:TrackedText Text="{Binding}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="9"
+                                        Tracking="0.14" Foreground="{DynamicResource SR.Ink}" Margin="6,0" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Option chips in the service panel: the lamp lights on the chosen one -->
         <Style x:Key="OptionChip" TargetType="sr:SeasonChip">
             <Setter Property="Padding" Value="8,0" />
@@ -109,7 +124,7 @@
                         <ColumnDefinition Width="60" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="58" />
-                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="80" />
                     </Grid.ColumnDefinitions>
                     <Rectangle x:Name="Stripe" Fill="#B4A98F" />
                     <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Code}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
@@ -240,10 +255,10 @@
                                 </DockPanel>
                                 <sr:CrtPanel CornerRadius="24" Padding="6,14,6,10" TubeShadow="50">
                                     <DockPanel>
-                                        <Grid DockPanel.Dock="Top" Margin="10,0,10,8" Opacity="0.8">
-                                            <TextBlock Text="{Binding LibraryLabel}" TextTrimming="CharacterEllipsis" Margin="0,0,110,0" />
-                                            <TextBlock Text="{Binding ShowCountText}" HorizontalAlignment="Right" />
-                                        </Grid>
+                                        <DockPanel DockPanel.Dock="Top" Margin="10,0,10,8" Opacity="0.8">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding ShowCountText}" Margin="12,0,0,0" />
+                                            <TextBlock Text="{Binding LibraryLabel}" TextTrimming="CharacterEllipsis" ToolTip="{Binding LibraryRoot}" />
+                                        </DockPanel>
                                         <Grid DockPanel.Dock="Top" Margin="32,0,10,4" Opacity="0.55">
                                             <TextBlock Text="SHOW" />
                                             <TextBlock Text="GB" HorizontalAlignment="Right" />
@@ -263,6 +278,11 @@
                                             <TextBlock Text="{Binding MonitorNotice}" TextWrapping="Wrap" MaxHeight="44"
                                                        Visibility="{Binding MonitorNotice, Converter={StaticResource NotEmpty}}" />
                                         </StackPanel>
+                                        <!-- The latest failure in the deck's show; the full reason is on hover -->
+                                        <TextBlock DockPanel.Dock="Bottom" Margin="32,6,10,0" Opacity="0.9" Text="{Binding LastFailureText}"
+                                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44"
+                                                   ToolTip="{Binding LastFailureDetail}" AutomationProperties.Name="{Binding LastFailureDetail}"
+                                                   Visibility="{Binding LastFailureText, Converter={StaticResource NotEmpty}}" />
 
                                         <ListBox x:Name="ShowList" Style="{StaticResource SR.CrtListBox}" ItemsSource="{Binding Shows}"
                                                  SelectedItem="{Binding SelectedShow}" AutomationProperties.Name="Shows to shrink"
@@ -461,9 +481,18 @@
                             </ContentControl>
                             <ContentControl Grid.Column="4" Style="{StaticResource SR.Bezel}" Padding="6,4,6,6">
                                 <StackPanel HorizontalAlignment="Center">
-                                    <sr:RotaryKnob Width="112" Height="104" Labels="{Binding CqLabels}" SelectedIndex="{Binding CqIndex}"
+                                    <!-- The phosphor tick marks the default CQ, the tested balance. Reset clears the show's override. -->
+                                    <sr:RotaryKnob Width="96" Height="90" Labels="{Binding CqLabels}" SelectedIndex="{Binding CqIndex}"
+                                                   RecommendedIndex="{Binding RecommendedCqIndex}"
                                                    IsEnabled="{Binding IsKnobEnabled}" Caption="Quality CQ" />
                                     <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="Quality · CQ" HorizontalAlignment="Center" />
+                                    <DockPanel Margin="0,3,0,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource SmallKey}" Content="Reset" Margin="6,0,0,0"
+                                                Command="{Binding ResetCqCommand}"
+                                                AutomationProperties.Name="Reset this show to the default quality" />
+                                        <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="{Binding CqSourceText}"
+                                                        VerticalAlignment="Center" />
+                                    </DockPanel>
                                     <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="{Binding EstimateText}" HorizontalAlignment="Center"
                                                     Opacity="0.8" Margin="0,3,0,0" />
                                 </StackPanel>
@@ -508,7 +537,7 @@
                                                 <ColumnDefinition Width="60" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="58" />
-                                                <ColumnDefinition Width="64" />
+                                                <ColumnDefinition Width="80" />
                                             </Grid.ColumnDefinitions>
                                             <sr:TrackedText Grid.Column="1" Text="Ep" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
                                                             Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" />
