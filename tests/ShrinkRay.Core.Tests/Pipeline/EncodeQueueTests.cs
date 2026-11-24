@@ -73,7 +73,10 @@ public class EncodeQueueTests
         public ConcurrentQueue<EpisodeFinished> Finished { get; } = new();
         public ConcurrentQueue<QueueState> States { get; } = new();
         public ConcurrentQueue<(string, EpisodeProgress)> Progress { get; } = new();
-        public bool MayStart { get; set; } = true;
+        public volatile bool MayStart = true;
+
+        /// <summary>False keeps the window shut across polls until the test opens it.</summary>
+        public bool OpenOnDelay { get; init; } = true;
         public int Delays { get; set; }
         public EncodeQueue Queue { get; }
 
@@ -82,7 +85,11 @@ public class EncodeQueueTests
             Queue = new EncodeQueue(Runner, Gate, () => MayStart, (_, ct) =>
             {
                 Delays++;
-                MayStart = true;
+                if (OpenOnDelay)
+                {
+                    MayStart = true;
+                }
+
                 return Task.Delay(1, ct);
             });
             Queue.EpisodeFinished += Finished.Enqueue;
@@ -212,6 +219,38 @@ public class EncodeQueueTests
 
         Assert.Equal(1, rig.Delays);
         Assert.Contains(QueueState.WaitingForWindow, rig.States);
+    }
+
+    [Fact]
+    public async Task A_window_that_closes_mid_episode_lets_it_finish_and_holds_the_next()
+    {
+        var rig = new Rig { OpenOnDelay = false };
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+
+        // The window closes while "a" runs. The queue leaves it alone.
+        rig.MayStart = false;
+        await Task.Delay(50);
+        Assert.Empty(rig.Finished);
+        rig.Runner.Finish("a");
+
+        var until = DateTime.UtcNow + Timeout;
+        while (rig.Queue.State != QueueState.WaitingForWindow && DateTime.UtcNow < until)
+        {
+            await Task.Delay(5);
+        }
+
+        Assert.Equal(QueueState.WaitingForWindow, rig.Queue.State);
+        var first = Assert.Single(rig.Finished);
+        Assert.Equal(EpisodeEnd.Finished, first.End);
+        Assert.Equal(PipelineOutcome.Replaced, first.Result!.Outcome);
+        Assert.Equal(["a"], rig.Runner.Started);
+
+        rig.MayStart = true;
+        await rig.Runner.WaitForStartAsync();
+        rig.Runner.Finish("b");
+        await run.WaitAsync(Timeout);
+        Assert.Equal(["a", "b"], rig.Runner.Started);
     }
 
     [Fact]

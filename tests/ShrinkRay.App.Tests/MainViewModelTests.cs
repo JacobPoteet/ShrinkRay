@@ -622,6 +622,54 @@ public class MainViewModelTests
         Assert.True(vm.RequestClose());
     }
 
+    // ---- Encode window ----
+
+    [Fact]
+    public async Task Encode_outside_the_window_waits_until_it_opens()
+    {
+        var rig = Library();
+        rig.Settings.EncodeWindowEnabled = true;
+        rig.Now = new DateTime(2026, 11, 24, 12, 0, 0);
+        var vm = await rig.StartedWith("Scrubs");
+
+        vm.EncodeCommand.Execute(null);
+        await WaitForAsync(() => vm.RunLamp.Label == "Waiting for window");
+        await Task.Delay(50);
+        Assert.Empty(rig.Runner.Ran);
+
+        rig.Now = new DateTime(2026, 11, 24, 23, 0, 0);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Equal(3, rig.Runner.Ran.Count);
+    }
+
+    [Fact]
+    public async Task A_window_that_closes_mid_episode_finishes_it_and_holds_the_next()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        rig.Settings.EncodeWindowEnabled = true;
+        rig.Now = new DateTime(2026, 11, 24, 6, 50, 0);
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        // 07:00 passes while the first episode encodes. It carries on to its swap.
+        rig.Now = new DateTime(2026, 11, 24, 7, 10, 0);
+        await Task.Delay(50);
+        Assert.Equal(TrackKind.Encoding, vm.Tracks[0].Kind);
+        rig.Runner.Hold[first].SetResult();
+        await WaitForAsync(() => vm.RunLamp.Label == "Waiting for window");
+
+        Assert.Equal(TrackKind.Shrunk, vm.Tracks[0].Kind);
+        Assert.Single(rig.Runner.Ran);
+
+        rig.Now = new DateTime(2026, 11, 24, 23, 0, 0);
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.Equal(3, rig.Runner.Ran.Count);
+    }
+
     // ---- Settings ----
 
     [Fact]
