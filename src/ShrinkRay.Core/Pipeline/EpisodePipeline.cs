@@ -131,16 +131,17 @@ public sealed class EpisodePipeline
         await _encoder.EncodeAsync(plan, progress, ct);
 
         var candidate = encoded;
-        var fontPlan = FontRestorePlanner.Plan(source, encoded, localSource, withFonts, _settings);
+        var output = await _probe.ProbeAsync(encoded, ct);
+        var fontPlan = FontRestorePlanner.Plan(source, output, encoded, localSource, withFonts, _settings);
         if (fontPlan is not null)
         {
             _journal.Record(sourcePath, SwapState.FontsRestored);
             await _fonts.RestoreAsync(fontPlan, ct);
             candidate = withFonts;
+            output = await _probe.ProbeAsync(candidate, ct);
         }
 
         _journal.Record(sourcePath, SwapState.Verified);
-        var output = await _probe.ProbeAsync(candidate, ct);
         var decoded = await _decoder.DecodesCleanlyAsync(candidate, ct);
         var verification = OutputVerifier.Verify(
             new VerificationInput(source, output, _fs.GetFileSize(localSource), _fs.GetFileSize(candidate), decoded),

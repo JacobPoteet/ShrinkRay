@@ -9,10 +9,19 @@ public sealed record FontRestorePlan(string EncodedPath, string SourcePath, stri
 public static class FontRestorePlanner
 {
     /// <summary>
-    /// HandBrake drops MKV attachments, and styled subtitles need their fonts. Returns null when
-    /// nothing needs restoring: an MP4 output, a source with no attachments, or the setting off.
+    /// Styled subtitles need the source's font attachments. HandBrakeCLI 1.11.2 keeps them, so
+    /// the restore runs only when the encode came out with fewer attachments than the source.
+    /// Returns null when nothing needs restoring: MP4 output, a source with no attachments, an
+    /// encode that kept them all, or the setting off.
     /// </summary>
-    public static FontRestorePlan? Plan(MediaInfo source, string encodedPath, string sourcePath, string outputPath, ShrinkRaySettings settings)
+    /// <param name="encoded">The probe of HandBrake's output.</param>
+    public static FontRestorePlan? Plan(
+        MediaInfo source,
+        MediaInfo encoded,
+        string encodedPath,
+        string sourcePath,
+        string outputPath,
+        ShrinkRaySettings settings)
     {
         if (!settings.RestoreFonts || Container.Detect(source) != ContainerKind.Mkv)
         {
@@ -20,18 +29,22 @@ public static class FontRestorePlanner
         }
 
         var attachments = source.AttachmentStreams.Count();
-        if (attachments == 0)
+        if (attachments == 0 || encoded.AttachmentStreams.Count() >= attachments)
         {
             return null;
         }
 
+        // -map 0 keeps the encode's streams, including any attachments it kept, so map only
+        // the source's attachments when the encode has none. Otherwise copy the encode's video,
+        // audio and subtitles and take every attachment from the source.
         string[] args =
         [
             "-hide_banner", "-nostdin", "-v", "error", "-y",
             "-i", encodedPath,
             "-i", sourcePath,
-            "-map", "0",
-            "-map", "1:t",
+            .. encoded.AttachmentStreams.Any()
+                ? new[] { "-map", "0", "-map", "-0:t", "-map", "1:t" }
+                : new[] { "-map", "0", "-map", "1:t" },
             "-c", "copy",
             outputPath,
         ];

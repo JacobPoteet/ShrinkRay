@@ -119,6 +119,35 @@ public class EpisodePipelineTests
     }
 
     [Fact]
+    public async Task Fonts_are_not_restored_when_handbrake_kept_them()
+    {
+        var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font("A.ttf").Font("B.ttf").Build();
+        var encoded = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Font("A.ttf").Font("B.ttf").Build();
+        var rig = new Rig(source, encoded);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+        Assert.Empty(rig.Fonts.Plans);
+        Assert.DoesNotContain(SwapState.FontsRestored, rig.Store.StatesFor(Episode));
+    }
+
+    [Fact]
+    public async Task Fonts_a_restore_failed_to_copy_fail_verification()
+    {
+        var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font().Build();
+        var encoded = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Build();
+        var rig = new Rig(source, encoded);
+        rig.Fonts.Broken = true;
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Contains("Attachments: expected 1, output has 0", result.Message);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+    }
+
+    [Fact]
     public async Task Low_savings_keeps_the_original()
     {
         var rig = new Rig(Source(), Output(), encodedBytes: 38);
@@ -280,11 +309,20 @@ public class EpisodePipelineTests
     {
         public List<FontRestorePlan> Plans { get; } = [];
 
+        /// <summary>Writes the remux without copying any fonts in.</summary>
+        public bool Broken { get; set; }
+
         public Task RestoreAsync(FontRestorePlan plan, CancellationToken cancellationToken)
         {
             Plans.Add(plan);
             fs.Write(plan.OutputPath, fs.Read(plan.EncodedPath));
             var encoded = probe.Results[plan.EncodedPath];
+            if (Broken)
+            {
+                probe.Results[plan.OutputPath] = encoded;
+                return Task.CompletedTask;
+            }
+
             var fonts = probe.Results.Values.First(i => i.AttachmentStreams.Any()).AttachmentStreams;
             probe.Results[plan.OutputPath] = encoded with { Streams = [.. encoded.Streams, .. fonts] };
             return Task.CompletedTask;

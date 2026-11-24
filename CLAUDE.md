@@ -11,8 +11,9 @@ Plex keeps its metadata and watch history. The user picks one show at a time: a 
 with season subfolders. Movies may follow later.
 
 Planned stack: WPF on .NET 8 (`net8.0-windows`) with a fully custom theme. WPF-UI is dropped.
-External tools: HandBrakeCLI encodes, ffprobe scans and checks, ffmpeg copies MKV font
-attachments back in after an encode and runs the full-decode check.
+External tools: HandBrakeCLI encodes, ffprobe scans and checks, ffmpeg runs the full-decode
+check and copies MKV font attachments back in when an encode comes out with fewer than the
+source. HandBrakeCLI 1.11.2 keeps them, so that remux usually does not run.
 
 The engine, `ShrinkRay.Core`, exists. The WPF app does not yet.
 

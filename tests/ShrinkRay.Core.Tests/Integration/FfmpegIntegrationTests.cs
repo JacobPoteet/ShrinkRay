@@ -66,10 +66,11 @@ public sealed class FfmpegIntegrationTests : IDisposable
         // Stand-in for HandBrake's output: the same streams without the attachment.
         var encoded = Path.Combine(_folder, "encoded.mkv");
         await Ffmpeg("-i", source, "-map", "0:v", "-map", "0:a", "-c", "copy", encoded);
-        Assert.Empty((await probe.ProbeAsync(encoded, CancellationToken.None)).AttachmentStreams);
+        var encodedInfo = await probe.ProbeAsync(encoded, CancellationToken.None);
+        Assert.Empty(encodedInfo.AttachmentStreams);
 
         var final = Path.Combine(_folder, "final.mkv");
-        var plan = FontRestorePlanner.Plan(info, encoded, source, final, new ShrinkRaySettings())!;
+        var plan = FontRestorePlanner.Plan(info, encodedInfo, encoded, source, final, new ShrinkRaySettings())!;
         await new FfmpegFontRestorer(_runner, "ffmpeg.exe").RestoreAsync(plan, CancellationToken.None);
 
         var restored = await probe.ProbeAsync(final, CancellationToken.None);
@@ -78,6 +79,38 @@ public sealed class FfmpegIntegrationTests : IDisposable
         Assert.Single(restored.AudioStreams);
 
         Assert.True(await new FfmpegDecodeChecker(_runner, "ffmpeg.exe").DecodesCleanlyAsync(final, CancellationToken.None));
+    }
+
+    [IntegrationFact]
+    public async Task Partial_font_loss_is_replaced_by_the_source_attachments()
+    {
+        var fontA = Path.Combine(_folder, "A.ttf");
+        var fontB = Path.Combine(_folder, "B.ttf");
+        File.WriteAllBytes(fontA, new byte[64]);
+        File.WriteAllBytes(fontB, new byte[64]);
+        var source = Path.Combine(_folder, "source.mkv");
+        await Ffmpeg(
+            "-f", "lavfi", "-i", "testsrc=duration=1:size=160x120:rate=24",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-attach", fontA, "-attach", fontB,
+            "-metadata:s:t", "mimetype=application/x-truetype-font",
+            source);
+
+        // Stand-in for an encode that kept only the first font.
+        var encoded = Path.Combine(_folder, "encoded.mkv");
+        await Ffmpeg("-i", source, "-map", "0:v", "-map", "0:t:0", "-c", "copy", encoded);
+
+        var probe = new FfprobeMediaProbe(_runner, "ffprobe.exe");
+        var sourceInfo = await probe.ProbeAsync(source, CancellationToken.None);
+        var encodedInfo = await probe.ProbeAsync(encoded, CancellationToken.None);
+        Assert.Equal(2, sourceInfo.AttachmentStreams.Count());
+        Assert.Single(encodedInfo.AttachmentStreams);
+
+        var final = Path.Combine(_folder, "final.mkv");
+        var plan = FontRestorePlanner.Plan(sourceInfo, encodedInfo, encoded, source, final, new ShrinkRaySettings())!;
+        await new FfmpegFontRestorer(_runner, "ffmpeg.exe").RestoreAsync(plan, CancellationToken.None);
+
+        Assert.Equal(2, (await probe.ProbeAsync(final, CancellationToken.None)).AttachmentStreams.Count());
     }
 
     [IntegrationFact]

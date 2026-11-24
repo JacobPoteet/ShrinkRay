@@ -81,7 +81,8 @@ public class ToolTests
     public async Task Font_restorer_runs_the_plan()
     {
         var runner = new FakeProcessRunner();
-        var plan = FontRestorePlanner.Plan(Fixtures.Probe("mkv_h264_fonts"), "e.mkv", "s.mkv", "o.mkv", new ShrinkRaySettings())!;
+        var encoded = MediaBuilder.Mkv().Video("hevc").Build();
+        var plan = FontRestorePlanner.Plan(Fixtures.Probe("mkv_h264_fonts"), encoded, "e.mkv", "s.mkv", "o.mkv", new ShrinkRaySettings())!;
 
         await new FfmpegFontRestorer(runner, "ffmpeg.exe").RestoreAsync(plan, CancellationToken.None);
 
