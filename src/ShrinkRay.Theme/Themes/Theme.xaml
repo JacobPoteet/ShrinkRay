@@ -4,6 +4,7 @@
     <!-- Loaded by ShrinkRayTheme. Apps merge that class, not this file. -->
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Tokens.xaml" />
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Panels.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
 </ResourceDictionary>
