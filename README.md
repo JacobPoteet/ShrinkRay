@@ -6,7 +6,7 @@ Status: planning. Nothing to run yet.
 
 ## Planned
 
-- Point it at a library folder, local or on a network share, and pick shows or seasons from a tree.
+- Point it at a library folder, local or on a network share, and pick one show at a time.
 - It probes every file first, skips anything already in HEVC, and estimates the space you'll save.
 - HandBrakeCLI encodes with NVENC in a local scratch folder. ShrinkRay checks the result and only then replaces the original.
 
