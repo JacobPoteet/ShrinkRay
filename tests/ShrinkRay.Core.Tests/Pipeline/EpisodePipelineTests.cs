@@ -1,0 +1,275 @@
+using ShrinkRay.Core.Encode;
+using ShrinkRay.Core.Media;
+using ShrinkRay.Core.Pipeline;
+using ShrinkRay.Core.Processes;
+using ShrinkRay.Core.Settings;
+using ShrinkRay.Core.Swap;
+using ShrinkRay.Core.Tests.Support;
+using ShrinkRay.Core.Verification;
+
+namespace ShrinkRay.Core.Tests.Pipeline;
+
+public class EpisodePipelineTests
+{
+    private const string Scratch = @"C:\Scratch";
+    private const string Episode = @"X:\TV\Example Show\Season 01\Example Show S01E01.mkv";
+    private const string OriginalBytes = "0123456789012345678901234567890123456789"; // 40 bytes
+
+    private sealed class Rig
+    {
+        public InMemoryFileSystem Fs { get; } = new();
+        public InMemoryJournalStore Store { get; } = new();
+        public FakeProbe Probe { get; } = new();
+        public FakeEncoder Encoder { get; }
+        public FakeFontRestorer Fonts { get; }
+        public FakeDecoder Decoder { get; } = new();
+        public ShrinkRaySettings Settings { get; } = new() { ScratchFolder = Scratch };
+        public SwapJournal Journal { get; }
+        public EpisodePipeline Pipeline { get; }
+
+        public Rig(MediaInfo source, MediaInfo encodedOutput, int encodedBytes = 20)
+        {
+            Fs.Write(Episode, OriginalBytes);
+            Probe.Results[Episode] = source with { FileName = Episode };
+            Encoder = new FakeEncoder(Fs, Probe, encodedOutput, encodedBytes);
+            Fonts = new FakeFontRestorer(Fs, Probe);
+            Journal = new SwapJournal(Store);
+            var recovery = new SwapRecovery(Fs, Journal, new FakeFinalCheck());
+            Pipeline = new EpisodePipeline(Fs, Probe, Encoder, Fonts, Decoder, Journal,
+                new SwapExecutor(Fs, Journal, recovery), Settings);
+        }
+
+        public string Work => EpisodePipeline.WorkFolder(Scratch, Episode);
+
+        public Task<PipelineResult> RunAsync(CancellationToken ct = default) => Pipeline.RunAsync(Episode, null, ct);
+    }
+
+    private static MediaInfo Source() => MediaBuilder.Mkv().Duration(1400).Video().Audio("flac").Subtitle("ass").Build();
+
+    private static MediaInfo Output() => MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Subtitle("ass").Build();
+
+    [Fact]
+    public async Task Good_encode_replaces_the_original_and_cleans_scratch()
+    {
+        var rig = new Rig(Source(), Output());
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+        Assert.Equal(20, rig.Fs.GetFileSize(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(
+            [
+                SwapState.Queued, SwapState.CopiedToScratch, SwapState.Encoded, SwapState.Verified,
+                SwapState.UploadedTemp, SwapState.OriginalRenamedAside, SwapState.Swapped, SwapState.OriginalDeleted,
+            ],
+            rig.Store.StatesFor(Episode));
+    }
+
+    [Fact]
+    public async Task Encoder_reads_the_scratch_copy_not_the_share()
+    {
+        var rig = new Rig(Source(), Output());
+
+        await rig.RunAsync();
+
+        var plan = Assert.Single(rig.Encoder.Plans);
+        Assert.StartsWith(rig.Work, plan.InputPath);
+        Assert.StartsWith(rig.Work, plan.OutputPath);
+        Assert.EndsWith(".mkv", plan.OutputPath);
+    }
+
+    [Fact]
+    public async Task Fonts_are_restored_before_verification()
+    {
+        var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font().Build();
+        var encoded = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Build();
+        var rig = new Rig(source, encoded);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+        Assert.Single(rig.Fonts.Plans);
+        Assert.Contains(SwapState.FontsRestored, rig.Store.StatesFor(Episode));
+    }
+
+    [Fact]
+    public async Task Low_savings_keeps_the_original()
+    {
+        var rig = new Rig(Source(), Output(), encodedBytes: 38);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.KeptOriginal, result.Outcome);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.Equal(SwapState.KeptOriginal, rig.Journal.CurrentState(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Failed_decode_keeps_the_original_and_the_scratch_files()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Decoder.Clean = false;
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Contains("Full decode reported errors", result.Message);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
+        Assert.Contains(rig.Fs.Files, f => f.StartsWith(rig.Work, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Replace_off_leaves_the_original_and_the_encode()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Settings.ReplaceOriginals = false;
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.KeptOriginal, result.Outcome);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.DoesNotContain(rig.Store.StatesFor(Episode), s => s == SwapState.UploadedTemp);
+        Assert.True(rig.Fs.FileExists(Path.Combine(rig.Work, "encoded.mkv")));
+    }
+
+    [Fact]
+    public async Task Ineligible_file_is_skipped_without_a_copy()
+    {
+        var rig = new Rig(Fixtures.Probe("mkv_hevc"), Output());
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Skipped, result.Outcome);
+        Assert.Equal("Already hevc", result.Message);
+        Assert.Empty(rig.Encoder.Plans);
+        Assert.Single(rig.Fs.Files);
+    }
+
+    [Fact]
+    public async Task Encoder_error_fails_the_file_and_keeps_the_original()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Encoder.Error = new ExternalToolException("HandBrakeCLI exited with code 2");
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Contains("code 2", result.Message);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
+    }
+
+    [Fact]
+    public async Task Cancellation_marks_the_file_failed_and_rethrows()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Encoder.Error = new OperationCanceledException();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rig.RunAsync());
+
+        Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+    }
+
+    [Fact]
+    public async Task A_failed_file_can_run_again()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Decoder.Clean = false;
+        await rig.RunAsync();
+        rig.Decoder.Clean = true;
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Missing_scratch_folder_is_refused()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Settings.ScratchFolder = "";
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.RunAsync());
+    }
+
+    [Fact]
+    public async Task File_left_mid_swap_is_refused_until_recovery()
+    {
+        var rig = new Rig(Source(), Output());
+        foreach (var s in new[] { SwapState.Queued, SwapState.CopiedToScratch, SwapState.Encoded, SwapState.Verified, SwapState.UploadedTemp })
+        {
+            rig.Journal.Record(Episode, s);
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.RunAsync());
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+    }
+
+    [Fact]
+    public void Work_folders_differ_per_episode_and_stay_short()
+    {
+        var a = EpisodePipeline.WorkFolder(Scratch, Episode);
+        var b = EpisodePipeline.WorkFolder(Scratch, Episode.Replace("S01E01", "S01E02"));
+        var c = EpisodePipeline.WorkFolder(Scratch, Episode.ToUpperInvariant());
+        var longName = EpisodePipeline.WorkFolder(Scratch, @"X:\TV\" + new string('a', 200) + ".mkv");
+
+        Assert.NotEqual(a, b);
+        Assert.Equal(a.ToUpperInvariant(), c.ToUpperInvariant());
+        Assert.StartsWith(Scratch + @"\Example Show S01E01-", a);
+        Assert.True(Path.GetFileName(longName).Length <= 53);
+    }
+
+    public sealed class FakeProbe : IMediaProbe
+    {
+        public Dictionary<string, MediaInfo> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Task<MediaInfo> ProbeAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromResult(Results[path] with { FileName = path });
+    }
+
+    public sealed class FakeEncoder(InMemoryFileSystem fs, FakeProbe probe, MediaInfo output, int bytes) : IVideoEncoder
+    {
+        public List<EncodePlan> Plans { get; } = [];
+        public Exception? Error { get; set; }
+
+        public Task EncodeAsync(EncodePlan plan, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken)
+        {
+            Plans.Add(plan);
+            if (Error is not null)
+            {
+                throw Error;
+            }
+
+            Assert.True(fs.FileExists(plan.InputPath));
+            fs.Write(plan.OutputPath, new string('h', bytes));
+            probe.Results[plan.OutputPath] = output;
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class FakeFontRestorer(InMemoryFileSystem fs, FakeProbe probe) : IFontRestorer
+    {
+        public List<FontRestorePlan> Plans { get; } = [];
+
+        public Task RestoreAsync(FontRestorePlan plan, CancellationToken cancellationToken)
+        {
+            Plans.Add(plan);
+            fs.Write(plan.OutputPath, fs.Read(plan.EncodedPath));
+            var encoded = probe.Results[plan.EncodedPath];
+            var fonts = probe.Results.Values.First(i => i.AttachmentStreams.Any()).AttachmentStreams;
+            probe.Results[plan.OutputPath] = encoded with { Streams = [.. encoded.Streams, .. fonts] };
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class FakeDecoder : IDecodeChecker
+    {
+        public bool Clean { get; set; } = true;
+
+        public Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken) => Task.FromResult(Clean);
+    }
+}
