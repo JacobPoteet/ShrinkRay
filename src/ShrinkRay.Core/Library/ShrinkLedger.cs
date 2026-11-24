@@ -1,14 +1,17 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ShrinkRay.Core.Library;
 
 /// <summary>One episode ShrinkRay replaced: its size before and after.</summary>
 public sealed record LedgerEntry(string Path, long OriginalBytes, long NewBytes, int Cq, DateTimeOffset At)
 {
+    [JsonIgnore]
     public long SavedBytes => Math.Max(0, OriginalBytes - NewBytes);
 
     /// <summary>The fraction saved, 0 to 1.</summary>
+    [JsonIgnore]
     public double Savings => OriginalBytes > 0 ? 1.0 - (double)NewBytes / OriginalBytes : 0;
 }
 
@@ -19,6 +22,7 @@ public sealed record LedgerEntry(string Path, long OriginalBytes, long NewBytes,
 public sealed class ShrinkLedger
 {
     private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private static readonly UTF8Encoding NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly string? _path;
     private readonly Dictionary<string, LedgerEntry> _latest = new(StringComparer.OrdinalIgnoreCase);
@@ -84,7 +88,7 @@ public sealed class ShrinkLedger
                 Directory.CreateDirectory(directory);
             }
 
-            File.AppendAllText(_path, JsonSerializer.Serialize(entry, Options) + "\n", Encoding.UTF8);
+            File.AppendAllText(_path, JsonSerializer.Serialize(entry, Options) + "\n", NoBom);
         }
     }
 }

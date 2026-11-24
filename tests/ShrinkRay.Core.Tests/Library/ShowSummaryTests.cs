@@ -113,6 +113,8 @@ public class ShowSummaryTests
 
             Assert.Equal(650, reloaded?.SavedBytes);
             Assert.Equal(0.65, reloaded!.Savings, 3);
+            Assert.NotEqual(0xEF, File.ReadAllBytes(file)[0]);
+            Assert.DoesNotContain("savedBytes", File.ReadLines(file).First());
         }
         finally
         {
