@@ -23,7 +23,7 @@
                                         <ColumnDefinition Width="*" MinWidth="12" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{TemplateBinding Title}" Style="{DynamicResource SR.Text.Marker}"
+                                    <TextBlock Text="{TemplateBinding Title}" Style="{DynamicResource SR.Text.Label}"
                                                VerticalAlignment="Center" />
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                         <sr:TrackedText Text="{TemplateBinding Side}" HorizontalAlignment="Right"
@@ -31,7 +31,7 @@
                                                         FontSize="10" Tracking="0.18"
                                                         Foreground="{DynamicResource SR.PrintInkSoft}" />
                                         <TextBlock x:Name="EpisodeLine" Text="{TemplateBinding Episode}" HorizontalAlignment="Right"
-                                                   Style="{DynamicResource SR.Text.Marker}" FontSize="14" Margin="0,1,0,0" />
+                                                   Style="{DynamicResource SR.Text.Label}" FontSize="14" Margin="0,1,0,0" />
                                     </StackPanel>
                                 </Grid>
                             </DockPanel>
