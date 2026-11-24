@@ -8,6 +8,7 @@
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Keys.xaml" />
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Readouts.xaml" />
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Instruments.xaml" />
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Labels.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
