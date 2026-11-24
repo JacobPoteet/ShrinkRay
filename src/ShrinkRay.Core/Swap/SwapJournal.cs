@@ -34,7 +34,7 @@ public sealed class JsonLinesJournalStore : IJournalStore
     }
 
     public static string DefaultPath =>
-        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ShrinkRay", "journal.jsonl");
+        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ShrinkRay", "journal.jsonl");
 
     public void Append(JournalEntry entry)
     {

@@ -42,6 +42,13 @@ public sealed class ExternalToolException : Exception
 public sealed class ProcessRunner : IProcessRunner
 {
     private const int StandardErrorTailLines = 40;
+    private readonly ProcessGate? _gate;
+
+    /// <param name="gate">Lets the Pause key suspend the tools this runner starts. Optional.</param>
+    public ProcessRunner(ProcessGate? gate = null)
+    {
+        _gate = gate;
+    }
 
     public async Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken cancellationToken)
     {
@@ -71,6 +78,19 @@ public sealed class ProcessRunner : IProcessRunner
             throw new ExternalToolException($"Could not start {spec.FileName}: {ex.Message}", ex);
         }
 
+        _gate?.Started(process);
+        try
+        {
+            return await ReadToEndAsync(process, spec, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate?.Exited(process);
+        }
+    }
+
+    private static async Task<ProcessResult> ReadToEndAsync(Process process, ProcessSpec spec, CancellationToken cancellationToken)
+    {
         var stdout = new StringBuilder();
         var stderrTail = new Queue<string>();
         var stdoutTask = LineReader.ReadLinesAsync(process.StandardOutput, line =>

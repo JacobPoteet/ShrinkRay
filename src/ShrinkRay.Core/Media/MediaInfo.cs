@@ -20,6 +20,9 @@ public sealed record MediaStream
     public int? Width { get; init; }
     public int? Height { get; init; }
     public string? PixelFormat { get; init; }
+
+    /// <summary>Average frames per second, from <c>avg_frame_rate</c> or else <c>r_frame_rate</c>.</summary>
+    public double? FrameRate { get; init; }
     public int? Channels { get; init; }
     public string? Language { get; init; }
 
