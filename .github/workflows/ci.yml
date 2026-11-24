@@ -6,6 +6,7 @@ on:
 
 jobs:
   build:
+    # WPF projects (ShrinkRay.Theme, ShrinkRay.Gallery and their tests) need Windows.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,6 +14,16 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+
+      - name: Check font licenses
+        shell: pwsh
+        run: |
+          # Each embedded font ships with its license beside it, named after its family.
+          $fonts = Get-ChildItem src/ShrinkRay.Theme/Fonts -Filter *.ttf
+          $licenses = Get-ChildItem src/ShrinkRay.Theme/Fonts -Filter *.txt | ForEach-Object { $_.BaseName.Split('-')[0] }
+          $missing = $fonts | Where-Object { $name = $_.BaseName; -not ($licenses | Where-Object { $name.StartsWith($_) }) }
+          if ($missing) { throw "Fonts without a license file: $($missing.Name -join ', ')" }
+          "Checked $($fonts.Count) fonts against $($licenses.Count) license files."
 
       - name: Build
         run: dotnet build ShrinkRay.sln -c Release
