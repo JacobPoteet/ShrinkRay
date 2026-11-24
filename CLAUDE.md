@@ -22,7 +22,8 @@ that loads a show and runs its episodes through the engine.
 ## Build and test
 
 Run dotnet from PowerShell. Core targets `net8.0`; the theme, gallery, app and their tests
-target `net8.0-windows`. Any SDK from 8 up builds them.
+target `net8.0-windows`. `global.json` pins the .NET 9 SDK, any feature band from 9.0.100,
+and the tests run on the .NET 8 runtime, so install both.
 
 ```powershell
 dotnet build ShrinkRay.sln -c Release
@@ -71,7 +72,8 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
 It publishes Release into `%LOCALAPPDATA%\Programs\ShrinkRay`, adds a Start menu shortcut and
 records the commit in `install.txt` and the exe's version. It refuses while ShrinkRay is running,
 since an encode may be mid-swap, and never touches `%LOCALAPPDATA%\ShrinkRay`, where settings and
-the journal live. `gitview.toml` lists the build, test, run and install tasks GitView shows.
+the journal live. `gitview.toml` adds the Release build and test tasks and the install tasks to GitView,
+which guesses a run task for the app and the gallery on its own.
 
 ## Architecture
 

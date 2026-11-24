@@ -450,6 +450,7 @@ public sealed partial class MainViewModel
     {
         _current = Find(path);
         _progress = 0;
+        _transfer = null;
         _fps = null;
         _phase = EpisodePhase.Probing;
         BitrateMbps = 0;
@@ -476,11 +477,23 @@ public sealed partial class MainViewModel
             return;
         }
 
+        if (progress.Phase != _phase)
+        {
+            // The copy and the upload count up from zero; other phases show the encode.
+            _transfer = progress.Phase is EpisodePhase.Copying or EpisodePhase.Uploading ? 0 : null;
+        }
+
         _phase = progress.Phase;
         if (progress.Encode is { } encode)
         {
             _progress = Math.Clamp(encode.Percent / 100, 0, 1);
             _fps = encode.Fps ?? encode.AverageFps;
+        }
+        else if (_phase == EpisodePhase.Copying)
+        {
+            // Nothing is encoded yet; the reels and tape time wait at the start.
+            _progress = 0;
+            _fps = null;
         }
         else if (_phase > EpisodePhase.Encoding)
         {
@@ -489,7 +502,13 @@ public sealed partial class MainViewModel
             _fps = null;
         }
 
-        _current.SetEncoding(_progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
+        if (progress.Fraction is { } moved)
+        {
+            // The copy to scratch and the upload count bytes moved on the percent readout only.
+            _transfer = Math.Clamp(moved, 0, 1);
+        }
+
+        _current.SetEncoding(_transfer ?? _progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
         RefreshReadouts();
         RefreshTransport();
 
@@ -520,6 +539,7 @@ public sealed partial class MainViewModel
         {
             _current = null;
             _progress = 0;
+            _transfer = null;
             _fps = null;
         }
 
@@ -553,6 +573,7 @@ public sealed partial class MainViewModel
         _queue = null;
         _current = null;
         _progress = 0;
+        _transfer = null;
         _fps = null;
         BitrateMeterRest();
         RefreshAll();

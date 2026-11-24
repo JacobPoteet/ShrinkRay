@@ -186,7 +186,7 @@ public sealed class EpisodePipeline : IEpisodeRunner
 
         _journal.Record(sourcePath, SwapState.CopiedToScratch);
         progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
-        await _fs.CopyFileAsync(sourcePath, localSource, ct);
+        await _fs.CopyFileAsync(sourcePath, localSource, Transfer(progress, EpisodePhase.Copying, sourcePath), ct);
 
         // The caption check decodes the first frames, so it reads the local copy rather than the share.
         source = await _probe.DetectClosedCaptionsAsync(localSource, source, ct);
@@ -257,7 +257,8 @@ public sealed class EpisodePipeline : IEpisodeRunner
                 progress.Report(new EpisodeProgress(EpisodePhase.Swapping));
             }
         });
-        var swap = await _swap.SwapAsync(sourcePath, candidate, verification, _settings, steps, ct);
+        var uploaded = Transfer(progress, EpisodePhase.Uploading, candidate);
+        var swap = await _swap.SwapAsync(sourcePath, candidate, verification, _settings, steps, uploaded, ct);
         if (swap.Outcome != SwapOutcome.Swapped)
         {
             // Only once the swap has rolled back to Failed. A rollback that failed leaves the file mid-swap.
@@ -267,6 +268,18 @@ public sealed class EpisodePipeline : IEpisodeRunner
 
         TryDeleteWork(work);
         return new PipelineResult(PipelineOutcome.Replaced, swap.Message ?? "Replaced", verification);
+    }
+
+    /// <summary>Turns a copy's byte count into <paramref name="phase"/> reports against the size of <paramref name="file"/>.</summary>
+    private IProgress<long>? Transfer(IProgress<EpisodeProgress>? progress, EpisodePhase phase, string file)
+    {
+        if (progress is null)
+        {
+            return null;
+        }
+
+        var total = _fs.GetFileSize(file);
+        return new InlineProgress<long>(bytes => progress.Report(EpisodeProgress.Transfer(phase, bytes, total)));
     }
 
     /// <summary>Ends a file the share has not seen yet. A share step is left to the swap's own rollback.</summary>

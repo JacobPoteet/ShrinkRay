@@ -30,18 +30,29 @@ public sealed class SwapExecutor
         _recovery = recovery;
     }
 
-    /// <inheritdoc cref="SwapAsync(string, string, VerificationResult, ShrinkRaySettings, IProgress{SwapState}?, CancellationToken)"/>
+    /// <inheritdoc cref="SwapAsync(string, string, VerificationResult, ShrinkRaySettings, IProgress{SwapState}?, IProgress{long}?, CancellationToken)"/>
     public Task<SwapResult> SwapAsync(
         string originalPath,
         string verifiedFilePath,
         VerificationResult verification,
         ShrinkRaySettings settings,
         CancellationToken cancellationToken) =>
-        SwapAsync(originalPath, verifiedFilePath, verification, settings, null, cancellationToken);
+        SwapAsync(originalPath, verifiedFilePath, verification, settings, null, null, cancellationToken);
+
+    /// <inheritdoc cref="SwapAsync(string, string, VerificationResult, ShrinkRaySettings, IProgress{SwapState}?, IProgress{long}?, CancellationToken)"/>
+    public Task<SwapResult> SwapAsync(
+        string originalPath,
+        string verifiedFilePath,
+        VerificationResult verification,
+        ShrinkRaySettings settings,
+        IProgress<SwapState>? steps,
+        CancellationToken cancellationToken) =>
+        SwapAsync(originalPath, verifiedFilePath, verification, settings, steps, null, cancellationToken);
 
     /// <param name="originalPath">The original file on the share. Its journal state must be Verified.</param>
     /// <param name="verifiedFilePath">The verified encode in the scratch folder.</param>
     /// <param name="steps">Told each share step once the journal holds it, just before the step runs.</param>
+    /// <param name="uploaded">Told the bytes of the temp file written so far during the upload.</param>
     /// <param name="cancellationToken">Honoured during the upload only. Once the original is renamed the swap runs to the end.</param>
     /// <exception cref="InvalidOperationException">Verification did not pass, or replacing originals is turned off.</exception>
     /// <exception cref="OperationCanceledException">Cancelled during the upload. The temp file is removed first.</exception>
@@ -51,6 +62,7 @@ public sealed class SwapExecutor
         VerificationResult verification,
         ShrinkRaySettings settings,
         IProgress<SwapState>? steps,
+        IProgress<long>? uploaded,
         CancellationToken cancellationToken)
     {
         if (!verification.Passed)
@@ -92,7 +104,7 @@ public sealed class SwapExecutor
                 _fs.DeleteFile(temp);
             }
 
-            await _fs.CopyFileAsync(verifiedFilePath, temp, cancellationToken);
+            await _fs.CopyFileAsync(verifiedFilePath, temp, uploaded, cancellationToken);
             var expected = _fs.GetFileSize(verifiedFilePath);
             var actual = _fs.GetFileSize(temp);
             if (actual != expected)

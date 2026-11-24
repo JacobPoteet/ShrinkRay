@@ -119,6 +119,34 @@ public class EpisodePipelineTests
     }
 
     [Fact]
+    public async Task Copy_and_upload_report_how_much_has_moved()
+    {
+        var rig = new Rig(Source(), Output());
+
+        await rig.RunAsync();
+
+        var transfers = rig.Reports.Where(r => r.Fraction is not null).ToList();
+        Assert.All(transfers, r => Assert.Contains(r.Phase, new[] { EpisodePhase.Copying, EpisodePhase.Uploading }));
+        Assert.All(transfers, r => Assert.InRange(r.Fraction!.Value, 0, 1));
+        Assert.Equal(1, transfers.Last(r => r.Phase == EpisodePhase.Copying).Fraction);
+        Assert.Equal(1, transfers.Last(r => r.Phase == EpisodePhase.Uploading).Fraction);
+
+        // Each phase starts with a bare report, so the deck can reset before the bytes come in.
+        var copyStart = rig.Reports.FindIndex(r => r.Phase == EpisodePhase.Copying);
+        Assert.Null(rig.Reports[copyStart].Fraction);
+        var uploadStart = rig.Reports.FindIndex(r => r.Phase == EpisodePhase.Uploading);
+        Assert.Null(rig.Reports[uploadStart].Fraction);
+    }
+
+    [Fact]
+    public void A_transfer_report_is_a_fraction_of_the_file()
+    {
+        Assert.Equal(0.25, EpisodeProgress.Transfer(EpisodePhase.Copying, 10, 40).Fraction);
+        Assert.Equal(1, EpisodeProgress.Transfer(EpisodePhase.Uploading, 50, 40).Fraction);
+        Assert.Equal(1, EpisodeProgress.Transfer(EpisodePhase.Uploading, 0, 0).Fraction);
+    }
+
+    [Fact]
     public async Task Font_restore_is_reported_between_encode_and_verify()
     {
         var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font().Build();

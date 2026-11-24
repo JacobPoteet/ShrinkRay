@@ -493,6 +493,80 @@ public class MainViewModelTests
         Assert.Equal("Ready", vm.RunLamp.Label);
     }
 
+    [Fact]
+    public async Task The_copy_counts_on_the_percent_while_the_reels_wait_at_the_start()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        rig.Runner.Report(EpisodePhase.Copying);
+        Assert.Equal(" 0.0", vm.PercentDigits);
+        rig.Runner.Report(EpisodePhase.Copying, 0.4);
+
+        Assert.Equal("40.0", vm.PercentDigits);
+        Assert.Equal(0.4, vm.Tracks[0].Progress, 3);
+        Assert.Equal("COPY", vm.Tracks[0].StatusText);
+        Assert.Contains("40 percent", vm.DeckAutomationName);
+        Assert.Equal(0, vm.OutputPack);
+        Assert.Equal(1, vm.SourcePack);
+        Assert.Equal(" 0:00", vm.TapeTimeDigits);
+        Assert.EndsWith("· 0.00 GB", vm.OutputText);
+
+        // The encode shows its own percent once the copy is done.
+        rig.Runner.Report(EpisodePhase.Copying, 1);
+        rig.Runner.Report(42);
+        Assert.Equal("42.0", vm.PercentDigits);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task The_upload_counts_on_the_percent_while_the_reels_stay_wound_to_the_end()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        rig.Runner.Report(EpisodePhase.Verifying);
+        var wound = vm.OutputPack;
+        var output = vm.OutputText;
+        var encoded = Path.Combine(EpisodePipeline.WorkFolder(@"C:\Scratch", first), "encoded.mkv");
+        rig.Sizes[encoded] = 165_000_000;
+        vm.Tick();
+        Assert.Equal(1.0, vm.BitrateMbps, 2);
+
+        rig.Runner.Report(EpisodePhase.Uploading);
+        Assert.Equal(" 0.0", vm.PercentDigits);
+        rig.Runner.Report(EpisodePhase.Uploading, 0.4);
+
+        Assert.Equal("40.0", vm.PercentDigits);
+        Assert.Equal(0.4, vm.Tracks[0].Progress, 3);
+        Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
+        Assert.True(wound > 0);
+        Assert.Equal(wound, vm.OutputPack);
+        Assert.Equal(0, vm.SourcePack);
+        Assert.Equal("22:00", vm.TapeTimeDigits);
+        Assert.Equal(output, vm.OutputText);
+
+        // The needle keeps the encode's bitrate.
+        vm.Tick();
+        Assert.Equal(1.0, vm.BitrateMbps, 2);
+
+        rig.Runner.Report(EpisodePhase.Swapping);
+        Assert.Equal("99.9", vm.PercentDigits);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+    }
+
     // ---- Closing ----
 
     [Fact]
@@ -620,6 +694,54 @@ public class MainViewModelTests
         Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
         Assert.Single(rig.Runner.Ran);
         Assert.True(vm.RequestClose());
+    }
+
+    // ---- Encode window ----
+
+    [Fact]
+    public async Task Encode_outside_the_window_waits_until_it_opens()
+    {
+        var rig = Library();
+        rig.Settings.EncodeWindowEnabled = true;
+        rig.Now = new DateTime(2026, 11, 24, 12, 0, 0);
+        var vm = await rig.StartedWith("Scrubs");
+
+        vm.EncodeCommand.Execute(null);
+        await WaitForAsync(() => vm.RunLamp.Label == "Waiting for window");
+        await Task.Delay(50);
+        Assert.Empty(rig.Runner.Ran);
+
+        rig.Now = new DateTime(2026, 11, 24, 23, 0, 0);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Equal(3, rig.Runner.Ran.Count);
+    }
+
+    [Fact]
+    public async Task A_window_that_closes_mid_episode_finishes_it_and_holds_the_next()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        rig.Settings.EncodeWindowEnabled = true;
+        rig.Now = new DateTime(2026, 11, 24, 6, 50, 0);
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        // 07:00 passes while the first episode encodes. It carries on to its swap.
+        rig.Now = new DateTime(2026, 11, 24, 7, 10, 0);
+        await Task.Delay(50);
+        Assert.Equal(TrackKind.Encoding, vm.Tracks[0].Kind);
+        rig.Runner.Hold[first].SetResult();
+        await WaitForAsync(() => vm.RunLamp.Label == "Waiting for window");
+
+        Assert.Equal(TrackKind.Shrunk, vm.Tracks[0].Kind);
+        Assert.Single(rig.Runner.Ran);
+
+        rig.Now = new DateTime(2026, 11, 24, 23, 0, 0);
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.Equal(3, rig.Runner.Ran.Count);
     }
 
     // ---- Settings ----

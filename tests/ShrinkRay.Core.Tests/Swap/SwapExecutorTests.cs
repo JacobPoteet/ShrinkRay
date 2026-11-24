@@ -219,8 +219,8 @@ public class SwapExecutorTests
         public virtual long GetFileSize(string path) => inner.GetFileSize(path);
         public virtual void MoveFile(string source, string destination) => inner.MoveFile(source, destination);
         public virtual void DeleteFile(string path) => inner.DeleteFile(path);
-        public virtual Task CopyFileAsync(string source, string destination, CancellationToken cancellationToken) =>
-            inner.CopyFileAsync(source, destination, cancellationToken);
+        public virtual Task CopyFileAsync(string source, string destination, IProgress<long>? progress, CancellationToken cancellationToken) =>
+            inner.CopyFileAsync(source, destination, progress, cancellationToken);
         public IEnumerable<string> EnumerateFiles(string directory, string searchPattern, bool recursive) =>
             inner.EnumerateFiles(directory, searchPattern, recursive);
         public void CreateDirectory(string path) => inner.CreateDirectory(path);
@@ -251,10 +251,10 @@ public class SwapExecutorTests
     {
         private string Last => store.Entries[^1].State.ToString();
 
-        public override Task CopyFileAsync(string source, string destination, CancellationToken cancellationToken)
+        public override Task CopyFileAsync(string source, string destination, IProgress<long>? progress, CancellationToken cancellationToken)
         {
             log.Add($"copy after {Last}");
-            return base.CopyFileAsync(source, destination, cancellationToken);
+            return base.CopyFileAsync(source, destination, progress, cancellationToken);
         }
 
         public override void MoveFile(string source, string destination)
