@@ -3,8 +3,9 @@ using ShrinkRay.Core.Media;
 namespace ShrinkRay.Core.Library;
 
 /// <summary>
-/// Finds show folders under a library root and probes each episode, reusing cached probes for
-/// files whose size and last write time have not changed.
+/// Finds show folders under a library root, or takes the root as the one show when it is a
+/// show folder, and probes each episode, reusing cached probes for files whose size and last
+/// write time have not changed.
 /// </summary>
 public sealed class LibraryScanner
 {
@@ -44,12 +45,31 @@ public sealed class LibraryScanner
     public static bool IsSkippedFolder(string name) =>
         name.Length == 0 || name[0] is '.' or '@' or '#' or '$' || ExtrasFolders.Contains(name);
 
-    /// <summary>The show folders directly under the root, by name.</summary>
-    public IReadOnlyList<string> ListShowFolders(string libraryRoot) =>
-        _disk.EnumerateDirectories(libraryRoot)
+    /// <summary>
+    /// True when a folder is one show rather than a TV root: it holds a season folder
+    /// (<c>Season 1</c>, <c>Specials</c>, <c>S01</c>) or a video file named with an episode
+    /// code such as <c>S01E03</c>.
+    /// </summary>
+    public static bool IsShowFolder(ILibraryDisk disk, string folder) =>
+        disk.EnumerateDirectories(folder).Any(d => ShowFolder.IsSeasonFolder(Path.GetFileName(d)))
+        || disk.EnumerateFiles(folder).Any(f => VideoExtensions.Contains(Path.GetExtension(f)) && EpisodeName.Parse(f).Episode is not null);
+
+    /// <summary>
+    /// The show folders in the library, by name. A library root that is itself a show folder
+    /// (see <see cref="IsShowFolder"/>) lists just that one show.
+    /// </summary>
+    public IReadOnlyList<string> ListShowFolders(string libraryRoot)
+    {
+        if (IsShowFolder(_disk, libraryRoot))
+        {
+            return [libraryRoot.TrimEnd('\\', '/')];
+        }
+
+        return _disk.EnumerateDirectories(libraryRoot)
             .Where(d => !IsSkippedFolder(Path.GetFileName(d)))
             .OrderBy(d => Path.GetFileName(d), StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
 
     public async Task<ShowScan> ScanShowAsync(string showFolder, CancellationToken cancellationToken)
     {

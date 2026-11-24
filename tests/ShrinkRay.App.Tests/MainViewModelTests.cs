@@ -784,7 +784,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task Dropping_a_show_from_elsewhere_makes_its_parent_the_library()
+    public async Task Dropping_a_show_from_elsewhere_makes_it_the_library()
     {
         var rig = Library();
         var other = @"Y:\Anime\Frieren\Season 01\Frieren - S01E01 - The Journey's End.mkv";
@@ -796,8 +796,87 @@ public class MainViewModelTests
         Assert.True(vm.DropFolder(@"Y:\Anime\Frieren\Season 01"));
         await WaitForAsync(() => vm.LoadedName == "Frieren");
 
-        Assert.Equal(@"Y:\Anime", rig.Settings.LibraryRoot);
-        Assert.Equal("ANIME", vm.LibraryLabel);
+        Assert.Equal(@"Y:\Anime\Frieren", rig.Settings.LibraryRoot);
+        Assert.Equal("ANIME/FRIEREN", vm.LibraryLabel);
+        Assert.Equal(["FRIEREN"], vm.Shows.Select(s => s.Name));
+    }
+
+    [Fact]
+    public async Task Dropping_a_tv_root_makes_it_the_library()
+    {
+        var rig = Library();
+        rig.Settings.LibraryRoot = "";
+        var vm = rig.Create();
+        await vm.StartAsync();
+
+        Assert.True(vm.DropFolder(DeckRig.Root));
+        await WaitForAsync(() => vm.Shows.Count == 2);
+
+        Assert.Equal(DeckRig.Root, rig.Settings.LibraryRoot);
+        Assert.False(vm.IsTapeLoaded);
+    }
+
+    // ---- Single show folders ----
+
+    [Fact]
+    public async Task Choosing_a_show_folder_lists_and_loads_that_one_show_by_its_name()
+    {
+        var rig = Library();
+        rig.Settings.ShowCqOverrides["Season 01"] = 20;
+        var vm = rig.Create();
+        await vm.StartAsync();
+        rig.PickedFolder = DeckRig.Root + @"\Scrubs\";
+
+        vm.ChooseLibraryCommand.Execute(null);
+        await WaitForAsync(() => vm.LoadedName == "Scrubs");
+
+        Assert.Equal(DeckRig.Root + @"\Scrubs", rig.Settings.LibraryRoot);
+        Assert.Equal(["SCRUBS"], vm.Shows.Select(s => s.Name));
+        Assert.Equal("1 TO SHRINK", vm.ShowCountText);
+        Assert.Equal("TV/SCRUBS", vm.LibraryLabel);
+        Assert.Equal("SCRUBS", vm.LabelTitle);
+        Assert.Equal("Space reclaimed \u00b7 Scrubs", vm.FooterTitle);
+        Assert.Equal("Scrubs", rig.SavedPreferences?.LastShow);
+
+        // A stale override saved under a season folder's name no longer matches anything.
+        Assert.Equal(28, vm.Cq);
+    }
+
+    [Fact]
+    public async Task A_show_folder_library_keys_the_cq_override_by_the_show_for_the_deck_and_the_run()
+    {
+        var rig = Library();
+        rig.Settings.LibraryRoot = DeckRig.Root + @"\Scrubs";
+        var vm = await rig.StartedWith("Scrubs");
+
+        vm.CqIndex = MainViewModel.CqDetents.ToList().IndexOf(24);
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Equal(["Scrubs"], rig.Settings.ShowCqOverrides.Keys);
+        var snapshot = Assert.Single(rig.RunSettings);
+        var show = ShrinkRay.Core.Media.ShowFolder.NameFor(DeckRig.Episode("Scrubs", 2, 1), snapshot.LibraryRoot);
+        Assert.Equal("Scrubs", show);
+        Assert.Equal(24, snapshot.CqForShow(show));
+    }
+
+    [Fact]
+    public async Task A_show_folder_with_loose_episodes_loads_as_one_show()
+    {
+        var rig = Library();
+        var loose = DeckRig.Root + @"\Mini Series\Mini Series - S01E02 - Part Two.mkv";
+        rig.Disk.AddFile(loose, DeckRig.Gigabyte);
+        rig.Probe.Results[loose] = rig.Probe.Results[DeckRig.Episode("Scrubs", 1, 1)] with { FileName = loose };
+        rig.Settings.LibraryRoot = "";
+        var vm = rig.Create();
+        await vm.StartAsync();
+
+        Assert.True(vm.DropFolder(DeckRig.Root + @"\Mini Series"));
+        await WaitForAsync(() => vm.LoadedName == "Mini Series");
+
+        Assert.Equal(["MINI SERIES"], vm.Shows.Select(s => s.Name));
+        Assert.Equal(["S01E02"], vm.Tracks.Select(t => t.Code));
+        Assert.Equal("Mini Series", rig.SavedPreferences?.LastShow);
     }
 
     private static async Task WaitForAsync(Func<bool> condition)
