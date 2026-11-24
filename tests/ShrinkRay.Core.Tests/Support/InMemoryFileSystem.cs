@@ -104,7 +104,7 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
         _files.Remove(path);
     }
 
-    public Task CopyFileAsync(string source, string destination, CancellationToken cancellationToken)
+    public Task CopyFileAsync(string source, string destination, IProgress<long>? progress, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_files.TryGetValue(source, out var data))
@@ -125,6 +125,7 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
         }
 
         _files[destination] = data.ToArray();
+        progress?.Report(data.Length);
         return Task.CompletedTask;
     }
 

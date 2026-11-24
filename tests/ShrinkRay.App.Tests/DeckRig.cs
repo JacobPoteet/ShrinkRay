@@ -211,6 +211,8 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
 
     public void Report(EpisodePhase phase) => _progress?.Report(new EpisodeProgress(phase));
 
+    public void Report(EpisodePhase phase, double fraction) => _progress?.Report(new EpisodeProgress(phase, Fraction: fraction));
+
     public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EpisodeProgress>? progress, CancellationToken cancellationToken)
     {
         Ran.Enqueue(sourcePath);

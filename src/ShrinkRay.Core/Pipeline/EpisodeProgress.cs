@@ -39,7 +39,16 @@ public static class EpisodePhases
 }
 
 /// <param name="Encode">HandBrake's progress. Set only during <see cref="EpisodePhase.Encoding"/>, once HandBrake reports.</param>
-public sealed record EpisodeProgress(EpisodePhase Phase, EncodeProgress? Encode = null);
+/// <param name="Fraction">
+/// How much of the file has moved, 0 to 1. Set only during <see cref="EpisodePhase.Copying"/> and
+/// <see cref="EpisodePhase.Uploading"/>, once bytes move.
+/// </param>
+public sealed record EpisodeProgress(EpisodePhase Phase, EncodeProgress? Encode = null, double? Fraction = null)
+{
+    /// <summary>A copy or upload report: <paramref name="bytes"/> of <paramref name="total"/> have moved.</summary>
+    public static EpisodeProgress Transfer(EpisodePhase phase, long bytes, long total) =>
+        new(phase, Fraction: total > 0 ? Math.Clamp((double)bytes / total, 0, 1) : 1);
+}
 
 /// <summary>Reports on the caller's thread, unlike <see cref="Progress{T}"/>, which posts and can reorder.</summary>
 internal sealed class InlineProgress<T>(Action<T> report) : IProgress<T>

@@ -476,11 +476,27 @@ public sealed partial class MainViewModel
             return;
         }
 
+        var entering = progress.Phase != _phase;
         _phase = progress.Phase;
         if (progress.Encode is { } encode)
         {
             _progress = Math.Clamp(encode.Percent / 100, 0, 1);
             _fps = encode.Fps ?? encode.AverageFps;
+        }
+        else if (progress.Fraction is { } moved)
+        {
+            // The copy to scratch and the upload run the reels and the percent by the bytes moved.
+            _progress = Math.Clamp(moved, 0, 1);
+            _fps = null;
+        }
+        else if (_phase is EpisodePhase.Copying or EpisodePhase.Encoding or EpisodePhase.Uploading)
+        {
+            // A phase that counts its own progress starts the tape from the top.
+            if (entering)
+            {
+                _progress = 0;
+                _fps = null;
+            }
         }
         else if (_phase > EpisodePhase.Encoding)
         {
@@ -606,8 +622,10 @@ public sealed partial class MainViewModel
             "encoded" + Path.GetExtension(_current.Path));
         // The muxer writes in bursts, so the needle reads the average so far: bytes written over
         // the stretch of the episode encoded. It settles on the output's real bitrate.
+        // During the copy and the upload the percent counts bytes moved, not media encoded.
         var mediaSeconds = _progress * duration;
-        if (_s.FileSize(output) is { } bytes && mediaSeconds >= MinBitrateSeconds)
+        if (_phase is not (EpisodePhase.Copying or EpisodePhase.Uploading)
+            && _s.FileSize(output) is { } bytes && mediaSeconds >= MinBitrateSeconds)
         {
             BitrateMbps = Math.Clamp(bytes * 8 / 1_000_000d / mediaSeconds, 0, MaxMbps);
         }

@@ -493,6 +493,54 @@ public class MainViewModelTests
         Assert.Equal("Ready", vm.RunLamp.Label);
     }
 
+    [Fact]
+    public async Task Copy_and_upload_move_the_percent_and_the_reels()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        rig.Runner.Report(EpisodePhase.Copying);
+        Assert.Equal(" 0.0", vm.PercentDigits);
+        Assert.Equal(1, vm.SourcePack);
+        rig.Runner.Report(EpisodePhase.Copying, 0.25);
+        Assert.Equal("25.0", vm.PercentDigits);
+        Assert.Equal(0.75, vm.SourcePack);
+        Assert.Equal("Copying S01E01", vm.RunLamp.Label);
+        Assert.Equal("COPY", vm.Tracks[0].StatusText);
+
+        // The encode starts its own count rather than carrying on from the finished copy.
+        rig.Runner.Report(EpisodePhase.Copying, 1);
+        rig.Runner.Report(EpisodePhase.Encoding);
+        Assert.Equal(" 0.0", vm.PercentDigits);
+
+        rig.Runner.Report(EpisodePhase.Verifying);
+        var output = Path.Combine(EpisodePipeline.WorkFolder(@"C:\Scratch", first), "encoded.mkv");
+        rig.Sizes[output] = 165_000_000;
+        vm.Tick();
+        Assert.Equal(1.0, vm.BitrateMbps, 2);
+
+        rig.Runner.Report(EpisodePhase.Uploading);
+        Assert.Equal(" 0.0", vm.PercentDigits);
+        rig.Runner.Report(EpisodePhase.Uploading, 0.6);
+        Assert.Equal("60.0", vm.PercentDigits);
+        Assert.Equal(0.4, vm.SourcePack, 3);
+        Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
+
+        // The needle keeps the encode's bitrate; the upload's byte count is no media time.
+        vm.Tick();
+        Assert.Equal(1.0, vm.BitrateMbps, 2);
+
+        rig.Runner.Report(EpisodePhase.Swapping);
+        Assert.Equal("99.9", vm.PercentDigits);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+    }
+
     // ---- Closing ----
 
     [Fact]
