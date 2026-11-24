@@ -10,16 +10,18 @@ with HandBrakeCLI and NVIDIA NVENC. It swaps each new file in under the original
 Plex keeps its metadata and watch history. The user picks one show at a time: a show folder
 with season subfolders. Movies may follow later.
 
-Planned stack: WPF on .NET 8 (`net8.0-windows`) with a fully custom theme. WPF-UI is dropped.
+Stack: WPF on .NET 8 (`net8.0-windows`) with a fully custom theme. WPF-UI is dropped.
 External tools: HandBrakeCLI encodes, ffprobe scans and checks, ffmpeg runs the full-decode
 check and copies MKV font attachments back in when an encode comes out with fewer than the
 source. HandBrakeCLI 1.11.2 keeps them, so that remux usually does not run.
 
-The engine, `ShrinkRay.Core`, exists. The WPF app does not yet.
+The engine (`ShrinkRay.Core`) and the theme kit (`ShrinkRay.Theme`, shown off by
+`ShrinkRay.Gallery`) exist. The main WPF app does not yet.
 
 ## Build and test
 
-Run dotnet from PowerShell. The projects target `net8.0`; any SDK from 8 up builds them.
+Run dotnet from PowerShell. Core targets `net8.0`; the theme, gallery and theme tests target
+`net8.0-windows`. Any SDK from 8 up builds them.
 
 ```powershell
 dotnet build ShrinkRay.sln -c Release
@@ -34,7 +36,17 @@ ffmpeg and ffprobe on a clip generated in a temp folder. They skip unless you se
 $env:SHRINKRAY_INTEGRATION = '1'; dotnet test ShrinkRay.sln -c Release --filter "FullyQualifiedName~Integration"
 ```
 
-CI (`.github/workflows/ci.yml`) builds and tests in Release on `windows-latest`.
+CI (`.github/workflows/ci.yml`) checks that every embedded font has its license file, then
+builds and tests in Release on `windows-latest`.
+
+Open the theme gallery, one window with every control:
+
+```powershell
+dotnet run --project src/ShrinkRay.Gallery
+```
+
+It takes `--phosphor Amber|Green|Ice`, `--chassis Beige|Graphite` and `--still` (reduced
+motion), which helps when you screenshot a variant.
 
 ## Architecture
 
@@ -67,6 +79,16 @@ The swap journal is the part that protects the library. Keep these properties wh
 Test fixtures are synthetic ffprobe JSON in `tests/ShrinkRay.Core.Tests/Fixtures`. Fake
 paths use drive letters such as `X:\TV`.
 
+### Theme
+
+`src/ShrinkRay.Theme` holds the cassette-futurism look: tokens, embedded fonts, panel styles
+and custom controls. An app merges `<sr:ShrinkRayTheme />` (xmlns `urn:shrinkray-theme`) and
+switches palettes with `ThemeManager`. Geometry and arithmetic for the controls live in
+`Mechanics` so `tests/ShrinkRay.Theme.Tests` can cover them without a window.
+`.claude/rules/theme.md` carries the house rules and loads when you touch the theme.
+Keep the house rules intact: phosphor is the only light, and signal red marks only Encode and
+anything that deletes.
+
 ## Rules that protect the library
 
 The app deletes originals on a live Plex library, so these hold everywhere:
@@ -87,6 +109,8 @@ The app deletes originals on a live Plex library, so these hold everywhere:
 3. For changes to the probe, font restore or decode check, run the integration tests too.
 4. For changes to encode arguments, run HandBrakeCLI by hand on a copied episode in a local
    folder and check the result with ffprobe. Never point a test at the share.
+5. For changes to the theme, open the gallery, screenshot it, and compare it with the design
+   boards. Check Amber on Beige and Green on Graphite at least.
 
 ## Documentation
 

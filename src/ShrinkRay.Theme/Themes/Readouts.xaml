@@ -1,0 +1,139 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sr="clr-namespace:ShrinkRay.Theme.Controls">
+
+    <!-- Lamp shading: an off lamp is recessed (dark at the top), a lit one is domed (dark at the bottom) -->
+    <LinearGradientBrush x:Key="SR.LampShadeOff" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#B3000000" Offset="0" />
+        <GradientStop Color="#00000000" Offset="0.45" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="SR.LampShadeOn" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#00000000" Offset="0.55" />
+        <GradientStop Color="#4D000000" Offset="1" />
+    </LinearGradientBrush>
+
+    <Style TargetType="sr:Lamp">
+        <Setter Property="Foreground" Value="{DynamicResource SR.InkSoft}" />
+        <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Silk}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:Lamp">
+                    <StackPanel x:Name="Layout" Orientation="Horizontal">
+                        <Grid x:Name="PART_Bulb" Width="{TemplateBinding Diameter}" Height="{TemplateBinding Diameter}"
+                              VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Ellipse x:Name="Halo" RenderTransformOrigin="0.5,0.5" Visibility="Collapsed" IsHitTestVisible="False">
+                                <Ellipse.RenderTransform>
+                                    <ScaleTransform ScaleX="2.3" ScaleY="2.3" />
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Ellipse x:Name="Body" Fill="{DynamicResource SR.LampOff}" />
+                            <Ellipse x:Name="Shade" Fill="{StaticResource SR.LampShadeOff}" />
+                        </Grid>
+                        <Border x:Name="Spacer" Width="{TemplateBinding Spacing}" Height="{TemplateBinding Spacing}" />
+                        <ContentPresenter x:Name="Label" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="State" Value="Active">
+                            <Setter TargetName="Halo" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Halo" Property="Fill" Value="{DynamicResource SR.PhosphorHalo}" />
+                            <Setter TargetName="Body" Property="Fill" Value="{DynamicResource SR.Phosphor}" />
+                            <Setter TargetName="Shade" Property="Fill" Value="{StaticResource SR.LampShadeOn}" />
+                        </Trigger>
+                        <Trigger Property="State" Value="Ok">
+                            <Setter TargetName="Halo" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Halo" Property="Fill" Value="{DynamicResource SR.GreenHalo}" />
+                            <Setter TargetName="Body" Property="Fill" Value="{DynamicResource SR.LampGreen}" />
+                            <Setter TargetName="Shade" Property="Fill" Value="{StaticResource SR.LampShadeOn}" />
+                        </Trigger>
+                        <Trigger Property="State" Value="Red">
+                            <Setter TargetName="Halo" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Halo" Property="Fill" Value="{DynamicResource SR.RedHalo}" />
+                            <Setter TargetName="Body" Property="Fill" Value="{DynamicResource SR.LampRed}" />
+                            <Setter TargetName="Shade" Property="Fill" Value="{StaticResource SR.LampShadeOn}" />
+                        </Trigger>
+                        <Trigger Property="LabelPlacement" Value="Below">
+                            <Setter TargetName="Layout" Property="Orientation" Value="Vertical" />
+                        </Trigger>
+                        <Trigger Property="Content" Value="{x:Null}">
+                            <Setter TargetName="Label" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="Spacer" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 1 px dark line every 3 px, like repeating-linear-gradient(rgba(0,0,0,.3) 0 1px, transparent 1px 3px) -->
+    <DrawingBrush x:Key="SR.Scanlines" TileMode="Tile" Stretch="None"
+                  Viewport="0,0,3,3" ViewportUnits="Absolute" Viewbox="0,0,3,3" ViewboxUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#00000000" Geometry="M0,0 H3 V3 H0 Z" />
+                <GeometryDrawing Brush="#4D000000" Geometry="M0,0 H3 V1 H0 Z" />
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.6)), sized to the corners -->
+    <RadialGradientBrush x:Key="SR.Vignette" RadiusX="0.7071" RadiusY="0.7071">
+        <GradientStop Color="#00000000" Offset="0.55" />
+        <GradientStop Color="#99000000" Offset="1" />
+    </RadialGradientBrush>
+
+    <Style TargetType="sr:CrtPanel">
+        <Setter Property="Foreground" Value="{DynamicResource SR.Phosphor}" />
+        <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Pixel}" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="sr:PixelText.Size" Value="22" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="Aliased" />
+        <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+        <Setter Property="UseLayoutRounding" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:CrtPanel">
+                    <Grid sr:RoundClip.Radius="{TemplateBinding CornerRadius}">
+                        <!-- Like CSS, the inset tube shadow sits under the content; only the scanlines and vignette sit over it -->
+                        <Border Background="{DynamicResource SR.Crt}" />
+                        <sr:InsetShadow CornerRadius="{TemplateBinding CornerRadius}" Blur="{TemplateBinding TubeShadow}"
+                                        OffsetY="0" Color="#F2000000" />
+                        <Border BorderThickness="2" BorderBrush="Black" IsHitTestVisible="False"
+                                CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static sr:DoubleToCornerRadius.Instance}}" />
+                        <ContentPresenter x:Name="Screen" Margin="{TemplateBinding Padding}"
+                                          Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                        <Grid x:Name="PART_Overlay" IsHitTestVisible="False">
+                            <Rectangle Fill="{StaticResource SR.Scanlines}" />
+                            <Rectangle Fill="{StaticResource SR.Vignette}" />
+                        </Grid>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsGlowEnabled" Value="False">
+                            <Setter TargetName="Screen" Property="Effect" Value="{x:Null}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="sr:SevenSegmentDisplay">
+        <Setter Property="LitBrush" Value="{DynamicResource SR.Phosphor}" />
+        <Setter Property="UnlitBrush" Value="{DynamicResource SR.PhosphorDim}" />
+        <Style.Triggers>
+            <Trigger Property="Glow" Value="True">
+                <Setter Property="Effect" Value="{DynamicResource SR.PhosphorStrongGlow}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="sr:LedBar">
+        <Setter Property="LitBrush" Value="{DynamicResource SR.Phosphor}" />
+        <Setter Property="UnlitBrush" Value="{DynamicResource SR.PhosphorDim}" />
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,10 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Loaded by ShrinkRayTheme. Apps merge that class, not this file. -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Tokens.xaml" />
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Panels.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+</ResourceDictionary>

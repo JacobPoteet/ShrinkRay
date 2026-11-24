@@ -1,0 +1,88 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sr="clr-namespace:ShrinkRay.Theme.Controls">
+
+    <!-- VU meter: the design's 160 by 100 face, scaled to fit and pinned to the bottom -->
+    <Style TargetType="sr:VuMeter">
+        <Setter Property="Height" Value="106" />
+        <Setter Property="MinWidth" Value="120" />
+        <Setter Property="Padding" Value="0,6,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:VuMeter">
+                    <Grid>
+                        <Border CornerRadius="6" Background="{DynamicResource SR.Paper}" />
+                        <sr:InsetShadow CornerRadius="6" Blur="6" OffsetY="2" Color="#59000000" />
+                        <Viewbox Stretch="Uniform" VerticalAlignment="Bottom" Margin="{TemplateBinding Padding}">
+                            <Canvas Width="160" Height="100" ClipToBounds="True">
+                                <Path Data="M28,49.2 A70,70 0 0 1 132,49.2" Stroke="{DynamicResource SR.PrintInk}" StrokeThickness="1.5" />
+                                <Path x:Name="PART_RedZone" Stroke="{DynamicResource SR.RedZone}" StrokeThickness="5" />
+                                <Path Stroke="{DynamicResource SR.PrintInk}" StrokeThickness="1.5"
+                                      Data="M31,51.8 L25,46.5 M41.2,42.6 L36.5,36.1 M53.2,35.7 L49.9,28.4 M66.3,31.5 L64.6,23.6 M80,30 L80,22 M93.7,31.5 L95.4,23.6 M106.8,35.7 L110.1,28.4 M118.8,42.6 L123.5,36.1 M129,51.8 L135,46.5" />
+                                <TextBlock Canvas.Left="21" Canvas.Top="52" Text="{TemplateBinding MinLabel}"
+                                           FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="SemiBold" FontSize="10"
+                                           Foreground="{DynamicResource SR.PrintInk}" />
+                                <Grid Canvas.Top="7" Width="160">
+                                    <TextBlock HorizontalAlignment="Center" Text="{TemplateBinding MidLabel}"
+                                               FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="SemiBold" FontSize="10"
+                                               Foreground="{DynamicResource SR.PrintInk}" />
+                                </Grid>
+                                <Grid Canvas.Left="128" Canvas.Top="52" Width="20">
+                                    <TextBlock HorizontalAlignment="Left" Text="{TemplateBinding MaxLabel}"
+                                               FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="SemiBold" FontSize="10"
+                                               Foreground="{DynamicResource SR.RedZone}" />
+                                </Grid>
+                                <Grid Canvas.Top="66" Width="160">
+                                    <sr:TrackedText HorizontalAlignment="Center" Text="{TemplateBinding Caption}"
+                                                    FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="11"
+                                                    Tracking="0.18" Foreground="{DynamicResource SR.PrintInk}" />
+                                </Grid>
+                                <Line x:Name="PART_Needle" X1="80" Y1="96" X2="80" Y2="26"
+                                      Stroke="{DynamicResource SR.Needle}" StrokeThickness="1.6" />
+                                <Ellipse Canvas.Left="73" Canvas.Top="89" Width="14" Height="14" Fill="{DynamicResource SR.Pivot}" />
+                            </Canvas>
+                        </Viewbox>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Rotary knob: the design's 120 by 112 box. Labels are placed in code around the dial. -->
+    <Style TargetType="sr:RotaryKnob">
+        <Setter Property="Width" Value="120" />
+        <Setter Property="Height" Value="112" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="LabelBrush" Value="{DynamicResource SR.Ink}" />
+        <Setter Property="SelectedLabelBrush" Value="{DynamicResource SR.SelectInk}" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource SR.FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:RotaryKnob">
+                    <Viewbox Stretch="Uniform">
+                        <Canvas Width="120" Height="112" Background="Transparent">
+                            <Canvas x:Name="PART_Labels" />
+                            <Ellipse Canvas.Left="26" Canvas.Top="30" Width="68" Height="68" Fill="#66000000">
+                                <Ellipse.Effect>
+                                    <BlurEffect Radius="5" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <Ellipse Canvas.Left="27" Canvas.Top="29" Width="66" Height="66" Fill="{DynamicResource SR.KnobBody}" />
+                            <Ellipse Canvas.Left="26.5" Canvas.Top="28.5" Width="67" Height="67"
+                                     Stroke="{DynamicResource SR.KnobKnurl}" StrokeThickness="5" StrokeDashArray="0.4 0.5" />
+                            <Ellipse Canvas.Left="36" Canvas.Top="38" Width="48" Height="48" Fill="{DynamicResource SR.KnobCap}" />
+                            <Rectangle x:Name="PART_Pointer" Canvas.Left="58" Canvas.Top="34" Width="4" Height="16"
+                                       RadiusX="1" RadiusY="1" Fill="{DynamicResource SR.Phosphor}" />
+                        </Canvas>
+                    </Viewbox>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>
