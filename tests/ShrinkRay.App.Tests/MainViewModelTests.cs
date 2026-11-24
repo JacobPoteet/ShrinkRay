@@ -249,6 +249,65 @@ public class MainViewModelTests
         Assert.Equal(26, vm.Cq);
     }
 
+    [Fact]
+    public async Task The_knob_marks_the_default_cq_and_the_readout_says_where_the_cq_comes_from()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal(MainViewModel.CqDetents.ToList().IndexOf(ShrinkRay.Core.Settings.ShrinkRaySettings.DefaultCq), vm.RecommendedCqIndex);
+        Assert.Equal("CQ 28 · Default", vm.CqSourceText);
+        Assert.False(vm.ResetCqCommand.CanExecute(null));
+
+        vm.CqIndex = MainViewModel.CqDetents.ToList().IndexOf(26);
+
+        Assert.Equal("CQ 26 · Show", vm.CqSourceText);
+        Assert.True(vm.HasCqOverride);
+        Assert.True(vm.ResetCqCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Reset_clears_the_show_override_and_turns_the_knob_back_to_the_default()
+    {
+        var rig = Library();
+        rig.Settings.ShowCqOverrides["Scrubs"] = 27;
+        rig.Settings.ShowCqOverrides["Bluey"] = 22;
+        var vm = await rig.StartedWith("Scrubs");
+        Assert.Equal("CQ 27 · Show", vm.CqSourceText);
+        var saves = rig.SettingsSaves;
+
+        vm.ResetCqCommand.Execute(null);
+
+        Assert.False(rig.Settings.ShowCqOverrides.ContainsKey("Scrubs"));
+        Assert.Equal(22, rig.Settings.ShowCqOverrides["Bluey"]);
+        Assert.True(rig.SettingsSaves > saves);
+        Assert.Equal(vm.RecommendedCqIndex, vm.CqIndex);
+        Assert.Equal(28, vm.Cq);
+        Assert.Equal("CQ 28 · Default", vm.CqSourceText);
+        Assert.False(vm.ResetCqCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Reset_is_locked_while_encoding()
+    {
+        var rig = Library();
+        rig.Settings.ShowCqOverrides["Scrubs"] = 24;
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        Assert.False(vm.ResetCqCommand.CanExecute(null));
+        vm.ResetCqCommand.Execute(null);
+        Assert.Equal(24, rig.Settings.ShowCqOverrides["Scrubs"]);
+        Assert.Equal("CQ 24 · Show", vm.CqSourceText);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.True(vm.ResetCqCommand.CanExecute(null));
+    }
+
     // ---- Encode ----
 
     [Fact]

@@ -85,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
         EjectCommand = new RelayCommand(Eject, () => _loaded is not null && !IsEncoding);
+        ResetCqCommand = new RelayCommand(ResetCq, () => HasCqOverride && !IsEncoding);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
@@ -115,6 +116,9 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand SkipCommand { get; }
 
     public RelayCommand EjectCommand { get; }
+
+    /// <summary>Clears the loaded show's CQ override, turning the knob back to the default.</summary>
+    public RelayCommand ResetCqCommand { get; }
 
     public RelayCommand ChooseLibraryCommand { get; }
 
@@ -432,6 +436,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             RefreshDeck();
+            ResetCqCommand.Refresh();
             Raise(nameof(CursorInfo));
         }
     }
@@ -439,6 +444,19 @@ public sealed partial class MainViewModel : ObservableObject
     public int Cq => CqDetents[_cqIndex];
 
     public bool IsKnobEnabled => _loaded is not null && !IsEncoding;
+
+    /// <summary>
+    /// The detent the knob marks as recommended: the deck's default CQ, which shows without an
+    /// override use and Reset returns to. Out of the box that is <see cref="ShrinkRaySettings.DefaultCq"/>.
+    /// </summary>
+    public int RecommendedCqIndex => NearestDetent(_settings.Cq);
+
+    /// <summary>True when the show in the deck has its own CQ rather than the default.</summary>
+    public bool HasCqOverride => _loaded is not null && _settings.ShowCqOverrides.ContainsKey(_loaded.Name);
+
+    /// <summary>The readout under the knob: the CQ the show encodes at, and whether it is the show's own or the default.</summary>
+    public string CqSourceText => string.Create(CultureInfo.InvariantCulture,
+        $"CQ {_settings.CqForShow(_loaded?.Name)} · {(HasCqOverride ? "Show" : "Default")}");
 
     public string EstimateText => $"Est −{Format.Percent(SizeEstimate.SavingsFor(Cq))} per ep";
 

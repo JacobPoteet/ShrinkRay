@@ -65,6 +65,21 @@
             </Style.Triggers>
         </Style>
 
+        <!-- A short keycap that fits beside a readout, such as the knob's Reset -->
+        <Style x:Key="SmallKey" TargetType="Button" BasedOn="{StaticResource TextKey}">
+            <Setter Property="Height" Value="18" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <sr:TrackedText Text="{Binding}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="9"
+                                        Tracking="0.14" Foreground="{DynamicResource SR.Ink}" Margin="6,0" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Option chips in the service panel: the lamp lights on the chosen one -->
         <Style x:Key="OptionChip" TargetType="sr:SeasonChip">
             <Setter Property="Padding" Value="8,0" />
@@ -461,9 +476,18 @@
                             </ContentControl>
                             <ContentControl Grid.Column="4" Style="{StaticResource SR.Bezel}" Padding="6,4,6,6">
                                 <StackPanel HorizontalAlignment="Center">
-                                    <sr:RotaryKnob Width="112" Height="104" Labels="{Binding CqLabels}" SelectedIndex="{Binding CqIndex}"
+                                    <!-- The phosphor tick marks the default CQ, the tested balance. Reset clears the show's override. -->
+                                    <sr:RotaryKnob Width="96" Height="90" Labels="{Binding CqLabels}" SelectedIndex="{Binding CqIndex}"
+                                                   RecommendedIndex="{Binding RecommendedCqIndex}"
                                                    IsEnabled="{Binding IsKnobEnabled}" Caption="Quality CQ" />
                                     <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="Quality · CQ" HorizontalAlignment="Center" />
+                                    <DockPanel Margin="0,3,0,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource SmallKey}" Content="Reset" Margin="6,0,0,0"
+                                                Command="{Binding ResetCqCommand}"
+                                                AutomationProperties.Name="Reset this show to the default quality" />
+                                        <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="{Binding CqSourceText}"
+                                                        VerticalAlignment="Center" />
+                                    </DockPanel>
                                     <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="{Binding EstimateText}" HorizontalAlignment="Center"
                                                     Opacity="0.8" Margin="0,3,0,0" />
                                 </StackPanel>

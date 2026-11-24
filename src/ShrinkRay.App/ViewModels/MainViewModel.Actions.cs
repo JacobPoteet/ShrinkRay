@@ -324,6 +324,26 @@ public sealed partial class MainViewModel
         RefreshAll();
     }
 
+    private void ResetCq()
+    {
+        if (_loaded is null || IsEncoding)
+        {
+            return;
+        }
+
+        // Removed outright: an override can sit on the default's detent without equalling it.
+        if (_settings.ShowCqOverrides.Remove(_loaded.Name))
+        {
+            Save();
+        }
+
+        _cqIndex = RecommendedCqIndex;
+        Raise(nameof(CqIndex), nameof(Cq));
+        RefreshDeck();
+        ResetCqCommand.Refresh();
+        Raise(nameof(CursorInfo));
+    }
+
     private void SelectSeason(int season) => ShowSeason(season);
 
     private void ShowSeason(int season)
@@ -761,7 +781,8 @@ public sealed partial class MainViewModel
     {
         Raise(nameof(LabelTitle), nameof(LabelSide), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq),
             nameof(FooterTitle), nameof(SavedGigabytes), nameof(SavedDigits), nameof(BeforeText), nameof(AfterText),
-            nameof(AfterFraction), nameof(EpisodesDoneText), nameof(HandledFraction), nameof(SeasonFooter));
+            nameof(AfterFraction), nameof(EpisodesDoneText), nameof(HandledFraction), nameof(SeasonFooter),
+            nameof(CqSourceText), nameof(HasCqOverride), nameof(RecommendedCqIndex));
         RefreshReadouts();
     }
 
@@ -807,6 +828,7 @@ public sealed partial class MainViewModel
         LoadTapeCommand.Refresh();
         EncodeCommand.Refresh();
         EjectCommand.Refresh();
+        ResetCqCommand.Refresh();
         ChooseLibraryCommand.Refresh();
         ChooseScratchCommand.Refresh();
         RescanCommand.Refresh();

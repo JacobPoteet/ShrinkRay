@@ -41,6 +41,9 @@ public class RotaryKnob : ButtonBase
     public static readonly DependencyProperty SelectedLabelBrushProperty = DependencyProperty.Register(
         nameof(SelectedLabelBrush), typeof(Brush), typeof(RotaryKnob), new PropertyMetadata(Brushes.Red, OnLabelLookChanged));
 
+    public static readonly DependencyProperty RecommendedIndexProperty = DependencyProperty.Register(
+        nameof(RecommendedIndex), typeof(int), typeof(RotaryKnob), new PropertyMetadata(-1, OnRecommendedIndexChanged));
+
     private static readonly Duration Turn = new(TimeSpan.FromMilliseconds(180));
     private RotateTransform? _pointer;
     private readonly List<TextBlock> _labelBlocks = [];
@@ -82,6 +85,18 @@ public class RotaryKnob : ButtonBase
         get => (Brush)GetValue(SelectedLabelBrushProperty);
         set => SetValue(SelectedLabelBrushProperty, value);
     }
+
+    /// <summary>
+    /// The detent a phosphor tick marks on the dial as the recommended setting, such as the
+    /// tested default CQ. -1 marks none.
+    /// </summary>
+    public int RecommendedIndex
+    {
+        get => (int)GetValue(RecommendedIndexProperty);
+        set => SetValue(RecommendedIndexProperty, value);
+    }
+
+    public bool IsRecommendedSelected => RecommendedIndex >= 0 && RecommendedIndex == SelectedIndex;
 
     public string SelectedLabel =>
         SelectedIndex >= 0 && SelectedIndex < Labels.Count ? Labels[SelectedIndex] : string.Empty;
@@ -194,6 +209,9 @@ public class RotaryKnob : ButtonBase
     private static void OnLabelLookChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((RotaryKnob)d).ColorLabels();
 
+    private static void OnRecommendedIndexChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((RotaryKnob)d).BuildLabels();
+
     private void BuildLabels()
     {
         if (GetTemplateChild("PART_Labels") is not Canvas canvas)
@@ -221,6 +239,25 @@ public class RotaryKnob : ButtonBase
             Canvas.SetTop(block, center.Y - 8);
             canvas.Children.Add(block);
             _labelBlocks.Add(block);
+        }
+
+        if (RecommendedIndex >= 0 && RecommendedIndex < count)
+        {
+            // A painted tick in the pointer's phosphor paint. It carries no glow: only screens light up.
+            var (inner, outer) = KnobMath.TickEnds(KnobMath.DetentAngle(RecommendedIndex, count));
+            var tick = new System.Windows.Shapes.Line
+            {
+                X1 = inner.X,
+                Y1 = inner.Y,
+                X2 = outer.X,
+                Y2 = outer.Y,
+                StrokeThickness = 2.5,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                IsHitTestVisible = false,
+            };
+            tick.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "SR.Phosphor");
+            canvas.Children.Add(tick);
         }
 
         ColorLabels();
@@ -281,7 +318,8 @@ public class RotaryKnob : ButtonBase
                 name = Knob.Caption ?? string.Empty;
             }
 
-            return string.Create(CultureInfo.InvariantCulture, $"{name} {Knob.SelectedLabel}").Trim();
+            var recommended = Knob.IsRecommendedSelected ? ", recommended" : string.Empty;
+            return string.Create(CultureInfo.InvariantCulture, $"{name} {Knob.SelectedLabel}").Trim() + recommended;
         }
     }
 }
