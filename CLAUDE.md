@@ -15,13 +15,14 @@ External tools: HandBrakeCLI encodes, ffprobe scans and checks, ffmpeg runs the 
 check and copies MKV font attachments back in when an encode comes out with fewer than the
 source. HandBrakeCLI 1.11.2 keeps them, so that remux usually does not run.
 
-The engine (`ShrinkRay.Core`) and the theme kit (`ShrinkRay.Theme`, shown off by
-`ShrinkRay.Gallery`) exist. The main WPF app does not yet.
+`ShrinkRay.Core` is the engine, `ShrinkRay.Theme` the control kit (shown off by
+`ShrinkRay.Gallery`), and `ShrinkRay.App` the application, `ShrinkRay.exe`: one deck window
+that loads a show and runs its episodes through the engine.
 
 ## Build and test
 
-Run dotnet from PowerShell. Core targets `net8.0`; the theme, gallery and theme tests target
-`net8.0-windows`. Any SDK from 8 up builds them.
+Run dotnet from PowerShell. Core targets `net8.0`; the theme, gallery, app and their tests
+target `net8.0-windows`. Any SDK from 8 up builds them.
 
 ```powershell
 dotnet build ShrinkRay.sln -c Release
@@ -48,6 +49,16 @@ dotnet run --project src/ShrinkRay.Gallery
 It takes `--phosphor Amber|Green|Ice`, `--chassis Beige|Graphite` and `--still` (reduced
 motion), which helps when you screenshot a variant.
 
+Run the app against a test library, never your real settings:
+
+```powershell
+dotnet run --project src/ShrinkRay.App -- --data scratch\main-check\data --still
+```
+
+`--data` keeps settings, the journal, the probe cache and the ledger in that folder instead
+of `%LOCALAPPDATA%\ShrinkRay`. Build a test library under `scratch\fakelib` (gitignored) from
+copied clips, laid out as `Show\Season 01\Show - S01E01.mkv`, and choose it as the library.
+
 ## Architecture
 
 `src/ShrinkRay.Core` keeps logic pure and puts every process call and file operation behind
@@ -59,9 +70,10 @@ an interface, so tests run against fakes. Folders match namespaces:
 | `Encode` | `EncodePlanner` (HandBrakeCLI arguments), `AudioPlanner`, `HandBrakeProgressParser`, `FontRestorePlanner` |
 | `Verification` | `OutputVerifier` (pass, keep original, or fail with reasons), `IDecodeChecker` |
 | `Swap` | `SwapJournal` state machine, `SwapExecutor`, `SwapRecovery`, `IFileSystem` |
-| `Settings` | `ShrinkRaySettings`, `SettingsStore` (`%APPDATA%\ShrinkRay\settings.json`) |
-| `Processes` | `IProcessRunner`, `ProcessRunner`, and the ffprobe, HandBrakeCLI and ffmpeg wrappers |
-| `Pipeline` | `EpisodePipeline`, which runs one episode from probe to swap |
+| `Settings` | `ShrinkRaySettings`, `SettingsStore` (`%LOCALAPPDATA%\ShrinkRay\settings.json`) |
+| `Processes` | `IProcessRunner`, `ProcessRunner`, `ProcessGate` (Pause), `ToolLocator`, and the ffprobe, HandBrakeCLI and ffmpeg wrappers |
+| `Pipeline` | `EpisodePipeline`, which runs one episode from probe to swap, and `EncodeQueue`, which runs a show's episodes one at a time |
+| `Library` | `LibraryScanner` and `ProbeCache`, `EpisodeName` parsing, `ShowSummary` and episode status, `SizeEstimate`, `ShrinkLedger` |
 
 The swap journal is the part that protects the library. Keep these properties when you change it:
 
@@ -78,6 +90,18 @@ The swap journal is the part that protects the library. Keep these properties wh
 
 Test fixtures are synthetic ffprobe JSON in `tests/ShrinkRay.Core.Tests/Fixtures`. Fake
 paths use drive letters such as `X:\TV`.
+
+### App
+
+`src/ShrinkRay.App` is MVVM without a framework. `MainViewModel` holds the deck's state and
+talks to the engine only through `DeckServices`, so `tests/ShrinkRay.App.Tests` drives it
+against an in-memory library, a scripted episode runner and a fake gate. `Composition` wires
+the real services. Keep logic in Core or the view model; the window's code-behind handles
+chrome, drag and drop, and the half-second tick only.
+
+Startup order matters: `StartAsync` runs journal recovery, then scans the library, and Encode
+stays off until recovery ends. Each run takes a snapshot of the settings, so the knob and the
+service panel lock while an encode runs.
 
 ### Theme
 
@@ -111,6 +135,12 @@ The app deletes originals on a live Plex library, so these hold everywhere:
    folder and check the result with ffprobe. Never point a test at the share.
 5. For changes to the theme, open the gallery, screenshot it, and compare it with the design
    boards. Check Amber on Beige and Green on Graphite at least.
+6. For changes to the app, render the main window and compare it with the main deck board,
+   in Amber on Beige and Green on Graphite at least. On-screen captures of WPF windows can
+   come out white here, so render off-screen: a small exe that references the app, opens
+   `MainWindow` at Left/Top -10000 and draws `window.Content` to a `RenderTargetBitmap` at
+   96 dpi. For changes to the run, drive one real encode through the view model on a copy
+   of the test library.
 
 ## Documentation
 
