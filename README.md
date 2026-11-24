@@ -8,6 +8,12 @@ Status: in development. The main deck works end to end on a test library; there 
 dotnet run --project src/ShrinkRay.App
 ```
 
+Or build it and install it for your user, with a Start menu shortcut. Rerun this after you pull to pick up new changes:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
+```
+
 ## How it works
 
 - Choose a library folder, local or on a mapped network share, or drop a show folder on the window. Monitor A lists the shows that still have H.264 episodes.
