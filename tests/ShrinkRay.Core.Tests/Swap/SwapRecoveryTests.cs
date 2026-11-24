@@ -214,7 +214,7 @@ public class SwapRecoveryTests
     [InlineData(SwapState.CopiedToScratch)]
     [InlineData(SwapState.Encoded)]
     [InlineData(SwapState.Verified)]
-    public async Task Interrupted_local_step_is_marked_failed_without_touching_the_share(SwapState state)
+    public async Task Interrupted_local_step_is_marked_cancelled_without_touching_the_share(SwapState state)
     {
         var h = new SwapHarness(verified: false);
         h.Journal.Record(Original, SwapState.Queued);
@@ -230,7 +230,7 @@ public class SwapRecoveryTests
         var action = Assert.Single(await h.RecoverAsync());
 
         Assert.Equal(RecoveryKind.Interrupted, action.Kind);
-        Assert.Equal(SwapState.Failed, h.State);
+        Assert.Equal(SwapState.Cancelled, h.State);
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
     }
 

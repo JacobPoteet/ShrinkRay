@@ -439,7 +439,8 @@ public class EpisodePipelineTests
         await new SwapRecovery(fs, journal, new FakeFinalCheck()).RecoverAsync([], CancellationToken.None);
         EpisodePipeline.RemoveSettledWork(fs, journal, Scratch);
 
-        Assert.Equal(SwapState.Failed, journal.CurrentState(Episode));
+        // The share never saw the file, so recovery cancels it and it reads QUEUED, not FAILED.
+        Assert.Equal(SwapState.Cancelled, journal.CurrentState(Episode));
         Assert.False(fs.FileExists(leftover));
         Assert.Equal(OriginalBytes, fs.Read(Episode));
     }
