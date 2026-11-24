@@ -80,7 +80,9 @@ public sealed class TrackViewModel : ObservableObject
 
     public bool IsQueueable => Kind is TrackKind.Queued or TrackKind.Failed;
 
-    public static TrackViewModel From(EpisodeRecord record, EpisodeStatus status, LedgerEntry? ledger, string? reason)
+    /// <param name="reason">The journal's reason for the file's last state.</param>
+    /// <param name="at">When the journal recorded that state.</param>
+    public static TrackViewModel From(EpisodeRecord record, EpisodeStatus status, LedgerEntry? ledger, string? reason, DateTimeOffset? at = null)
     {
         var track = new TrackViewModel(record);
         switch (status)
@@ -97,7 +99,7 @@ public sealed class TrackViewModel : ObservableObject
                 track.SetKept(null, reason ?? "Saved too little, so the original stayed.");
                 break;
             case EpisodeStatus.Failed:
-                track.SetFailed(reason ?? "The last attempt failed.");
+                track.SetFailed(reason ?? "The last attempt failed.", at);
                 break;
             case EpisodeStatus.Skipped:
                 track.SetSkipped(record.IsEfficientCodec ? record.VideoCodec.ToUpperInvariant() : "SKIP", record.SkipMessage);
@@ -151,14 +153,45 @@ public sealed class TrackViewModel : ObservableObject
         Detail = reason;
     }
 
-    public void SetFailed(string reason)
+    /// <param name="at">When it failed, so the deck can name the latest failure.</param>
+    public void SetFailed(string reason, DateTimeOffset? at = null)
     {
         Kind = TrackKind.Failed;
         Progress = 0;
-        StatusText = "FAILED";
+        StatusText = FailedStatus(reason);
         SizeText = Format.Gigabytes(OriginalBytes);
         Detail = reason;
+        FailedAt = at;
     }
+
+    /// <summary>When the episode failed, for a failure seen this run or read from the journal.</summary>
+    public DateTimeOffset? FailedAt { get; private set; }
+
+    /// <summary>
+    /// The status cell for a failure: <c>FAIL</c> and the check that failed, such as
+    /// <c>FAIL SUBS</c>, read from the start of the first reason. The full text is the tooltip.
+    /// </summary>
+    public static string FailedStatus(string? reason)
+    {
+        var first = (reason ?? "").Split(';', 2)[0].Trim();
+        var word = ReasonWords.FirstOrDefault(w => first.StartsWith(w.Prefix, StringComparison.OrdinalIgnoreCase)).Word;
+        return word is null ? "FAILED" : "FAIL " + word;
+    }
+
+    private static readonly (string Prefix, string Word)[] ReasonWords =
+    [
+        ("Subtitle streams", "SUBS"),
+        ("Audio streams", "AUDIO"),
+        ("Video streams", "VIDEO"),
+        ("Output video codec", "VIDEO"),
+        ("Attachments", "FONTS"),
+        ("Duration", "LENGTH"),
+        ("Full decode", "DECODE"),
+        ("File size", "SIZE"),
+        ("HandBrakeCLI", "ENCODE"),
+        ("ffmpeg", "FFMPEG"),
+        ("ffprobe", "PROBE"),
+    ];
 
     public void SetSkipped(string label, string reason)
     {

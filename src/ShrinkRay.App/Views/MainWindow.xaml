@@ -124,7 +124,7 @@
                         <ColumnDefinition Width="60" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="58" />
-                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="80" />
                     </Grid.ColumnDefinitions>
                     <Rectangle x:Name="Stripe" Fill="#B4A98F" />
                     <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Code}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
@@ -278,6 +278,11 @@
                                             <TextBlock Text="{Binding MonitorNotice}" TextWrapping="Wrap" MaxHeight="44"
                                                        Visibility="{Binding MonitorNotice, Converter={StaticResource NotEmpty}}" />
                                         </StackPanel>
+                                        <!-- The latest failure in the deck's show; the full reason is on hover -->
+                                        <TextBlock DockPanel.Dock="Bottom" Margin="32,6,10,0" Opacity="0.9" Text="{Binding LastFailureText}"
+                                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44"
+                                                   ToolTip="{Binding LastFailureDetail}" AutomationProperties.Name="{Binding LastFailureDetail}"
+                                                   Visibility="{Binding LastFailureText, Converter={StaticResource NotEmpty}}" />
 
                                         <ListBox x:Name="ShowList" Style="{StaticResource SR.CrtListBox}" ItemsSource="{Binding Shows}"
                                                  SelectedItem="{Binding SelectedShow}" AutomationProperties.Name="Shows to shrink"
@@ -532,7 +537,7 @@
                                                 <ColumnDefinition Width="60" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="58" />
-                                                <ColumnDefinition Width="64" />
+                                                <ColumnDefinition Width="80" />
                                             </Grid.ColumnDefinitions>
                                             <sr:TrackedText Grid.Column="1" Text="Ep" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
                                                             Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" />

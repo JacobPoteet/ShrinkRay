@@ -283,7 +283,8 @@ public sealed partial class MainViewModel
         _tracks.Clear();
         foreach (var episode in scan.Episodes)
         {
-            _tracks.Add(TrackViewModel.From(episode, Classify(episode), _s.Ledger.Get(episode.Path), _s.Journal.Latest(episode.Path)?.Reason));
+            var last = _s.Journal.Latest(episode.Path);
+            _tracks.Add(TrackViewModel.From(episode, Classify(episode), _s.Ledger.Get(episode.Path), last?.Reason, last?.Timestamp));
         }
 
         Seasons.Clear();
@@ -561,7 +562,7 @@ public sealed partial class MainViewModel
                 track.SetSkipped("SKIP", result.Message);
                 break;
             default:
-                track.SetFailed(result.Message);
+                track.SetFailed(result.Message, _s.Now());
                 break;
         }
     }
@@ -782,7 +783,7 @@ public sealed partial class MainViewModel
         Raise(nameof(LabelTitle), nameof(LabelSide), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq),
             nameof(FooterTitle), nameof(SavedGigabytes), nameof(SavedDigits), nameof(BeforeText), nameof(AfterText),
             nameof(AfterFraction), nameof(EpisodesDoneText), nameof(HandledFraction), nameof(SeasonFooter),
-            nameof(CqSourceText), nameof(HasCqOverride), nameof(RecommendedCqIndex));
+            nameof(CqSourceText), nameof(HasCqOverride), nameof(RecommendedCqIndex), nameof(LastFailureText), nameof(LastFailureDetail));
         RefreshReadouts();
     }
 

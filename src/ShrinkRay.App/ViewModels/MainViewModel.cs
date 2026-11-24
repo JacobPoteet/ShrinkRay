@@ -258,6 +258,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The latest failure in the deck's show, as monitor A prints it: the episode and why. It
+    /// clears once that episode runs again. Empty when nothing failed.
+    /// </summary>
+    public string LastFailureText => LastFailed is { } t ? $"LAST FAIL {t.Code} · {t.Detail}".ToUpperInvariant() : "";
+
+    /// <summary>The same failure in full, for the line's tooltip.</summary>
+    public string LastFailureDetail => LastFailed is { } t ? $"{t.Code}: {t.Detail}" : "";
+
     public string RecoveryText
     {
         get => _recoveryText;
@@ -711,6 +720,11 @@ public sealed partial class MainViewModel : ObservableObject
     private double Ratio => SizeEstimate.RatioFor(IsEncoding ? _runCq : Cq);
 
     private TrackViewModel? NextQueued => _tracks.FirstOrDefault(t => t.IsQueueable);
+
+    private TrackViewModel? LastFailed => _tracks
+        .Where(t => t.Kind == TrackKind.Failed)
+        .OrderByDescending(t => t.FailedAt ?? DateTimeOffset.MinValue)
+        .FirstOrDefault();
 
     /// <summary>The run lamp's word for a phase.</summary>
     public static string PhaseWord(EpisodePhase phase) => phase switch

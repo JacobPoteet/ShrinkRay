@@ -362,10 +362,64 @@ public class MainViewModelTests
         vm.Seasons[0].IsSelected = true;
 
         Assert.Equal("KEPT 9%", vm.Tracks[0].StatusText);
-        Assert.Equal("FAILED", vm.Tracks[1].StatusText);
+        Assert.Equal("FAIL DECODE", vm.Tracks[1].StatusText);
         Assert.Equal("Full decode reported errors", vm.Tracks[1].Detail);
         Assert.Null(rig.Ledger.Get(kept));
     }
+
+    [Fact]
+    public async Task A_failure_in_the_run_shows_its_reason_on_the_row_and_the_monitor()
+    {
+        var rig = Library();
+        var failed = DeckRig.Episode("Scrubs", 1, 2);
+        rig.Runner.Results[failed] = new PipelineResult(PipelineOutcome.Failed, "Subtitle streams: expected 2, output has 3; Duration missing from the source or the output");
+        var vm = await rig.StartedWith("Scrubs");
+        Assert.Equal("", vm.LastFailureText);
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+        vm.Seasons[0].IsSelected = true;
+
+        var track = vm.Tracks.Single(t => t.Path == failed);
+        Assert.Equal("FAIL SUBS", track.StatusText);
+        Assert.Equal("Subtitle streams: expected 2, output has 3; Duration missing from the source or the output", track.Detail);
+        Assert.Equal("LAST FAIL S01E02 · SUBTITLE STREAMS: EXPECTED 2, OUTPUT HAS 3; DURATION MISSING FROM THE SOURCE OR THE OUTPUT", vm.LastFailureText);
+        Assert.StartsWith("S01E02: Subtitle streams", vm.LastFailureDetail);
+    }
+
+    [Fact]
+    public async Task After_a_restart_failed_episodes_show_the_journal_reason_and_the_latest_one_is_on_the_monitor()
+    {
+        var rig = Library();
+        var older = DeckRig.Episode("Scrubs", 1, 1);
+        var newer = DeckRig.Episode("Scrubs", 2, 1);
+        rig.Store.Append(new JournalEntry(new DateTimeOffset(2026, 11, 20, 1, 0, 0, TimeSpan.Zero), older, SwapState.Queued));
+        rig.Store.Append(new JournalEntry(new DateTimeOffset(2026, 11, 20, 1, 5, 0, TimeSpan.Zero), older, SwapState.Failed, "HandBrakeCLI exited with code 3"));
+        rig.Store.Append(new JournalEntry(new DateTimeOffset(2026, 11, 21, 1, 0, 0, TimeSpan.Zero), newer, SwapState.Queued));
+        rig.Store.Append(new JournalEntry(new DateTimeOffset(2026, 11, 21, 1, 9, 0, TimeSpan.Zero), newer, SwapState.Failed, "Audio streams: expected 2, output has 1"));
+        rig.ReopenJournal();
+
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal("FAIL ENCODE", vm.Tracks.Single(t => t.Path == older).StatusText);
+        Assert.Equal("HandBrakeCLI exited with code 3", vm.Tracks.Single(t => t.Path == older).Detail);
+        Assert.Equal("LAST FAIL S02E01 · AUDIO STREAMS: EXPECTED 2, OUTPUT HAS 1", vm.LastFailureText);
+
+        // Running the show again clears the line once the failed episodes go through.
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.Equal("", vm.LastFailureText);
+    }
+
+    [Theory]
+    [InlineData("Subtitle streams (closed captions add one): expected 2, output has 3", "FAIL SUBS")]
+    [InlineData("Duration differs by 4.0 s (source 1320.0 s, output 1316.0 s)", "FAIL LENGTH")]
+    [InlineData("Attachments: expected 4, output has 0", "FAIL FONTS")]
+    [InlineData("Output video codec is h264, expected hevc", "FAIL VIDEO")]
+    [InlineData("The uploaded temp file is 10 bytes, expected 12.", "FAILED")]
+    [InlineData("", "FAILED")]
+    public void A_failure_reason_gets_a_short_status(string reason, string expected) =>
+        Assert.Equal(expected, TrackViewModel.FailedStatus(reason));
 
     [Fact]
     public async Task While_encoding_the_deck_shows_the_episode_and_locks_the_tape()
