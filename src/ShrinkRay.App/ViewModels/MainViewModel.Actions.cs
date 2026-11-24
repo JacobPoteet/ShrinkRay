@@ -451,8 +451,7 @@ public sealed partial class MainViewModel
         _current = Find(path);
         _progress = 0;
         _fps = null;
-        _lastOutputBytes = null;
-        _lastOutputProgress = 0;
+        BitrateMbps = 0;
         if (_current is null)
         {
             return;
@@ -479,6 +478,7 @@ public sealed partial class MainViewModel
         _fps = progress.Fps ?? progress.AverageFps;
         _current.SetEncoding(_progress, Ratio);
         RefreshReadouts();
+        RefreshTransport();
     }
 
     private void OnEpisodeFinished(EpisodeFinished finished)
@@ -580,21 +580,12 @@ public sealed partial class MainViewModel
         var output = Path.Combine(
             EpisodePipeline.WorkFolder(_runSettings.ScratchFolder, _current.Path),
             "encoded" + Path.GetExtension(_current.Path));
-        if (_s.FileSize(output) is { } bytes && duration > 0)
+        // The muxer writes in bursts, so the needle reads the average so far: bytes written over
+        // the stretch of the episode encoded. It settles on the output's real bitrate.
+        var mediaSeconds = _progress * duration;
+        if (_s.FileSize(output) is { } bytes && mediaSeconds >= MinBitrateSeconds)
         {
-            var mediaSeconds = (_progress - _lastOutputProgress) * duration;
-            if (_lastOutputBytes is { } last && mediaSeconds >= 1 && bytes >= last)
-            {
-                var mbps = (bytes - last) * 8 / 1_000_000d / mediaSeconds;
-                BitrateMbps = Math.Clamp(_bitrate <= 0 ? mbps : (_bitrate * 0.5) + (mbps * 0.5), 0, MaxMbps);
-                _lastOutputBytes = bytes;
-                _lastOutputProgress = _progress;
-            }
-            else if (_lastOutputBytes is null)
-            {
-                _lastOutputBytes = bytes;
-                _lastOutputProgress = _progress;
-            }
+            BitrateMbps = Math.Clamp(bytes * 8 / 1_000_000d / mediaSeconds, 0, MaxMbps);
         }
 
         var now = _s.Now();
@@ -757,7 +748,7 @@ public sealed partial class MainViewModel
         }
         else if (_queue is not null)
         {
-            RunLamp.Show(_current is null ? "Encoding" : "Encoding " + _current.Code, LampState.Red, blink: true);
+            RunLamp.Show(_current is null ? "Encoding" : Phase + " " + _current.Code, LampState.Red, blink: true);
         }
         else
         {

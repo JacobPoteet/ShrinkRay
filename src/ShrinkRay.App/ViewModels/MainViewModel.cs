@@ -26,6 +26,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private static readonly TimeSpan LoadPollInterval = TimeSpan.FromSeconds(2);
 
+    /// <summary>Seconds of the episode encoded before the bitrate needle reads; earlier is mostly header.</summary>
+    private const double MinBitrateSeconds = 5;
+
+    /// <summary>HandBrake's last progress line reads 99.9%; past it the pipeline checks and swaps.</summary>
+    private const double EncodeDone = 0.999;
+
     private readonly DeckServices _s;
     private readonly ShrinkRaySettings _settings;
     private readonly LibraryScanner _scanner;
@@ -50,8 +56,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     private double _bitrate;
     private double _encoderLoad;
-    private long? _lastOutputBytes;
-    private double _lastOutputProgress;
     private DateTime _lastLoadPoll = DateTime.MinValue;
     private bool _loadPollBusy;
     private int _lastMinute = -1;
@@ -351,7 +355,16 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string TapeTotalText => _current?.Record.DurationSeconds is { } d ? "/ " + Format.TapeTime(d) : "/ --:--";
 
-    public string FpsDigits => IsSpinning && _fps is { } f
+    /// <summary>
+    /// What the current episode is going through: copying to scratch before HandBrake reports,
+    /// encoding, then checking and swapping once the encode is done.
+    /// </summary>
+    public string Phase => _current is null ? ""
+        : _progress <= 0 ? "Loading"
+        : _progress >= EncodeDone ? "Checking"
+        : "Encoding";
+
+    public string FpsDigits => IsSpinning && _fps is { } f && _progress < EncodeDone
         ? Math.Min(999, Math.Round(f)).ToString("0", CultureInfo.InvariantCulture).PadLeft(3)
         : "  0";
 

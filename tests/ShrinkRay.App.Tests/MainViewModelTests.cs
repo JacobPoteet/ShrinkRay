@@ -417,15 +417,39 @@ public class MainViewModelTests
         vm.Tick();
         Assert.Equal(0, vm.BitrateMbps);
 
-        // One percent of a 1320-second episode is 13.2 seconds; 3.3 MB over that is 2 Mbps.
-        rig.Sizes[output] = 3_300_000;
-        rig.Runner.Report(51);
+        // Half of a 1320-second episode is 660 seconds; 165 MB over that averages 2 Mbps.
+        rig.Sizes[output] = 165_000_000;
         vm.Tick();
         Assert.Equal(2.0, vm.BitrateMbps, 2);
+
+        // A burst far past the scale pins the needle at the top rather than off it.
+        rig.Sizes[output] = 2_000_000_000;
+        vm.Tick();
+        Assert.Equal(MainViewModel.MaxMbps, vm.BitrateMbps);
 
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
         Assert.Equal(0, vm.BitrateMbps);
+    }
+
+    [Fact]
+    public async Task The_run_lamp_names_the_phase_of_the_episode()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+
+        rig.Runner.Report(99.9);
+
+        Assert.Equal("Checking S01E01", vm.RunLamp.Label);
+        Assert.Equal("  0", vm.FpsDigits);
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.Equal("Ready", vm.RunLamp.Label);
     }
 
     // ---- Settings ----
