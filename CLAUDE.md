@@ -59,6 +59,17 @@ dotnet run --project src/ShrinkRay.App -- --data scratch\main-check\data --still
 of `%LOCALAPPDATA%\ShrinkRay`. Build a test library under `scratch\fakelib` (gitignored) from
 copied clips, laid out as `Show\Season 01\Show - S01E01.mkv`, and choose it as the library.
 
+Install the current checkout for Jacob, with no release or version bump:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
+```
+
+It publishes Release into `%LOCALAPPDATA%\Programs\ShrinkRay`, adds a Start menu shortcut and
+records the commit in `install.txt` and the exe's version. It refuses while ShrinkRay is running,
+since an encode may be mid-swap, and never touches `%LOCALAPPDATA%\ShrinkRay`, where settings and
+the journal live. `gitview.toml` lists the build, test, run and install tasks GitView shows.
+
 ## Architecture
 
 `src/ShrinkRay.Core` keeps logic pure and puts every process call and file operation behind

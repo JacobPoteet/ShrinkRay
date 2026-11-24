@@ -1,0 +1,28 @@
+# Tasks GitView shows for this repository (only `name` and `command` are read).
+# GitView also guesses bare `dotnet build`, `dotnet run` and `dotnet test` from the
+# solution. The bare `dotnet run` fails here because the solution holds several
+# projects, so the run tasks below name the project.
+
+[[task]]
+name = "build"
+command = "dotnet build ShrinkRay.sln -c Release"
+
+[[task]]
+name = "test"
+command = "dotnet test ShrinkRay.sln -c Release"
+
+[[task]]
+name = "run"
+command = "dotnet run --project src/ShrinkRay.App"
+
+[[task]]
+name = "run gallery"
+command = "dotnet run --project src/ShrinkRay.Gallery"
+
+[[task]]
+name = "install"
+command = "powershell -ExecutionPolicy Bypass -File tools/install-local.ps1"
+
+[[task]]
+name = "install and launch"
+command = "powershell -ExecutionPolicy Bypass -File tools/install-local.ps1 -Launch"
