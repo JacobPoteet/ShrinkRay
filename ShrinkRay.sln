@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShrinkRay.Theme", "src\Shri
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShrinkRay.Gallery", "src\ShrinkRay.Gallery\ShrinkRay.Gallery.csproj", "{3390B5C9-743B-4F1F-862E-5BF00144AC82}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShrinkRay.Theme.Tests", "tests\ShrinkRay.Theme.Tests\ShrinkRay.Theme.Tests.csproj", "{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{3390B5C9-743B-4F1F-862E-5BF00144AC82}.Release|x64.Build.0 = Release|Any CPU
 		{3390B5C9-743B-4F1F-862E-5BF00144AC82}.Release|x86.ActiveCfg = Release|Any CPU
 		{3390B5C9-743B-4F1F-862E-5BF00144AC82}.Release|x86.Build.0 = Release|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Debug|x64.Build.0 = Debug|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Debug|x86.Build.0 = Debug|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Release|x64.ActiveCfg = Release|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Release|x64.Build.0 = Release|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Release|x86.ActiveCfg = Release|Any CPU
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{CB629B35-4E3C-46B5-AE77-A92115FF92C3} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{66A4C86A-6C72-41C7-9CDA-8B386F8ADB0C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3390B5C9-743B-4F1F-862E-5BF00144AC82} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{B99FAA8B-27FD-4C74-8F70-42EA0B4684C1} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
