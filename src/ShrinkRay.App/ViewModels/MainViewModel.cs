@@ -527,8 +527,42 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>A start equal to the end opens the window all day, as the settings read it.</summary>
     public string WindowDymo => !_settings.EncodeWindowEnabled || _settings.EncodeWindowStart == _settings.EncodeWindowEnd ? "Runs any time"
-        : _settings.EncodeWindowStart > _settings.EncodeWindowEnd ? "Runs overnight"
+        : IsMostlyOvernight(_settings.EncodeWindowStart, _settings.EncodeWindowEnd) ? "Runs overnight"
         : "Runs by day";
+
+    /// <summary>Night, for the window's label, runs from 22:00 to 07:00.</summary>
+    public static readonly TimeOnly NightStart = new(22, 0);
+
+    public static readonly TimeOnly NightEnd = new(7, 0);
+
+    /// <summary>
+    /// True when more than half of a window's minutes fall between <see cref="NightStart"/> and
+    /// <see cref="NightEnd"/>. A window whose start is after its end wraps past midnight.
+    /// </summary>
+    public static bool IsMostlyOvernight(TimeOnly start, TimeOnly end)
+    {
+        const int day = 24 * 60;
+        var from = (start.Hour * 60) + start.Minute;
+        var length = ((((end.Hour * 60) + end.Minute - from) % day) + day) % day;
+        if (length == 0)
+        {
+            length = day;
+        }
+
+        var nightFrom = (NightStart.Hour * 60) + NightStart.Minute;
+        var nightLength = ((((NightEnd.Hour * 60) + NightEnd.Minute - nightFrom) % day) + day) % day;
+        var night = 0;
+        for (var i = 0; i < length; i++)
+        {
+            var sinceNightFell = ((from + i - nightFrom) % day + day) % day;
+            if (sinceNightFell < nightLength)
+            {
+                night++;
+            }
+        }
+
+        return night * 2 > length;
+    }
 
     /// <summary>
     /// Moves a time to the next or previous <see cref="WindowStepMinutes"/> mark, wrapping at

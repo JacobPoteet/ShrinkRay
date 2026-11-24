@@ -802,6 +802,25 @@ public class MainViewModelTests
     }
 
     [Theory]
+    [InlineData("00:00", "06:30", "Runs overnight")]
+    [InlineData("23:00", "07:00", "Runs overnight")]
+    [InlineData("09:00", "17:00", "Runs by day")]
+    [InlineData("20:00", "03:00", "Runs overnight")]
+    [InlineData("18:00", "02:00", "Runs by day")]
+    [InlineData("05:00", "13:00", "Runs by day")]
+    public async Task The_window_label_says_overnight_when_most_of_it_is_night(string start, string end, string expected)
+    {
+        var rig = Library();
+        rig.Settings.EncodeWindowEnabled = true;
+        rig.Settings.EncodeWindowStart = TimeOnly.Parse(start, System.Globalization.CultureInfo.InvariantCulture);
+        rig.Settings.EncodeWindowEnd = TimeOnly.Parse(end, System.Globalization.CultureInfo.InvariantCulture);
+
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal(expected, vm.WindowDymo);
+    }
+
+    [Theory]
     [InlineData("23:00", 1, "23:30")]
     [InlineData("23:30", 1, "00:00")]
     [InlineData("00:00", -1, "23:30")]
