@@ -174,7 +174,7 @@ public class SwapExecutorTests
 
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
         Assert.False(h.TempExists);
-        Assert.Equal(SwapState.Failed, h.State);
+        Assert.Equal(SwapState.Cancelled, h.State);
     }
 
     [Fact]

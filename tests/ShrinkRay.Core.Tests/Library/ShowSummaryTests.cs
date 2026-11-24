@@ -23,6 +23,7 @@ public class ShowSummaryTests
     [InlineData(null, EpisodeStatus.Queued)]
     [InlineData(SwapState.KeptOriginal, EpisodeStatus.Kept)]
     [InlineData(SwapState.Failed, EpisodeStatus.Failed)]
+    [InlineData(SwapState.Cancelled, EpisodeStatus.Queued)]
     [InlineData(SwapState.OriginalDeleted, EpisodeStatus.Queued)]
     public void Eligible_files_follow_the_journal(SwapState? state, EpisodeStatus expected)
     {

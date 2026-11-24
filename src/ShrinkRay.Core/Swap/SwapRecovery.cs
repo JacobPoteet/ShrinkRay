@@ -115,7 +115,16 @@ public sealed class SwapRecovery
     /// Settles one file from its journal state and what is on disk. The swap also calls this to
     /// roll back after an error.
     /// </summary>
-    public async Task<RecoveryAction> ResolveAsync(string path, CancellationToken cancellationToken)
+    public Task<RecoveryAction> ResolveAsync(string path, CancellationToken cancellationToken) =>
+        ResolveAsync(path, SwapState.Failed, cancellationToken);
+
+    /// <param name="settleAs">
+    /// Where a file that is put back to its original ends: <see cref="SwapState.Failed"/> after a
+    /// crash or an error, <see cref="SwapState.Cancelled"/> when Skip or Stop cut the upload short.
+    /// Failed whenever the journal does not allow <paramref name="settleAs"/> from the current
+    /// state, and always when a swapped-in file fails its check.
+    /// </param>
+    public async Task<RecoveryAction> ResolveAsync(string path, SwapState settleAs, CancellationToken cancellationToken)
     {
         var state = _journal.CurrentState(path);
         if (state is not { } current)
@@ -126,7 +135,7 @@ public sealed class SwapRecovery
         if (current.IsLocalStep())
         {
             var message = $"Interrupted at {current}. The share was not touched.";
-            _journal.Record(path, SwapState.Failed, message);
+            _journal.Record(path, Settle(current, settleAs), message);
             return new RecoveryAction(path, RecoveryKind.Interrupted, message);
         }
 
@@ -146,7 +155,7 @@ public sealed class SwapRecovery
             // Temp first. A crash between the two steps then leaves backup-only, handled here.
             DeleteIfPresent(temp, hasTemp);
             _fs.MoveFile(backup, path);
-            return RolledBack(path, $"Interrupted at {current}. The original was renamed back.");
+            return RolledBack(path, Settle(current, settleAs), $"Interrupted at {current}. The original was renamed back.");
         }
 
         if (hasBackup)
@@ -169,7 +178,7 @@ public sealed class SwapRecovery
             DeleteIfPresent(temp, hasTemp);
             _fs.DeleteFile(path);
             _fs.MoveFile(backup, path);
-            return RolledBack(path, "The new file failed verification. The original was renamed back.");
+            return RolledBack(path, SwapState.Failed, "The new file failed verification. The original was renamed back.");
         }
 
         if (hasTemp)
@@ -177,7 +186,7 @@ public sealed class SwapRecovery
             if (hasOriginalName && current is SwapState.UploadedTemp or SwapState.OriginalRenamedAside)
             {
                 _fs.DeleteFile(temp);
-                return RolledBack(path, $"Interrupted at {current}. The temp file was deleted and the original was not touched.");
+                return RolledBack(path, Settle(current, settleAs), $"Interrupted at {current}. The temp file was deleted and the original was not touched.");
             }
 
             if (hasOriginalName && current == SwapState.OriginalDeleted)
@@ -199,7 +208,7 @@ public sealed class SwapRecovery
         return current switch
         {
             SwapState.UploadedTemp or SwapState.OriginalRenamedAside =>
-                RolledBack(path, $"Interrupted at {current}. The original was not touched."),
+                RolledBack(path, Settle(current, settleAs), $"Interrupted at {current}. The original was not touched."),
             SwapState.Swapped => Completed(path, "The new file is in place and the backup is already gone."),
             _ => new RecoveryAction(path, RecoveryKind.NoAction, "The swap finished."),
         };
@@ -211,11 +220,14 @@ public sealed class SwapRecovery
         return new RecoveryAction(path, RecoveryKind.Completed, description);
     }
 
-    private RecoveryAction RolledBack(string path, string description)
+    private RecoveryAction RolledBack(string path, SwapState settled, string description)
     {
-        _journal.Record(path, SwapState.Failed, description);
+        _journal.Record(path, settled, description);
         return new RecoveryAction(path, RecoveryKind.RolledBack, description);
     }
+
+    private static SwapState Settle(SwapState current, SwapState wanted) =>
+        SwapTransitions.IsAllowed(current, wanted) ? wanted : SwapState.Failed;
 
     private static RecoveryAction NeedsReview(string path, string description) =>
         new(path, RecoveryKind.NeedsReview, description);

@@ -200,6 +200,24 @@ public class MainViewModelTests
         Assert.Equal("Saves 9%, below the 15% minimum", track.Detail);
     }
 
+    [Fact]
+    public async Task An_episode_skipped_or_stopped_last_time_reads_queued_not_failed()
+    {
+        var rig = Library();
+        var stopped = DeckRig.Episode("Scrubs", 1, 2);
+        rig.Journal.Record(stopped, SwapState.Queued);
+        rig.Journal.Record(stopped, SwapState.CopiedToScratch);
+        rig.Journal.Record(stopped, SwapState.Encoded);
+        rig.Journal.Record(stopped, SwapState.Cancelled, EpisodePipeline.CancelledReason);
+
+        var vm = await rig.StartedWith("Scrubs");
+
+        var track = vm.Tracks.Single(t => t.Path == stopped);
+        Assert.Equal(TrackKind.Queued, track.Kind);
+        Assert.Equal("QUEUED", track.StatusText);
+        Assert.True(track.IsQueueable);
+    }
+
     // ---- Knob ----
 
     [Fact]

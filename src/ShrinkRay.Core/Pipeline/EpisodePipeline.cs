@@ -32,6 +32,8 @@ public interface IEpisodeRunner
 /// </summary>
 public sealed class EpisodePipeline : IEpisodeRunner
 {
+    public const string CancelledReason = "Skipped or stopped from the deck before the swap. The original was not touched.";
+
     private readonly IFileSystem _fs;
     private readonly IMediaProbe _probe;
     private readonly IVideoEncoder _encoder;
@@ -70,7 +72,8 @@ public sealed class EpisodePipeline : IEpisodeRunner
         }
 
         var state = _journal.CurrentState(sourcePath);
-        if (state is not (null or SwapState.Queued or SwapState.Failed or SwapState.KeptOriginal or SwapState.Skipped or SwapState.OriginalDeleted))
+        if (state is not (null or SwapState.Queued or SwapState.Failed or SwapState.KeptOriginal or SwapState.Skipped
+            or SwapState.Cancelled or SwapState.OriginalDeleted))
         {
             throw new InvalidOperationException($"{sourcePath} is at {state} in the journal. Run recovery first.");
         }
@@ -85,15 +88,47 @@ public sealed class EpisodePipeline : IEpisodeRunner
         {
             return await RunStepsAsync(sourcePath, work, progress, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Skip or Stop. The share was not touched, so the file is cancelled rather than failed,
+            // and nothing in its scratch folder is worth keeping.
+            SettleIfStillLocal(sourcePath, SwapState.Cancelled, CancelledReason);
+            TryDeleteWork(work);
+            throw;
+        }
         catch (OperationCanceledException)
         {
-            FailIfStillLocal(sourcePath, "Cancelled");
+            SettleIfStillLocal(sourcePath, SwapState.Failed, "Cancelled");
             throw;
         }
         catch (Exception ex)
         {
-            FailIfStillLocal(sourcePath, ex.Message);
+            SettleIfStillLocal(sourcePath, SwapState.Failed, ex.Message);
             return new PipelineResult(PipelineOutcome.Failed, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the scratch folders of files the journal shows as cancelled. Skip and Stop delete
+    /// them straight away; this catches one a locked file kept. Run it on startup with recovery.
+    /// </summary>
+    public static void RemoveCancelledWork(IFileSystem fs, SwapJournal journal, string scratchFolder)
+    {
+        if (string.IsNullOrWhiteSpace(scratchFolder))
+        {
+            return;
+        }
+
+        foreach (var entry in journal.LatestEntries().Where(e => e.State == SwapState.Cancelled))
+        {
+            try
+            {
+                fs.DeleteDirectory(WorkFolder(scratchFolder, entry.Path));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Still locked. The next start or the file's next run tries again.
+            }
         }
     }
 
@@ -208,12 +243,13 @@ public sealed class EpisodePipeline : IEpisodeRunner
         return new PipelineResult(PipelineOutcome.Replaced, swap.Message ?? "Replaced", verification);
     }
 
-    private void FailIfStillLocal(string sourcePath, string reason)
+    /// <summary>Ends a file the share has not seen yet. A share step is left to the swap's own rollback.</summary>
+    private void SettleIfStillLocal(string sourcePath, SwapState settled, string reason)
     {
         var state = _journal.CurrentState(sourcePath);
         if (state is SwapState.Queued || (state is { } s && s.IsLocalStep()))
         {
-            _journal.Record(sourcePath, SwapState.Failed, reason);
+            _journal.Record(sourcePath, settled, reason);
         }
     }
 

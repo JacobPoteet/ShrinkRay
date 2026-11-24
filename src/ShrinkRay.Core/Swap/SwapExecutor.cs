@@ -108,14 +108,20 @@ public sealed class SwapExecutor
             steps?.Report(SwapState.Swapped);
             _fs.MoveFile(temp, originalPath);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Skip or Stop. Once the temp file is gone the original was never touched, so this is no failure.
+            await RollBackAsync(originalPath, "Cancelled during upload", SwapState.Cancelled);
+            throw;
+        }
         catch (OperationCanceledException)
         {
-            await RollBackAsync(originalPath, "Cancelled during upload");
+            await RollBackAsync(originalPath, "Cancelled during upload", SwapState.Failed);
             throw;
         }
         catch (Exception ex)
         {
-            return await RollBackAsync(originalPath, ex.Message);
+            return await RollBackAsync(originalPath, ex.Message, SwapState.Failed);
         }
 
         try
@@ -139,11 +145,11 @@ public sealed class SwapExecutor
         return new SwapResult(SwapOutcome.Failed, message);
     }
 
-    private async Task<SwapResult> RollBackAsync(string path, string error)
+    private async Task<SwapResult> RollBackAsync(string path, string error, SwapState settleAs)
     {
         try
         {
-            var action = await _recovery.ResolveAsync(path, CancellationToken.None);
+            var action = await _recovery.ResolveAsync(path, settleAs, CancellationToken.None);
             return new SwapResult(SwapOutcome.Failed, $"{error}. {action.Description}");
         }
         catch (Exception ex)
