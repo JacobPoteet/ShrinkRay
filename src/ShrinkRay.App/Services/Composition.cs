@@ -14,8 +14,11 @@ public static class Composition
     public static DeckServices Create(AppPaths paths, ShrinkRaySettings settings, Action<Action> dispatch)
     {
         var gate = new ProcessGate();
-        var runner = new ProcessRunner(gate);
-        var plainRunner = new ProcessRunner();
+
+        // One job for the app's lifetime. Both runners hold it, so it lives until ShrinkRay exits.
+        var job = ChildProcessJob.TryCreate();
+        var runner = new ProcessRunner(gate, job);
+        var plainRunner = new ProcessRunner(job: job);
         var fs = new PhysicalFileSystem();
         var journal = new SwapJournal(new JsonLinesJournalStore(paths.Journal));
 
