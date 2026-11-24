@@ -29,9 +29,12 @@ dotnet build ShrinkRay.sln -c Release
 dotnet test ShrinkRay.sln -c Release
 ```
 
-`Directory.Build.props` turns warnings into errors. Two integration tests call the real
-ffmpeg and ffprobe on a clip generated in a temp folder. They skip unless you set
-`SHRINKRAY_INTEGRATION=1`, and they need both tools on PATH:
+`Directory.Build.props` turns warnings into errors. The integration tests call the real
+ffmpeg, ffprobe and HandBrakeCLI on clips generated in a temp folder. They skip unless you set
+`SHRINKRAY_INTEGRATION=1`, need ffmpeg and ffprobe on PATH, and the HandBrakeCLI ones skip when
+HandBrakeCLI is not found and need an NVENC card. One more encodes a clip whose video carries
+closed captions, read in place from the path in `SHRINKRAY_CC_CLIP`; it skips when that is unset.
+Keep that clip out of the repo:
 
 ```powershell
 $env:SHRINKRAY_INTEGRATION = '1'; dotnet test ShrinkRay.sln -c Release --filter "FullyQualifiedName~Integration"
@@ -141,9 +144,11 @@ The app deletes originals on a live Plex library, so these hold everywhere:
 
 1. `dotnet build ShrinkRay.sln -c Release` with no warnings.
 2. `dotnet test ShrinkRay.sln -c Release` with every test passing.
-3. For changes to the probe, font restore or decode check, run the integration tests too.
-4. For changes to encode arguments, run HandBrakeCLI by hand on a copied episode in a local
-   folder and check the result with ffprobe. Never point a test at the share.
+3. For changes to the probe, font restore, decode check or verifier, run the integration tests
+   too, with `SHRINKRAY_CC_CLIP` set when captions are involved.
+4. For changes to encode arguments, run the integration tests, then HandBrakeCLI by hand on a
+   copied episode in a local folder and check the result with ffprobe. Never point a test at
+   the share.
 5. For changes to the theme, open the gallery, screenshot it, and compare it with the design
    boards. Check Amber on Beige and Green on Graphite at least.
 6. For changes to the app, render the main window and compare it with the main deck board,
