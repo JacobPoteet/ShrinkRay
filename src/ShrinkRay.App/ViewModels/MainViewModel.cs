@@ -94,6 +94,7 @@ public sealed partial class MainViewModel : ObservableObject
         WindowStartLaterCommand = new RelayCommand(() => StepWindow(start: true, 1), () => !IsEncoding);
         WindowEndEarlierCommand = new RelayCommand(() => StepWindow(start: false, -1), () => !IsEncoding);
         WindowEndLaterCommand = new RelayCommand(() => StepWindow(start: false, 1), () => !IsEncoding);
+        CreateCloseCommands();
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
         RuleLamps = [new LampViewModel("Skip HEVC files", LampState.Ok), KeepLamp, FontsLamp, new LampViewModel("Same container", LampState.Ok)];

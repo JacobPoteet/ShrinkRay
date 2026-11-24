@@ -493,6 +493,135 @@ public class MainViewModelTests
         Assert.Equal("Ready", vm.RunLamp.Label);
     }
 
+    // ---- Closing ----
+
+    [Fact]
+    public async Task Closing_while_idle_closes_at_once()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.True(vm.RequestClose());
+        Assert.False(vm.IsCloseOverlayOpen);
+    }
+
+    [Fact]
+    public async Task Closing_during_an_encode_asks_and_keep_running_carries_on()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        Assert.False(vm.RequestClose());
+        Assert.True(vm.IsCloseConfirmOpen);
+        Assert.Equal("Stop + close", vm.CloseKeyLabel);
+        Assert.Contains("S01E01", vm.CloseText);
+
+        vm.CancelCloseCommand.Execute(null);
+
+        Assert.False(vm.IsCloseOverlayOpen);
+        Assert.True(vm.IsEncoding);
+        Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
+        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+
+        // A second close asks again.
+        Assert.False(vm.RequestClose());
+        Assert.True(vm.IsCloseConfirmOpen);
+        vm.CancelCloseCommand.Execute(null);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.Equal(TrackKind.Shrunk, vm.Tracks[0].Kind);
+    }
+
+    [Fact]
+    public async Task Confirming_before_the_upload_stops_the_episode_then_closes()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        var ready = 0;
+        vm.CloseReady += (_, _) => ready++;
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+        rig.Runner.Report(EpisodePhase.Uploading);
+
+        Assert.False(vm.RequestClose());
+        vm.ConfirmCloseCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        // The Stop path: the episode's token was cancelled, so the real pipeline journals
+        // Cancelled and clears scratch, and the track goes back in the queue.
+        Assert.True(rig.Runner.Tokens[first].IsCancellationRequested);
+        Assert.Single(rig.Runner.Ran);
+        Assert.Equal(TrackKind.Queued, vm.Tracks[0].Kind);
+        Assert.Equal(1, ready);
+        Assert.True(vm.RequestClose());
+    }
+
+    [Fact]
+    public async Task Confirming_past_the_upload_waits_for_the_swap_then_closes()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        var ready = 0;
+        vm.CloseReady += (_, _) => ready++;
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+        rig.Runner.Report(EpisodePhase.Swapping);
+
+        Assert.False(vm.RequestClose());
+        Assert.True(vm.IsFinishingSwap);
+        Assert.Equal("Finish + close", vm.CloseKeyLabel);
+        vm.ConfirmCloseCommand.Execute(null);
+
+        // The swap is left to finish: nothing cancelled it, the deck says so, and the window stays.
+        Assert.True(vm.IsClosing);
+        Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
+        Assert.Equal("Finishing swap S01E01", vm.RunLamp.Label);
+        Assert.False(vm.RequestClose());
+        Assert.Equal(0, ready);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Equal(TrackKind.Shrunk, vm.Tracks[0].Kind);
+        Assert.Single(rig.Runner.Ran);
+        Assert.Equal(1, ready);
+        Assert.True(vm.RequestClose());
+    }
+
+    [Fact]
+    public async Task A_swap_that_starts_while_the_card_is_open_is_left_to_finish()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        Assert.False(vm.RequestClose());
+        Assert.Equal("Stop + close", vm.CloseKeyLabel);
+        rig.Runner.Report(EpisodePhase.Uploading);
+        rig.Runner.Report(EpisodePhase.Swapping);
+        Assert.Equal("Finish + close", vm.CloseKeyLabel);
+
+        vm.ConfirmCloseCommand.Execute(null);
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
+        Assert.Single(rig.Runner.Ran);
+        Assert.True(vm.RequestClose());
+    }
+
     // ---- Settings ----
 
     [Fact]

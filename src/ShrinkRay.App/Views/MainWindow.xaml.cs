@@ -29,6 +29,18 @@ public partial class MainWindow : Window
         Drop += OnDrop;
         DragOver += OnDragOver;
 
+        // Closing during a run asks first; the view model decides, and closes the window again
+        // once the run has ended.
+        Closing += (_, e) => e.Cancel = !viewModel.RequestClose();
+        viewModel.CloseReady += (_, _) => Dispatcher.BeginInvoke(Close);
+        CloseOverlay.IsVisibleChanged += (_, _) =>
+        {
+            if (CloseOverlay.IsVisible)
+            {
+                KeepRunningKey.Focus();
+            }
+        };
+
         // Open no larger than the work area. The deck scales down to fit a smaller window.
         var area = SystemParameters.WorkArea;
         Width = Math.Max(MinWidth, Math.Min(Width, area.Width));

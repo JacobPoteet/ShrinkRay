@@ -466,6 +466,7 @@ public sealed partial class MainViewModel
 
         RefreshDeck();
         RefreshTransport();
+        RefreshClosing();
     }
 
     private void OnProgress(string path, EpisodeProgress progress)
@@ -491,6 +492,9 @@ public sealed partial class MainViewModel
         _current.SetEncoding(_progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
         RefreshReadouts();
         RefreshTransport();
+
+        // The swap may start while the confirm card is open, or after a confirmed close began.
+        RefreshClosing();
     }
 
     private void OnEpisodeFinished(EpisodeFinished finished)
@@ -520,6 +524,7 @@ public sealed partial class MainViewModel
         }
 
         RefreshAll();
+        RefreshClosing();
     }
 
     private void ApplyResult(TrackViewModel track, PipelineResult result)
@@ -551,6 +556,13 @@ public sealed partial class MainViewModel
         _fps = null;
         BitrateMeterRest();
         RefreshAll();
+        RefreshClosing();
+
+        if (_isClosing)
+        {
+            CloseReady?.Invoke(this, EventArgs.Empty);
+            return;
+        }
 
         // Replaced files changed on disk, so a rescan of this show brings the list up to date.
         if (_loaded is { } show)
@@ -769,6 +781,11 @@ public sealed partial class MainViewModel
         if (_isRecovering)
         {
             RunLamp.Show("Recovery check", LampState.Active, blink: true);
+        }
+        else if (_isClosing && _queue is not null)
+        {
+            var word = IsFinishingSwap ? "Finishing swap" : "Stopping";
+            RunLamp.Show(_current is null ? word : word + " " + _current.Code, LampState.Active, blink: true);
         }
         else if (state == QueueState.Paused)
         {
