@@ -1,0 +1,423 @@
+<Window x:Class="ShrinkRay.Gallery.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sr="urn:shrinkray-theme"
+        xmlns:local="clr-namespace:ShrinkRay.Gallery"
+        Title="ShrinkRay theme gallery"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SR.Board}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <Window.Resources>
+        <Style x:Key="Caption" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Caption}" />
+
+        <!-- Lamp words in the kit: lamp above, caption-weight word below -->
+        <Style x:Key="KitLamp" TargetType="sr:Lamp">
+            <Setter Property="Diameter" Value="12" />
+            <Setter Property="LabelPlacement" Value="Below" />
+            <Setter Property="Spacing" Value="6" />
+        </Style>
+
+        <!-- Status lamps on a panel: lamp beside a silkscreen word -->
+        <Style x:Key="PanelLamp" TargetType="sr:Lamp">
+            <Setter Property="Diameter" Value="9" />
+            <Setter Property="Spacing" Value="7" />
+            <Setter Property="Foreground" Value="{DynamicResource SR.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="SwitchChip" TargetType="sr:SeasonChip">
+            <Setter Property="MinWidth" Value="68" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Lamp" Value="Active" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="SwatchTemplate" DataType="{x:Type local:Swatch}">
+            <StackPanel>
+                <Grid Height="64">
+                    <Border x:Name="Drop" Margin="0,1,0,-1" CornerRadius="6" Background="#66000000" Visibility="Collapsed">
+                        <Border.Effect>
+                            <BlurEffect Radius="4" />
+                        </Border.Effect>
+                    </Border>
+                    <Border x:Name="Glow" Margin="-2" CornerRadius="8" Background="{Binding GlowFill}" Visibility="Collapsed">
+                        <Border.Effect>
+                            <BlurEffect Radius="24" />
+                        </Border.Effect>
+                    </Border>
+                    <Border CornerRadius="6" Background="{Binding Fill}" />
+                    <Border x:Name="Highlight" CornerRadius="6" BorderThickness="0,2,0,0" BorderBrush="#99FFFFFF" Visibility="Collapsed" />
+                    <sr:InsetShadow x:Name="Inset" CornerRadius="6" Blur="{Binding InsetBlur}" OffsetY="{Binding InsetOffset}"
+                                    Color="Black" Visibility="Collapsed" />
+                </Grid>
+                <sr:TrackedText Text="{Binding Name}" Style="{StaticResource SR.Silk}" FontSize="11" Margin="0,7,0,0" />
+                <TextBlock Style="{StaticResource Caption}" FontSize="12" LineHeight="16" Margin="0,4,0,0">
+                    <Run Text="{Binding Hex, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Role, Mode=OneWay}" />
+                </TextBlock>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Finish}" Value="Raised">
+                    <Setter TargetName="Drop" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Finish}" Value="Molded">
+                    <Setter TargetName="Drop" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Highlight" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Finish}" Value="Recessed">
+                    <Setter TargetName="Inset" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Finish}" Value="Lit">
+                    <Setter TargetName="Glow" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Width="1802" Height="1180" Margin="0">
+        <Grid Margin="44,40,44,40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="22" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="22" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="22" />
+                <ColumnDefinition Width="340" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="333*" />
+                <RowDefinition Height="22" />
+                <RowDefinition Height="409*" />
+                <RowDefinition Height="22" />
+                <RowDefinition Height="311*" />
+            </Grid.RowDefinitions>
+
+            <!-- 01 MATERIALS -->
+            <ContentControl Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="01 · Materials" />
+                    <ItemsControl x:Name="Materials" Margin="0,16,-14,-16" ItemTemplate="{StaticResource SwatchTemplate}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="5" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Margin" Value="0,0,14,16" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                    </ItemsControl>
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 02 HOUSE RULES -->
+            <ContentControl Grid.Row="0" Grid.Column="4" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="02 · House rules" />
+                    <StackPanel Margin="0,16,0,0">
+                        <StackPanel.Resources>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                <Setter Property="FontSize" Value="15" />
+                                <Setter Property="LineHeight" Value="20" />
+                                <Setter Property="Margin" Value="0,0,0,9" />
+                            </Style>
+                        </StackPanel.Resources>
+                        <TextBlock Text="One light source: phosphor. Screens, digits and live readouts glow. Nothing else does." />
+                        <TextBlock Text="Signal red belongs to Encode and to anything that deletes. Nowhere else." />
+                        <TextBlock Text="Every status pairs a lamp with a word, so it never relies on color alone." />
+                        <TextBlock Text="Silkscreen labels are uppercase condensed type, tracked wide, printed on the panel." />
+                        <TextBlock Text="Only parts that move on real hardware animate: reels, needles, lamps, keys." />
+                    </StackPanel>
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 03 TYPE -->
+            <ContentControl Grid.Row="2" Grid.Column="0" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="03 · Type" />
+                    <sr:TrackedText Style="{StaticResource SR.Wordmark}" Text="ShrinkRay" Margin="0,18,0,0" />
+                    <TextBlock Style="{StaticResource Caption}" Text="Michroma · badge and wordmark only" />
+                    <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="16" Text="Tape magazine · track list" Margin="0,12,0,0" />
+                    <TextBlock Style="{StaticResource Caption}" Text="Barlow Condensed 600 · silkscreen labels, +18% tracking" />
+                    <sr:CrtPanel Margin="0,12,0,0" CornerRadius="14" Padding="12,8" TubeShadow="30">
+                        <TextBlock Text="&gt; PLEX/TV · 142 SHOWS_" />
+                    </sr:CrtPanel>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
+                               Text="scientifica · screens, readouts and printouts, set at 22 px so pixels stay square" />
+                    <TextBlock Style="{StaticResource SR.Text.Marker}" Foreground="{DynamicResource SR.MarkerInk}" Text="SCRUBS · S01E03" Margin="0,12,0,0" />
+                    <TextBlock Style="{StaticResource Caption}" Text="Permanent Marker · hand-written tape labels" />
+                    <TextBlock Style="{StaticResource SR.Text.PixelBold}" Foreground="{DynamicResource SR.LinePrinterInk}"
+                               Text="SEASON 3   22   36.2   16.3" Margin="0,12,0,0" />
+                    <TextBlock Style="{StaticResource Caption}" Text="scientifica bold · line printer totals" />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 04 CONTROLS -->
+            <ContentControl Grid.Row="2" Grid.Column="2" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="04 · Controls" />
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <StackPanel Margin="0,0,14,0">
+                            <sr:PianoKey Label="Pause" Width="92" AutomationProperties.Name="Pause, key up" />
+                            <TextBlock Style="{StaticResource Caption}" Text="Key, up" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,14,0">
+                            <sr:PianoLatchKey Label="Pause" Width="92" IsChecked="True" AutomationProperties.Name="Pause, latched" />
+                            <TextBlock Style="{StaticResource Caption}" Text="Latched" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <StackPanel>
+                            <sr:PianoKey Label="Encode" Width="92" IsRecord="True" AutomationProperties.Name="Encode" />
+                            <TextBlock Style="{StaticResource Caption}" Text="Record key" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                        <ToggleButton Style="{StaticResource SR.ToggleSwitch}" Content="Off" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Example switch, off" />
+                        <ToggleButton Style="{StaticResource SR.ToggleSwitch}" Content="On" IsChecked="True" VerticalAlignment="Center"
+                                      Margin="22,0,22,0" AutomationProperties.Name="Example switch, on" />
+                        <sr:RotaryKnob Width="96" Height="90" Labels="20,22,24,26,28,30" SelectedIndex="2"
+                                       Caption="Quality CQ" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,22,0,0"
+                               Text="Replace originals is on by default. It lives in settings, not on the panel." />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 05 LAMPS AND READOUTS -->
+            <ContentControl Grid.Row="2" Grid.Column="4" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="05 · Lamps and readouts" />
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <sr:Lamp Style="{StaticResource KitLamp}" State="Off" Content="Idle" Margin="0,0,18,0" />
+                        <sr:Lamp Style="{StaticResource KitLamp}" State="Active" Content="Active" Margin="0,0,18,0" />
+                        <sr:Lamp Style="{StaticResource KitLamp}" State="Ok" Content="Checked" Margin="0,0,18,0" />
+                        <sr:Lamp Style="{StaticResource KitLamp}" State="Red" Content="Encoding" />
+                    </StackPanel>
+                    <ContentControl Style="{StaticResource SR.Plate}" Padding="16,12" Margin="0,14,0,0" HorizontalAlignment="Left"
+                                    RenderTransformOrigin="0.5,0.5">
+                        <ContentControl.RenderTransform>
+                            <SkewTransform AngleX="-6" />
+                        </ContentControl.RenderTransform>
+                        <sr:SevenSegmentDisplay Text="041.3" DigitHeight="50" Spacing="4" Skew="0" />
+                    </ContentControl>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
+                               Text="Seven-segment digits are drawn, not a font. Unlit segments stay faintly visible, like real glass." />
+                    <sr:LedBar Fraction="0.6333" Segments="30" Margin="0,14,0,0" />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 06 SURFACE DETAIL -->
+            <ContentControl Grid.Row="4" Grid.Column="0" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="06 · Surface detail" />
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <sr:Screw VerticalAlignment="Center" />
+                        <sr:Screw SlotAngle="105" VerticalAlignment="Center" Margin="14,0,0,0" />
+                        <sr:VentGrille Width="140" Height="26" Margin="14,0,0,0" />
+                        <sr:StripeBadge Margin="14,0,0,0" VerticalAlignment="Center" />
+                        <sr:HazardStripes Width="60" Height="26" Margin="14,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <sr:DymoLabel Text="Runs overnight" />
+                        <sr:DymoLabel Text="Verify first" Tape="Red" Margin="10,0,0,0" />
+                    </StackPanel>
+                    <sr:CassetteLabel Title="COMMUNITY" Side="Side A · 6 seasons" Margin="0,14,0,0" />
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
+                               Text="The cassette label is the show. Its name goes on in marker the moment you load it." />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 07 INSTRUMENTS -->
+            <ContentControl Grid.Row="4" Grid.Column="2" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="07 · Instruments" />
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <sr:VuMeter Caption="Mbps" Minimum="0" Maximum="8" Value="2.75" MinLabel="0" MidLabel="4" MaxLabel="8"
+                                    AutomationProperties.Name="Video bitrate, megabits per second" />
+                        <sr:VuMeter Grid.Column="2" Caption="Load %" Minimum="0" Maximum="100" Value="78"
+                                    MinLabel="0" MidLabel="50" MaxLabel="100" AutomationProperties.Name="Encoder load, percent" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
+                               Text="A matched pair of needles: video bitrate and encoder load. They overshoot and settle, and both read a real number." />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 08 REELS AS DATA -->
+            <ContentControl Grid.Row="4" Grid.Column="4" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="08 · Reels as data" />
+                    <Border Margin="10,16,10,0" Height="134" CornerRadius="14" Background="{DynamicResource SR.DeckWindow}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <sr:TapeReel Width="138" Height="138" Pack="0.75" ShowFlange="False" Margin="0,-6,0,0"
+                                         VerticalAlignment="Top" AutomationProperties.Name="Source reel, 1.62 gigabytes" />
+                            <sr:TapeReel Grid.Column="1" Width="138" Height="138" Pack="0.3" ShowFlange="False" Margin="0,-6,0,0"
+                                         VerticalAlignment="Top" AutomationProperties.Name="Output reel, 0.73 gigabytes" />
+                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="11" Text="Source 1.62 GB"
+                                            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" />
+                            <sr:TrackedText Grid.Column="1" Style="{StaticResource SR.Silk}" FontSize="11" Text="Output 0.73 GB"
+                                            Foreground="{DynamicResource SR.Phosphor}"
+                                            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" />
+                        </Grid>
+                    </Border>
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,16,0,0"
+                               Text="Reel size is the file size. The source reel unwinds as the output reel fills, and the output reel ends smaller. You watch the space come back." />
+                </StackPanel>
+            </ContentControl>
+
+            <!-- 09 LIVE DECK: everything that moves, plus the theme switches -->
+            <ContentControl Grid.Row="0" Grid.RowSpan="5" Grid.Column="6" Style="{StaticResource SR.Card}">
+                <StackPanel>
+                    <sr:TrackedText Style="{StaticResource SR.Heading}" Text="09 · Live deck" />
+
+                    <ContentControl Style="{StaticResource SR.Nameplate}" Margin="0,16,0,0" HorizontalAlignment="Left" Padding="14,8">
+                        <StackPanel Orientation="Horizontal">
+                            <sr:StripeBadge StripeHeight="32" VerticalAlignment="Center" />
+                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="19" Tracking="0.28" Text="ShrinkRay"
+                                                Foreground="{DynamicResource SR.CreamInk}" />
+                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Tracking="0.3"
+                                                Text="SR-265 · HEVC transcoder unit" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ContentControl>
+
+                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Phosphor" Margin="0,20,0,8" />
+                    <StackPanel Orientation="Horizontal">
+                        <sr:SeasonChip x:Name="PhosphorAmber" Style="{StaticResource SwitchChip}" GroupName="phosphor" Content="AMBER"
+                                       Checked="OnPhosphorChecked" Tag="Amber" />
+                        <sr:SeasonChip x:Name="PhosphorGreen" Style="{StaticResource SwitchChip}" GroupName="phosphor" Content="GREEN"
+                                       Checked="OnPhosphorChecked" Tag="Green" />
+                        <sr:SeasonChip x:Name="PhosphorIce" Style="{StaticResource SwitchChip}" GroupName="phosphor" Content="ICE"
+                                       Checked="OnPhosphorChecked" Tag="Ice" />
+                    </StackPanel>
+
+                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Chassis" Margin="0,14,0,8" />
+                    <StackPanel Orientation="Horizontal">
+                        <sr:SeasonChip x:Name="ChassisBeige" Style="{StaticResource SwitchChip}" GroupName="chassis" Content="BEIGE"
+                                       Checked="OnChassisChecked" Tag="Beige" MinWidth="90" />
+                        <sr:SeasonChip x:Name="ChassisGraphite" Style="{StaticResource SwitchChip}" GroupName="chassis" Content="GRAPHITE"
+                                       Checked="OnChassisChecked" Tag="Graphite" MinWidth="90" />
+                    </StackPanel>
+
+                    <ToggleButton x:Name="MotionSwitch" Style="{StaticResource SR.ToggleSwitch}" Content="Motion" Margin="0,14,0,0"
+                                  HorizontalAlignment="Left" Click="OnMotionClick"
+                                  AutomationProperties.Name="Motion: reels, blink and flicker" />
+
+                    <!-- The deck window -->
+                    <ContentControl Style="{StaticResource SR.Plate}" Margin="0,18,0,0" Padding="10">
+                        <StackPanel>
+                            <sr:CassetteLabel x:Name="DeckLabel" Title="SCRUBS" Side="Side A · 9 seasons" Episode="S01E03 · My Best Friend's Mistake"
+                                              Padding="12,4,12,6" />
+                            <Border Margin="0,10,0,0" Height="150" CornerRadius="12" Background="{DynamicResource SR.DeckWindow}"
+                                    BorderBrush="Black" BorderThickness="2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <sr:TapeReel x:Name="SourceReel" Width="124" Height="124" SecondsPerTurn="3.2"
+                                                 VerticalAlignment="Top" Margin="0,2,0,0" />
+                                    <sr:TapeReel x:Name="OutputReel" Grid.Column="1" Width="124" Height="124" SecondsPerTurn="2.1"
+                                                 VerticalAlignment="Top" Margin="0,2,0,0" />
+                                    <sr:TrackedText x:Name="SourceText" Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Tracking="0.14"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5" />
+                                    <sr:TrackedText x:Name="OutputText" Grid.Column="1" Style="{StaticResource SR.Silk}" FontSize="10" Tracking="0.14"
+                                                    Foreground="{DynamicResource SR.Phosphor}"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ContentControl>
+
+                    <!-- Counters -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ContentControl Style="{StaticResource SR.Plate}" Padding="12,8">
+                            <StackPanel>
+                                <sr:SevenSegmentDisplay x:Name="TapeTime" DigitHeight="30" Spacing="3" Text="00:00" />
+                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Text="Tape time" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </ContentControl>
+                        <ContentControl Grid.Column="2" Style="{StaticResource SR.Plate}" Padding="12,8">
+                            <StackPanel>
+                                <sr:SevenSegmentDisplay x:Name="Percent" DigitHeight="30" Spacing="3" Text=" 0.0" />
+                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Text="Percent" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </ContentControl>
+                    </Grid>
+
+                    <!-- Needles -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <sr:VuMeter x:Name="BitrateMeter" Caption="Mbps" Minimum="0" Maximum="8" MinLabel="0" MidLabel="4" MaxLabel="8"
+                                    Height="92" AutomationProperties.Name="Video bitrate, megabits per second" />
+                        <sr:VuMeter x:Name="LoadMeter" Grid.Column="2" Caption="Load %" Minimum="0" Maximum="100"
+                                    MinLabel="0" MidLabel="50" MaxLabel="100" Height="92" AutomationProperties.Name="Encoder load, percent" />
+                    </Grid>
+
+                    <sr:LedBar x:Name="Progress" Segments="24" Margin="0,14,0,0" GlowBrush="{x:Null}" />
+
+                    <!-- Transport -->
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <sr:PianoLatchKey x:Name="EncodeKey" Label="Encode" IsRecord="True" ShowLamp="True" Width="92"
+                                          Icon="{StaticResource SR.Icon.Record}" Click="OnEncodeClick"
+                                          AutomationProperties.Name="Start encoding" />
+                        <sr:PianoLatchKey x:Name="PauseKey" Label="Pause" Width="92" Margin="12,0,0,0"
+                                          Icon="{StaticResource SR.Icon.Pause}" Click="OnPauseClick"
+                                          AutomationProperties.Name="Pause after this frame" />
+                        <sr:PianoKey x:Name="StopKey" Label="Stop" Width="92" Margin="12,0,0,0"
+                                     Icon="{StaticResource SR.Icon.Stop}" Click="OnStopClick"
+                                     AutomationProperties.Name="Stop and discard this encode" />
+                    </StackPanel>
+
+                    <!-- Status and quality -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel HorizontalAlignment="Left">
+                            <sr:RotaryKnob x:Name="QualityKnob" Labels="20,22,24,26,28,30" SelectedIndex="2" Caption="Quality CQ"
+                                           Width="110" Height="103" />
+                            <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="Quality · CQ" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="14,10,0,0">
+                            <sr:Lamp x:Name="StatusLamp" Style="{StaticResource PanelLamp}" Margin="0,0,0,10" />
+                            <sr:Lamp Style="{StaticResource PanelLamp}" State="Ok" Content="NVENC · HEVC" Margin="0,0,0,10" />
+                            <sr:Lamp Style="{StaticResource PanelLamp}" State="Ok" Content="HANDBRAKECLI" Margin="0,0,0,10" />
+                            <sr:Lamp x:Name="ReelLamp" Style="{StaticResource PanelLamp}" Content="REELS" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </ContentControl>
+        </Grid>
+    </Grid>
+</Window>
