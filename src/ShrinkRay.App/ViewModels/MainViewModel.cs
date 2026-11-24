@@ -52,6 +52,9 @@ public sealed partial class MainViewModel : ObservableObject
     private int _runCq;
     private TrackViewModel? _current;
     private double _progress;
+
+    /// <summary>Bytes moved during the copy or the upload, 0 to 1. Null in every other phase.</summary>
+    private double? _transfer;
     private double? _fps;
     private EpisodePhase _phase;
 
@@ -359,7 +362,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string DeckAutomationName => _current is null
         ? (_loaded is null ? "Deck empty" : $"{_loaded.Name} loaded, idle")
-        : $"{Phase} {_loaded?.Name} {_current.Code}, {Math.Floor(_progress * 100)} percent";
+        : $"{Phase} {_loaded?.Name} {_current.Code}, {Math.Floor((_transfer ?? _progress) * 100)} percent";
 
     // ---- Readouts ----
 
@@ -376,7 +379,7 @@ public sealed partial class MainViewModel : ObservableObject
         ? Math.Min(999, Math.Round(f)).ToString("0", CultureInfo.InvariantCulture).PadLeft(3)
         : "  0";
 
-    public string PercentDigits => Math.Min(99.9, _progress * 100).ToString("0.0", CultureInfo.InvariantCulture).PadLeft(4);
+    public string PercentDigits => Math.Min(99.9, (_transfer ?? _progress) * 100).ToString("0.0", CultureInfo.InvariantCulture).PadLeft(4);
 
     // ---- Transport ----
 
