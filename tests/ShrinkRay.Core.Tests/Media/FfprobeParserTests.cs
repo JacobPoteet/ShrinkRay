@@ -130,4 +130,59 @@ public class FfprobeParserTests
     {
         Assert.Throws<FormatException>(() => FfprobeParser.Parse(text));
     }
+
+    [Fact]
+    public void Reads_the_stream_level_closed_captions_flag()
+    {
+        var info = Fixtures.Probe("mkv_h264_cc");
+
+        Assert.True(info.HasClosedCaptions);
+        Assert.Equal(2, info.SubtitleStreams.Count());
+    }
+
+    [Fact]
+    public void No_closed_captions_flag_means_no_captions()
+    {
+        Assert.False(Fixtures.Probe("mkv_h264_fonts").HasClosedCaptions);
+    }
+
+    [Fact]
+    public void Closed_captions_on_cover_art_do_not_count()
+    {
+        var info = FfprobeParser.Parse("""
+            { "streams": [ { "index": 0, "codec_type": "video", "codec_name": "mjpeg", "closed_captions": 1,
+                             "disposition": { "attached_pic": 1 } } ] }
+            """);
+
+        Assert.False(info.HasClosedCaptions);
+    }
+
+    [Fact]
+    public void Finds_caption_side_data_in_frames()
+    {
+        Assert.True(FfprobeParser.HasClosedCaptionSideData(Fixtures.Json("frames_captions")));
+    }
+
+    [Fact]
+    public void Frames_without_caption_side_data_have_no_captions()
+    {
+        Assert.False(FfprobeParser.HasClosedCaptionSideData(Fixtures.Json("frames_no_captions")));
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{ "frames": [] }""")]
+    public void No_frames_means_no_captions(string json)
+    {
+        Assert.False(FfprobeParser.HasClosedCaptionSideData(json));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not json")]
+    [InlineData("[1, 2]")]
+    public void Side_data_parse_rejects_text_that_is_not_ffprobe_json(string text)
+    {
+        Assert.Throws<FormatException>(() => FfprobeParser.HasClosedCaptionSideData(text));
+    }
 }

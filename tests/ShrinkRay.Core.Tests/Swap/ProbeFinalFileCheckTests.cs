@@ -11,7 +11,8 @@ public class ProbeFinalFileCheckTests
     private const string Final = @"X:\TV\Example Show\Season 01\Example Show S01E01.mkv";
     private static readonly string Backup = SwapPaths.Backup(Final);
 
-    private static (ProbeFinalFileCheck Check, EpisodePipelineTests.FakeDecoder Decoder) Build(MediaInfo output, int finalBytes = 50)
+    private static (ProbeFinalFileCheck Check, EpisodePipelineTests.FakeDecoder Decoder) Build(
+        MediaInfo output, int finalBytes = 50, bool backupHasCaptions = false)
     {
         var fs = new InMemoryFileSystem();
         fs.Write(Backup, new string('o', 100));
@@ -19,8 +20,25 @@ public class ProbeFinalFileCheckTests
         var probe = new EpisodePipelineTests.FakeProbe();
         probe.Results[Backup] = MediaBuilder.Mkv().Duration(1400).Video().Audio("ac3").Build();
         probe.Results[Final] = output;
+        if (backupHasCaptions)
+        {
+            probe.Captioned.Add(Backup);
+        }
+
         var decoder = new EpisodePipelineTests.FakeDecoder();
         return (new ProbeFinalFileCheck(fs, probe, decoder, new ShrinkRaySettings()), decoder);
+    }
+
+    [Fact]
+    public async Task Captioned_original_allows_the_caption_track_in_the_final_file()
+    {
+        var withCaptions = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("ac3").Subtitle("ass").Build();
+
+        var (check, _) = Build(withCaptions, backupHasCaptions: true);
+        Assert.True(await check.VerifiesAsync(Final, Backup, CancellationToken.None));
+
+        var (plain, _) = Build(withCaptions);
+        Assert.False(await plain.VerifiesAsync(Final, Backup, CancellationToken.None));
     }
 
     private static MediaInfo GoodOutput() => MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("ac3").Build();

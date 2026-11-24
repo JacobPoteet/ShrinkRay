@@ -74,6 +74,33 @@ public class EpisodePipelineTests
     }
 
     [Fact]
+    public async Task Captions_in_the_source_video_allow_one_extra_subtitle_track()
+    {
+        var output = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Subtitle("ass").Subtitle("ass").Build();
+        var rig = new Rig(Source(), output);
+        var localCopy = Path.Combine(rig.Work, "source.mkv");
+        rig.Probe.Captioned.Add(localCopy);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+        Assert.Equal([localCopy], rig.Probe.CaptionChecks);
+    }
+
+    [Fact]
+    public async Task Extra_subtitle_track_fails_a_source_without_captions()
+    {
+        var output = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Subtitle("ass").Subtitle("ass").Build();
+        var rig = new Rig(Source(), output);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Contains("Subtitle streams: expected 1, output has 2", result.Message);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+    }
+
+    [Fact]
     public async Task Each_phase_is_reported_as_it_starts()
     {
         var rig = new Rig(Source(), Output());
@@ -402,8 +429,19 @@ public class EpisodePipelineTests
     {
         public Dictionary<string, MediaInfo> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Files whose video carries closed captions, as the frame check would find them.</summary>
+        public HashSet<string> Captioned { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> CaptionChecks { get; } = [];
+
         public Task<MediaInfo> ProbeAsync(string path, CancellationToken cancellationToken) =>
             Task.FromResult(Results[path] with { FileName = path });
+
+        public Task<MediaInfo> DetectClosedCaptionsAsync(string path, MediaInfo info, CancellationToken cancellationToken)
+        {
+            CaptionChecks.Add(path);
+            return Task.FromResult(info with { HasClosedCaptions = info.HasClosedCaptions || Captioned.Contains(path) });
+        }
     }
 
     public sealed class FakeEncoder(InMemoryFileSystem fs, FakeProbe probe, MediaInfo output, int bytes) : IVideoEncoder

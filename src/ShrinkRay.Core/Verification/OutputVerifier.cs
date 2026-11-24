@@ -66,10 +66,18 @@ public static class OutputVerifier
         CompareCount(failures, "Audio streams", source.AudioStreams.Count(), output.AudioStreams.Count());
 
         // MP4 output keeps text subtitles only, so bitmap tracks dropped by the plan are expected.
+        // Captions carried in the video come out as exactly one extra track in either container:
+        // --all-subtitles takes them in MKV and the plan names them in MP4.
         var expectedSubtitles = container.IsMp4Family()
             ? source.SubtitleStreams.Count(EncodePlanner.IsMp4TextSubtitle)
             : source.SubtitleStreams.Count();
-        CompareCount(failures, "Subtitle streams", expectedSubtitles, output.SubtitleStreams.Count());
+        if (source.HasClosedCaptions)
+        {
+            expectedSubtitles++;
+        }
+
+        CompareCount(failures, source.HasClosedCaptions ? "Subtitle streams (closed captions add one)" : "Subtitle streams",
+            expectedSubtitles, output.SubtitleStreams.Count());
 
         // With font restore turned off the user has accepted losing attachments.
         if (container == ContainerKind.Mkv && settings.RestoreFonts)

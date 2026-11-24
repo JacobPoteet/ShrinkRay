@@ -152,6 +152,9 @@ internal sealed class FakeProbe : IMediaProbe
     public ConcurrentDictionary<string, MediaInfo> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public Task<MediaInfo> ProbeAsync(string path, CancellationToken cancellationToken) => Task.FromResult(Results[path]);
+
+    public Task<MediaInfo> DetectClosedCaptionsAsync(string path, MediaInfo info, CancellationToken cancellationToken) =>
+        Task.FromResult(info);
 }
 
 internal sealed class MemoryJournal : IJournalStore

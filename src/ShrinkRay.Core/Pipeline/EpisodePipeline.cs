@@ -169,6 +169,9 @@ public sealed class EpisodePipeline : IEpisodeRunner
         progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
         await _fs.CopyFileAsync(sourcePath, localSource, ct);
 
+        // The caption check decodes the first frames, so it reads the local copy rather than the share.
+        source = await _probe.DetectClosedCaptionsAsync(localSource, source, ct);
+
         _journal.Record(sourcePath, SwapState.Encoded);
         var show = ShowFolder.NameFor(sourcePath, _settings.LibraryRoot);
         var plan = EncodePlanner.Build(source, localSource, encoded, _settings, show);
