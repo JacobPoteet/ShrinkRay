@@ -29,9 +29,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Seconds of the episode encoded before the bitrate needle reads; earlier is mostly header.</summary>
     private const double MinBitrateSeconds = 5;
 
-    /// <summary>HandBrake's last progress line reads 99.9%; past it the pipeline checks and swaps.</summary>
-    private const double EncodeDone = 0.999;
-
     private readonly DeckServices _s;
     private readonly ShrinkRaySettings _settings;
     private readonly LibraryScanner _scanner;
@@ -53,6 +50,7 @@ public sealed partial class MainViewModel : ObservableObject
     private TrackViewModel? _current;
     private double _progress;
     private double? _fps;
+    private EpisodePhase _phase;
 
     private double _bitrate;
     private double _encoderLoad;
@@ -345,7 +343,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string DeckAutomationName => _current is null
         ? (_loaded is null ? "Deck empty" : $"{_loaded.Name} loaded, idle")
-        : $"Encoding {_loaded?.Name} {_current.Code}, {Math.Floor(_progress * 100)} percent";
+        : $"{Phase} {_loaded?.Name} {_current.Code}, {Math.Floor(_progress * 100)} percent";
 
     // ---- Readouts ----
 
@@ -355,16 +353,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string TapeTotalText => _current?.Record.DurationSeconds is { } d ? "/ " + Format.TapeTime(d) : "/ --:--";
 
-    /// <summary>
-    /// What the current episode is going through: copying to scratch before HandBrake reports,
-    /// encoding, then checking and swapping once the encode is done.
-    /// </summary>
-    public string Phase => _current is null ? ""
-        : _progress <= 0 ? "Loading"
-        : _progress >= EncodeDone ? "Checking"
-        : "Encoding";
+    /// <summary>What the current episode is going through, as the pipeline reports it.</summary>
+    public string Phase => _current is null ? "" : PhaseWord(_phase);
 
-    public string FpsDigits => IsSpinning && _fps is { } f && _progress < EncodeDone
+    public string FpsDigits => IsSpinning && _fps is { } f && _phase == EpisodePhase.Encoding
         ? Math.Min(999, Math.Round(f)).ToString("0", CultureInfo.InvariantCulture).PadLeft(3)
         : "  0";
 
@@ -662,6 +654,29 @@ public sealed partial class MainViewModel : ObservableObject
     private double Ratio => SizeEstimate.RatioFor(IsEncoding ? _runCq : Cq);
 
     private TrackViewModel? NextQueued => _tracks.FirstOrDefault(t => t.IsQueueable);
+
+    /// <summary>The run lamp's word for a phase.</summary>
+    public static string PhaseWord(EpisodePhase phase) => phase switch
+    {
+        EpisodePhase.Probing => "Reading",
+        EpisodePhase.Copying => "Copying",
+        EpisodePhase.Encoding => "Encoding",
+        EpisodePhase.RestoringFonts => "Restoring fonts",
+        EpisodePhase.Verifying => "Checking",
+        EpisodePhase.Uploading => "Uploading",
+        _ => "Swapping",
+    };
+
+    /// <summary>The J-card status for a phase other than the encode, which shows its percent.</summary>
+    public static string PhaseStatus(EpisodePhase phase) => phase switch
+    {
+        EpisodePhase.Probing => "READ",
+        EpisodePhase.Copying => "COPY",
+        EpisodePhase.RestoringFonts => "FONTS",
+        EpisodePhase.Verifying => "CHECK",
+        EpisodePhase.Uploading => "UPLOAD",
+        _ => "SWAP",
+    };
 
     private static string SeasonName(int season) => season == 0 ? "Specials" : "Season " + season;
 

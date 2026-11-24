@@ -433,7 +433,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task The_run_lamp_names_the_phase_of_the_episode()
+    public async Task The_run_lamp_and_track_follow_the_reported_phase()
     {
         var rig = Library();
         var first = DeckRig.Episode("Scrubs", 1, 1);
@@ -442,11 +442,34 @@ public class MainViewModelTests
         vm.EncodeCommand.Execute(null);
         await rig.Runner.WaitUntilHeldAsync();
         Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("50%", vm.Tracks[0].StatusText);
 
-        rig.Runner.Report(99.9);
-
-        Assert.Equal("Checking S01E01", vm.RunLamp.Label);
+        // The phase comes from the report, not from the percent.
+        rig.Runner.Report(EpisodePhase.Copying);
+        Assert.Equal("Copying S01E01", vm.RunLamp.Label);
+        Assert.Equal("COPY", vm.Tracks[0].StatusText);
         Assert.Equal("  0", vm.FpsDigits);
+
+        rig.Runner.Report(42);
+        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("42%", vm.Tracks[0].StatusText);
+        Assert.Equal("170", vm.FpsDigits);
+
+        rig.Runner.Report(EpisodePhase.Verifying);
+        Assert.Equal("Checking S01E01", vm.RunLamp.Label);
+        Assert.Equal("CHECK", vm.Tracks[0].StatusText);
+        Assert.Equal("  0", vm.FpsDigits);
+        Assert.Equal("99.9", vm.PercentDigits);
+        Assert.Equal(0, vm.SourcePack);
+
+        rig.Runner.Report(EpisodePhase.Uploading);
+        Assert.Equal("Uploading S01E01", vm.RunLamp.Label);
+        Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
+
+        rig.Runner.Report(EpisodePhase.Swapping);
+        Assert.Equal("Swapping S01E01", vm.RunLamp.Label);
+        Assert.Equal("SWAP", vm.Tracks[0].StatusText);
+
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
         Assert.Equal("Ready", vm.RunLamp.Label);

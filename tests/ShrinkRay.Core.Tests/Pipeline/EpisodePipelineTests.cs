@@ -41,7 +41,14 @@ public class EpisodePipelineTests
 
         public string Work => EpisodePipeline.WorkFolder(Scratch, Episode);
 
-        public Task<PipelineResult> RunAsync(CancellationToken ct = default) => Pipeline.RunAsync(Episode, null, ct);
+        public List<EpisodeProgress> Reports { get; } = [];
+
+        /// <summary>Each phase once, in the order reported.</summary>
+        public IEnumerable<EpisodePhase> Phases =>
+            Reports.Select(r => r.Phase).Where((p, i) => i == 0 || Reports[i - 1].Phase != p);
+
+        public Task<PipelineResult> RunAsync(CancellationToken ct = default) =>
+            Pipeline.RunAsync(Episode, new ListProgress(Reports), ct);
     }
 
     private static MediaInfo Source() => MediaBuilder.Mkv().Duration(1400).Video().Audio("flac").Subtitle("ass").Build();
@@ -64,6 +71,51 @@ public class EpisodePipelineTests
                 SwapState.UploadedTemp, SwapState.OriginalRenamedAside, SwapState.Swapped, SwapState.OriginalDeleted,
             ],
             rig.Store.StatesFor(Episode));
+    }
+
+    [Fact]
+    public async Task Each_phase_is_reported_as_it_starts()
+    {
+        var rig = new Rig(Source(), Output());
+
+        await rig.RunAsync();
+
+        Assert.Equal(
+            [
+                EpisodePhase.Probing, EpisodePhase.Copying, EpisodePhase.Encoding,
+                EpisodePhase.Verifying, EpisodePhase.Uploading, EpisodePhase.Swapping,
+            ],
+            rig.Phases);
+        var encode = rig.Reports.Where(r => r.Encode is not null).ToList();
+        Assert.NotEmpty(encode);
+        Assert.All(encode, r => Assert.Equal(EpisodePhase.Encoding, r.Phase));
+    }
+
+    [Fact]
+    public async Task Font_restore_is_reported_between_encode_and_verify()
+    {
+        var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font().Build();
+        var encoded = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Build();
+        var rig = new Rig(source, encoded);
+
+        await rig.RunAsync();
+
+        Assert.Equal(
+            [
+                EpisodePhase.Probing, EpisodePhase.Copying, EpisodePhase.Encoding, EpisodePhase.RestoringFonts,
+                EpisodePhase.Verifying, EpisodePhase.Uploading, EpisodePhase.Swapping,
+            ],
+            rig.Phases);
+    }
+
+    [Fact]
+    public async Task A_kept_original_never_reports_an_upload()
+    {
+        var rig = new Rig(Source(), Output(), encodedBytes: 38);
+
+        await rig.RunAsync();
+
+        Assert.Equal([EpisodePhase.Probing, EpisodePhase.Copying, EpisodePhase.Encoding, EpisodePhase.Verifying], rig.Phases);
     }
 
     [Fact]
@@ -299,6 +351,7 @@ public class EpisodePipelineTests
             }
 
             Assert.True(fs.FileExists(plan.InputPath));
+            progress?.Report(new EncodeProgress(1, 1, 50, 300, 300, null));
             fs.Write(plan.OutputPath, new string('h', bytes));
             probe.Results[plan.OutputPath] = output;
             return Task.CompletedTask;
@@ -327,6 +380,11 @@ public class EpisodePipelineTests
             probe.Results[plan.OutputPath] = encoded with { Streams = [.. encoded.Streams, .. fonts] };
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ListProgress(List<EpisodeProgress> reports) : IProgress<EpisodeProgress>
+    {
+        public void Report(EpisodeProgress value) => reports.Add(value);
     }
 
     public sealed class FakeDecoder : IDecodeChecker

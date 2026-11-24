@@ -1,4 +1,3 @@
-using ShrinkRay.Core.Encode;
 using ShrinkRay.Core.Processes;
 
 namespace ShrinkRay.Core.Pipeline;
@@ -65,7 +64,8 @@ public sealed class EncodeQueue
 
     public event Action<string>? EpisodeStarted;
 
-    public event Action<string, EncodeProgress>? Progress;
+    /// <summary>The episode's phase as each one starts, and HandBrake's progress during the encode.</summary>
+    public event Action<string, EpisodeProgress>? Progress;
 
     public event Action<EpisodeFinished>? EpisodeFinished;
 
@@ -274,7 +274,7 @@ public sealed class EncodeQueue
         SetState(_paused ? QueueState.Paused : QueueState.Running);
         EpisodeStarted?.Invoke(path);
 
-        var progress = new InlineProgress<EncodeProgress>(p => Progress?.Invoke(path, p));
+        var progress = new InlineProgress<EpisodeProgress>(p => Progress?.Invoke(path, p));
         try
         {
             var result = await Task.Run(() => _runner.RunAsync(path, progress, episode.Token), CancellationToken.None).ConfigureAwait(false);
@@ -327,10 +327,4 @@ public sealed class EncodeQueue
     }
 
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-    /// <summary>Reports on the caller's thread, unlike <see cref="Progress{T}"/>, which posts.</summary>
-    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
-    {
-        public void Report(T value) => report(value);
-    }
 }

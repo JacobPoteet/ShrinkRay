@@ -30,8 +30,18 @@ public sealed class SwapExecutor
         _recovery = recovery;
     }
 
+    /// <inheritdoc cref="SwapAsync(string, string, VerificationResult, ShrinkRaySettings, IProgress{SwapState}?, CancellationToken)"/>
+    public Task<SwapResult> SwapAsync(
+        string originalPath,
+        string verifiedFilePath,
+        VerificationResult verification,
+        ShrinkRaySettings settings,
+        CancellationToken cancellationToken) =>
+        SwapAsync(originalPath, verifiedFilePath, verification, settings, null, cancellationToken);
+
     /// <param name="originalPath">The original file on the share. Its journal state must be Verified.</param>
     /// <param name="verifiedFilePath">The verified encode in the scratch folder.</param>
+    /// <param name="steps">Told each share step once the journal holds it, just before the step runs.</param>
     /// <param name="cancellationToken">Honoured during the upload only. Once the original is renamed the swap runs to the end.</param>
     /// <exception cref="InvalidOperationException">Verification did not pass, or replacing originals is turned off.</exception>
     /// <exception cref="OperationCanceledException">Cancelled during the upload. The temp file is removed first.</exception>
@@ -40,6 +50,7 @@ public sealed class SwapExecutor
         string verifiedFilePath,
         VerificationResult verification,
         ShrinkRaySettings settings,
+        IProgress<SwapState>? steps,
         CancellationToken cancellationToken)
     {
         if (!verification.Passed)
@@ -74,6 +85,7 @@ public sealed class SwapExecutor
         try
         {
             _journal.Record(originalPath, SwapState.UploadedTemp);
+            steps?.Report(SwapState.UploadedTemp);
             if (_fs.FileExists(temp))
             {
                 // Left by an earlier attempt at this file. Temp files are always ShrinkRay's own.
@@ -89,9 +101,11 @@ public sealed class SwapExecutor
             }
 
             _journal.Record(originalPath, SwapState.OriginalRenamedAside);
+            steps?.Report(SwapState.OriginalRenamedAside);
             _fs.MoveFile(originalPath, backup);
 
             _journal.Record(originalPath, SwapState.Swapped);
+            steps?.Report(SwapState.Swapped);
             _fs.MoveFile(temp, originalPath);
         }
         catch (OperationCanceledException)
@@ -107,6 +121,7 @@ public sealed class SwapExecutor
         try
         {
             _journal.Record(originalPath, SwapState.OriginalDeleted);
+            steps?.Report(SwapState.OriginalDeleted);
             _fs.DeleteFile(backup);
         }
         catch (Exception ex)

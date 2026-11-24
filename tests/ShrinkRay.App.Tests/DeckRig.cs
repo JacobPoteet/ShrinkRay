@@ -196,17 +196,22 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
 
     public ConcurrentDictionary<string, TaskCompletionSource> Hold { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    private IProgress<EncodeProgress>? _progress;
+    private IProgress<EpisodeProgress>? _progress;
 
     public ConcurrentQueue<string> Ran { get; } = new();
 
-    public void Report(double percent) => _progress?.Report(new EncodeProgress(1, 1, percent, 170, 165, null));
+    public void Report(double percent) =>
+        _progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, percent, 170, 165, null)));
 
-    public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken)
+    public void Report(EpisodePhase phase) => _progress?.Report(new EpisodeProgress(phase));
+
+    public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EpisodeProgress>? progress, CancellationToken cancellationToken)
     {
         Ran.Enqueue(sourcePath);
         _progress = progress;
-        progress?.Report(new EncodeProgress(1, 1, 50, 170, 165, null));
+        progress?.Report(new EpisodeProgress(EpisodePhase.Probing));
+        progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
+        progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, 50, 170, 165, null)));
         if (Hold.TryGetValue(sourcePath, out var hold))
         {
             _held.Release();

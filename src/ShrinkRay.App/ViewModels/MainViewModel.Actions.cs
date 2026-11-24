@@ -451,13 +451,14 @@ public sealed partial class MainViewModel
         _current = Find(path);
         _progress = 0;
         _fps = null;
+        _phase = EpisodePhase.Probing;
         BitrateMbps = 0;
         if (_current is null)
         {
             return;
         }
 
-        _current.SetEncoding(0, Ratio);
+        _current.SetEncoding(0, Ratio, PhaseStatus(_phase));
         if (_current.Record.Season != _selectedSeason)
         {
             ShowSeason(_current.Record.Season);
@@ -467,16 +468,27 @@ public sealed partial class MainViewModel
         RefreshTransport();
     }
 
-    private void OnProgress(string path, EncodeProgress progress)
+    private void OnProgress(string path, EpisodeProgress progress)
     {
         if (_current is null || !string.Equals(_current.Path, path, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        _progress = Math.Clamp(progress.Percent / 100, 0, 1);
-        _fps = progress.Fps ?? progress.AverageFps;
-        _current.SetEncoding(_progress, Ratio);
+        _phase = progress.Phase;
+        if (progress.Encode is { } encode)
+        {
+            _progress = Math.Clamp(encode.Percent / 100, 0, 1);
+            _fps = encode.Fps ?? encode.AverageFps;
+        }
+        else if (_phase > EpisodePhase.Encoding)
+        {
+            // The encode is done; the reels stay wound to the end while the file is checked and swapped.
+            _progress = 1;
+            _fps = null;
+        }
+
+        _current.SetEncoding(_progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
         RefreshReadouts();
         RefreshTransport();
     }
