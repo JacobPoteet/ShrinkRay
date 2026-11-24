@@ -1,0 +1,124 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sr="clr-namespace:ShrinkRay.Theme.Controls">
+
+    <!--
+        Piano key, built from stacked borders like the CSS box-shadows it copies:
+          floor   0 8px 0 #1A1916   a dark line under the key
+          side    0 7px 0 abs-lo    the key's front face
+          cap     the top, with a 1 px highlight
+          soft    0 12px 14px .35   the only blurred layer
+        The cap drops 6 px (PART_Cap) while pressed or latched; the side and floor stay put,
+        so 1 px of side and 1 px of floor still show, as in the design.
+    -->
+    <ControlTemplate x:Key="SR.PianoKeyTemplate" TargetType="ButtonBase">
+        <Grid SnapsToDevicePixels="True" Background="Transparent">
+            <Border x:Name="PART_Soft" Margin="3,12,3,-4" CornerRadius="9" Background="#59000000" IsHitTestVisible="False">
+                <Border.Effect>
+                    <BlurEffect Radius="18" KernelType="Gaussian" />
+                </Border.Effect>
+            </Border>
+            <Border Margin="0,8,0,0" CornerRadius="5,5,9,9" Background="{DynamicResource SR.KeyFloor}" />
+            <Border x:Name="Side" Margin="0,7,0,1" CornerRadius="5,5,9,9" Background="{DynamicResource SR.AbsLo}" />
+            <Grid x:Name="PART_Cap" Margin="0,0,0,8">
+                <Border x:Name="Face" CornerRadius="5,5,9,9" Background="{DynamicResource SR.KeyCap}" />
+                <Border x:Name="Highlight" CornerRadius="5,5,9,9" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
+                <sr:Lamp x:Name="KeyLamp" Diameter="7" Margin="0,7,9,0"
+                         HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="Collapsed"
+                         State="{TemplateBinding sr:PianoKey.Lamp}" Blink="{TemplateBinding sr:PianoKey.LampBlink}" />
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path x:Name="IconPath" Data="{TemplateBinding sr:PianoKey.Icon}" Fill="{TemplateBinding Foreground}"
+                          HorizontalAlignment="Center" Margin="0,0,0,6" SnapsToDevicePixels="True" />
+                    <sr:TrackedText Text="{TemplateBinding sr:PianoKey.Label}" HorizontalAlignment="Center"
+                                    FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12"
+                                    Tracking="0.16" Foreground="{TemplateBinding Foreground}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="sr:PianoKey.IsRecord" Value="True">
+                <Setter TargetName="Face" Property="Background" Value="{DynamicResource SR.SignalRed}" />
+                <Setter TargetName="Side" Property="Background" Value="{DynamicResource SR.SignalRedSide}" />
+                <Setter TargetName="Highlight" Property="BorderBrush" Value="#59FFFFFF" />
+            </Trigger>
+            <Trigger Property="sr:PianoKey.ShowLamp" Value="True">
+                <Setter TargetName="KeyLamp" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <Trigger Property="sr:PianoKey.Icon" Value="{x:Null}">
+                <Setter TargetName="IconPath" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <Style x:Key="SR.PianoKeyBase" TargetType="ButtonBase">
+        <Setter Property="Template" Value="{StaticResource SR.PianoKeyTemplate}" />
+        <Setter Property="Foreground" Value="{DynamicResource SR.Ink}" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource SR.FocusVisual}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinWidth" Value="92" />
+        <Setter Property="Height" Value="68" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="sr:PianoKey.IsRecord" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource SR.SignalRedInk}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="sr:PianoKey" BasedOn="{StaticResource SR.PianoKeyBase}" />
+    <Style TargetType="sr:PianoLatchKey" BasedOn="{StaticResource SR.PianoKeyBase}" />
+
+    <!-- Season chip: a short keycap with a 3 px side that drops when selected -->
+    <Style TargetType="sr:SeasonChip">
+        <Setter Property="Foreground" Value="{DynamicResource SR.Ink}" />
+        <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Silk}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="MinWidth" Value="30" />
+        <Setter Property="Height" Value="31" />
+        <Setter Property="Padding" Value="3,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource SR.FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:SeasonChip">
+                    <Grid SnapsToDevicePixels="True" Background="Transparent">
+                        <Border Margin="0,3,0,0" CornerRadius="4" Background="{DynamicResource SR.AbsLo}" />
+                        <Grid x:Name="Cap" Margin="0,0,0,3">
+                            <Border CornerRadius="4" Background="{DynamicResource SR.KeyCap}" />
+                            <Border x:Name="Highlight" CornerRadius="4" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
+                            <sr:InsetShadow x:Name="Inset" CornerRadius="4" Blur="3" OffsetY="2" Color="#40000000" Visibility="Collapsed" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Margin="{TemplateBinding Padding}">
+                                <sr:Lamp x:Name="ChipLamp" Diameter="6" Margin="0,0,4,0" VerticalAlignment="Center"
+                                         State="{TemplateBinding Lamp}" Blink="{TemplateBinding LampBlink}" />
+                                <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Cap" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="3" />
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="Inset" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Highlight" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="ShowLamp" Value="False">
+                            <Setter TargetName="ChipLamp" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

@@ -6,6 +6,8 @@
         app must merge ShrinkRayTheme, which holds the tokens and the starting palette.
     -->
     <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Keys.xaml" />
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Readouts.xaml" />
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Labels.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
