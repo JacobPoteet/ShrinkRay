@@ -208,7 +208,7 @@ public sealed record Swatch(string Name, string Hex, string Role, Brush Fill, Sw
                 Gradient(Color.FromRgb(0xE3, 0x60, 0x3F), Color.FromRgb(0xB8, 0x38, 0x1F)), SwatchFinish.Raised),
             new("Tape oxide", "#3A281A", "reel packs", Solid(Color.FromRgb(0x3A, 0x28, 0x1A)), SwatchFinish.Raised),
             new("J-card cream", "#F1E9D6", "labels, track list", Solid(Color.FromRgb(0xF1, 0xE9, 0xD6)), SwatchFinish.Raised),
-            new("Marker blue", "#1F3B73", "hand-written", Solid(Color.FromRgb(0x1F, 0x3B, 0x73)), SwatchFinish.Raised),
+            new("Ribbon blue", "#1F3B73", "typed labels", Solid(Color.FromRgb(0x1F, 0x3B, 0x73)), SwatchFinish.Raised),
             new("Lamp green", "#A6D651", "checks passed", Solid(lampGreen), SwatchFinish.Lit,
                 GlowFill: Solid(Color.FromArgb(0x80, lampGreen.R, lampGreen.G, lampGreen.B))),
         ];

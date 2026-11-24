@@ -12,7 +12,7 @@
     <FontFamily x:Key="SR.Font.Wordmark">pack://application:,,,/ShrinkRay.Theme;component/Fonts/#Michroma</FontFamily>
     <FontFamily x:Key="SR.Font.Silk">pack://application:,,,/ShrinkRay.Theme;component/Fonts/#Barlow Condensed</FontFamily>
     <FontFamily x:Key="SR.Font.Pixel">pack://application:,,,/ShrinkRay.Theme;component/Fonts/#scientifica</FontFamily>
-    <FontFamily x:Key="SR.Font.Marker">pack://application:,,,/ShrinkRay.Theme;component/Fonts/#Permanent Marker</FontFamily>
+    <FontFamily x:Key="SR.Font.Label">pack://application:,,,/ShrinkRay.Theme;component/Fonts/#Special Elite</FontFamily>
 
     <!-- Surfaces -->
     <Color x:Key="SR.PlateColor">#262421</Color>
@@ -161,8 +161,8 @@
         <Setter Property="FontWeight" Value="Bold" />
     </Style>
 
-    <Style x:Key="SR.Text.Marker" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Marker}" />
+    <Style x:Key="SR.Text.Label" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Label}" />
         <Setter Property="FontSize" Value="24" />
         <Setter Property="Foreground" Value="{DynamicResource SR.Marker}" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
