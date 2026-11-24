@@ -36,6 +36,34 @@ public class SwapRecoveryTests
     }
 
     [Fact]
+    public async Task A_cancel_never_settles_a_file_past_the_upload()
+    {
+        var h = AtState(SwapState.UploadedTemp, SwapState.OriginalRenamedAside);
+        h.Fs.Write(Temp, SwapHarness.NewContent);
+        h.Fs.MoveFile(Original, Backup);
+
+        var action = await h.Recovery.ResolveAsync(Original, SwapState.Cancelled, CancellationToken.None);
+
+        Assert.Equal(RecoveryKind.RolledBack, action.Kind);
+        Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
+        Assert.Equal(SwapState.Failed, h.State);
+    }
+
+    [Fact]
+    public async Task Cancelled_file_needs_no_recovery_and_its_stray_temp_is_deleted()
+    {
+        var h = AtState(SwapState.UploadedTemp, SwapState.Cancelled);
+        h.Fs.Write(Temp, "half an upload");
+
+        var action = Assert.Single(await h.RecoverAsync());
+
+        Assert.Equal(RecoveryKind.DeletedStrayTemp, action.Kind);
+        Assert.False(h.TempExists);
+        Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
+        Assert.Equal(SwapState.Cancelled, h.State);
+    }
+
+    [Fact]
     public async Task Backup_and_verified_final_file_deletes_the_backup()
     {
         var h = AtState(SwapState.UploadedTemp, SwapState.OriginalRenamedAside, SwapState.Swapped);

@@ -32,18 +32,25 @@ public enum SwapState
     Failed,
     KeptOriginal,
     Skipped,
+
+    /// <summary>
+    /// Skip or Stop abandoned the file before its swap began, or during the upload and the temp
+    /// file was removed. The original was never touched; the next run starts the file over.
+    /// </summary>
+    Cancelled,
 }
 
 public static class SwapTransitions
 {
     private static readonly Dictionary<SwapState, SwapState[]> Allowed = new()
     {
-        [SwapState.Queued] = [SwapState.Queued, SwapState.CopiedToScratch, SwapState.Skipped, SwapState.Failed],
-        [SwapState.CopiedToScratch] = [SwapState.Encoded, SwapState.Failed],
-        [SwapState.Encoded] = [SwapState.FontsRestored, SwapState.Verified, SwapState.Failed],
-        [SwapState.FontsRestored] = [SwapState.Verified, SwapState.Failed],
-        [SwapState.Verified] = [SwapState.UploadedTemp, SwapState.KeptOriginal, SwapState.Failed],
-        [SwapState.UploadedTemp] = [SwapState.OriginalRenamedAside, SwapState.Failed],
+        [SwapState.Queued] = [SwapState.Queued, SwapState.CopiedToScratch, SwapState.Skipped, SwapState.Failed, SwapState.Cancelled],
+        [SwapState.CopiedToScratch] = [SwapState.Encoded, SwapState.Failed, SwapState.Cancelled],
+        [SwapState.Encoded] = [SwapState.FontsRestored, SwapState.Verified, SwapState.Failed, SwapState.Cancelled],
+        [SwapState.FontsRestored] = [SwapState.Verified, SwapState.Failed, SwapState.Cancelled],
+        [SwapState.Verified] = [SwapState.UploadedTemp, SwapState.KeptOriginal, SwapState.Failed, SwapState.Cancelled],
+        // Cancelled only after the swap has removed the temp file again; the original is never renamed by then.
+        [SwapState.UploadedTemp] = [SwapState.OriginalRenamedAside, SwapState.Failed, SwapState.Cancelled],
         [SwapState.OriginalRenamedAside] = [SwapState.Swapped, SwapState.Failed],
         [SwapState.Swapped] = [SwapState.OriginalDeleted, SwapState.Failed],
         // Recovery may confirm a delete that was cut short, or roll back if the new file fails its check.
@@ -51,6 +58,7 @@ public static class SwapTransitions
         [SwapState.Failed] = [SwapState.Queued],
         [SwapState.KeptOriginal] = [SwapState.Queued],
         [SwapState.Skipped] = [SwapState.Queued],
+        [SwapState.Cancelled] = [SwapState.Queued],
     };
 
     /// <param name="from">Null when the journal has no entry for the file yet.</param>

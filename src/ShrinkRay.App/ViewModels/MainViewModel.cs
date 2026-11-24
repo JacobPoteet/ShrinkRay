@@ -18,6 +18,9 @@ namespace ShrinkRay.App.ViewModels;
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
+    /// <summary>How far one press of an encode window key moves its time.</summary>
+    public const int WindowStepMinutes = 30;
+
     /// <summary>The quality knob's detents.</summary>
     public static readonly IReadOnlyList<int> CqDetents = [20, 22, 24, 26, 28, 30];
 
@@ -28,9 +31,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Seconds of the episode encoded before the bitrate needle reads; earlier is mostly header.</summary>
     private const double MinBitrateSeconds = 5;
-
-    /// <summary>HandBrake's last progress line reads 99.9%; past it the pipeline checks and swaps.</summary>
-    private const double EncodeDone = 0.999;
 
     private readonly DeckServices _s;
     private readonly ShrinkRaySettings _settings;
@@ -53,6 +53,7 @@ public sealed partial class MainViewModel : ObservableObject
     private TrackViewModel? _current;
     private double _progress;
     private double? _fps;
+    private EpisodePhase _phase;
 
     private double _bitrate;
     private double _encoderLoad;
@@ -89,6 +90,10 @@ public sealed partial class MainViewModel : ObservableObject
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
         CloseSettingsCommand = new RelayCommand(() => IsSettingsOpen = false);
         RescanCommand = new RelayCommand(() => _ = ScanLibraryAsync(_loaded?.Name), () => !IsEncoding && !_isRecovering);
+        WindowStartEarlierCommand = new RelayCommand(() => StepWindow(start: true, -1), () => !IsEncoding);
+        WindowStartLaterCommand = new RelayCommand(() => StepWindow(start: true, 1), () => !IsEncoding);
+        WindowEndEarlierCommand = new RelayCommand(() => StepWindow(start: false, -1), () => !IsEncoding);
+        WindowEndLaterCommand = new RelayCommand(() => StepWindow(start: false, 1), () => !IsEncoding);
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
         RuleLamps = [new LampViewModel("Skip HEVC files", LampState.Ok), KeepLamp, FontsLamp, new LampViewModel("Same container", LampState.Ok)];
@@ -119,6 +124,14 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand CloseSettingsCommand { get; }
 
     public RelayCommand RescanCommand { get; }
+
+    public RelayCommand WindowStartEarlierCommand { get; }
+
+    public RelayCommand WindowStartLaterCommand { get; }
+
+    public RelayCommand WindowEndEarlierCommand { get; }
+
+    public RelayCommand WindowEndLaterCommand { get; }
 
     /// <summary>The run started by the last Encode press. Tests await it.</summary>
     public Task CurrentRun { get; private set; } = Task.CompletedTask;
@@ -345,7 +358,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string DeckAutomationName => _current is null
         ? (_loaded is null ? "Deck empty" : $"{_loaded.Name} loaded, idle")
-        : $"Encoding {_loaded?.Name} {_current.Code}, {Math.Floor(_progress * 100)} percent";
+        : $"{Phase} {_loaded?.Name} {_current.Code}, {Math.Floor(_progress * 100)} percent";
 
     // ---- Readouts ----
 
@@ -355,16 +368,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string TapeTotalText => _current?.Record.DurationSeconds is { } d ? "/ " + Format.TapeTime(d) : "/ --:--";
 
-    /// <summary>
-    /// What the current episode is going through: copying to scratch before HandBrake reports,
-    /// encoding, then checking and swapping once the encode is done.
-    /// </summary>
-    public string Phase => _current is null ? ""
-        : _progress <= 0 ? "Loading"
-        : _progress >= EncodeDone ? "Checking"
-        : "Encoding";
+    /// <summary>What the current episode is going through, as the pipeline reports it.</summary>
+    public string Phase => _current is null ? "" : PhaseWord(_phase);
 
-    public string FpsDigits => IsSpinning && _fps is { } f && _progress < EncodeDone
+    public string FpsDigits => IsSpinning && _fps is { } f && _phase == EpisodePhase.Encoding
         ? Math.Min(999, Math.Round(f)).ToString("0", CultureInfo.InvariantCulture).PadLeft(3)
         : "  0";
 
@@ -485,9 +492,32 @@ public sealed partial class MainViewModel : ObservableObject
 
     public LampViewModel WindowLamp { get; } = new("Off");
 
-    public string WindowDymo => !_settings.EncodeWindowEnabled ? "Runs any time"
+    /// <summary>The window's opening time, as the service panel's readout shows it.</summary>
+    public string WindowStartText => _settings.EncodeWindowStart.ToString("HH:mm", CultureInfo.InvariantCulture);
+
+    public string WindowEndText => _settings.EncodeWindowEnd.ToString("HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>A start equal to the end opens the window all day, as the settings read it.</summary>
+    public string WindowDymo => !_settings.EncodeWindowEnabled || _settings.EncodeWindowStart == _settings.EncodeWindowEnd ? "Runs any time"
         : _settings.EncodeWindowStart > _settings.EncodeWindowEnd ? "Runs overnight"
         : "Runs by day";
+
+    /// <summary>
+    /// Moves a time to the next or previous <see cref="WindowStepMinutes"/> mark, wrapping at
+    /// midnight. A time between marks, such as one typed into settings.json, lands on a mark.
+    /// </summary>
+    /// <param name="direction">1 for later, -1 for earlier.</param>
+    public static TimeOnly StepTime(TimeOnly time, int direction)
+    {
+        const int day = 24 * 60;
+        var minutes = (time.Hour * 60) + time.Minute;
+        var mark = minutes / WindowStepMinutes * WindowStepMinutes;
+        var next = direction > 0 ? mark + WindowStepMinutes
+            : mark == minutes && time.Second == 0 ? mark - WindowStepMinutes
+            : mark;
+        next = ((next % day) + day) % day;
+        return new TimeOnly(next / 60, next % 60);
+    }
 
     // ---- Footer ----
 
@@ -662,6 +692,29 @@ public sealed partial class MainViewModel : ObservableObject
     private double Ratio => SizeEstimate.RatioFor(IsEncoding ? _runCq : Cq);
 
     private TrackViewModel? NextQueued => _tracks.FirstOrDefault(t => t.IsQueueable);
+
+    /// <summary>The run lamp's word for a phase.</summary>
+    public static string PhaseWord(EpisodePhase phase) => phase switch
+    {
+        EpisodePhase.Probing => "Reading",
+        EpisodePhase.Copying => "Copying",
+        EpisodePhase.Encoding => "Encoding",
+        EpisodePhase.RestoringFonts => "Restoring fonts",
+        EpisodePhase.Verifying => "Checking",
+        EpisodePhase.Uploading => "Uploading",
+        _ => "Swapping",
+    };
+
+    /// <summary>The J-card status for a phase other than the encode, which shows its percent.</summary>
+    public static string PhaseStatus(EpisodePhase phase) => phase switch
+    {
+        EpisodePhase.Probing => "READ",
+        EpisodePhase.Copying => "COPY",
+        EpisodePhase.RestoringFonts => "FONTS",
+        EpisodePhase.Verifying => "CHECK",
+        EpisodePhase.Uploading => "UPLOAD",
+        _ => "SWAP",
+    };
 
     private static string SeasonName(int season) => season == 0 ? "Specials" : "Season " + season;
 

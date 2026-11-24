@@ -10,7 +10,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="ShrinkRay"
-        Width="1440" Height="900" MinWidth="1440" MinHeight="900"
+        Width="1440" Height="900" MinWidth="1024" MinHeight="640"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SR.ChassisSurface}"
@@ -76,6 +76,18 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Earlier and later keys for the encode window times -->
+        <Geometry x:Key="StepEarlier">M9,1.5 L2.5,6 L9,10.5 Z</Geometry>
+        <Geometry x:Key="StepLater">M3,1.5 L9.5,6 L3,10.5 Z</Geometry>
+        <Style x:Key="StepKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="PlateLabel" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.SilkOnPlate}">
             <Setter Property="FontSize" Value="10" />
         </Style>
@@ -135,6 +147,8 @@
         </DataTemplate>
     </Window.Resources>
 
+    <!-- The deck is drawn for 1440 by 900. A smaller window scales it down evenly instead of clipping it. -->
+    <ctl:DeckScaler x:Name="Scaler" DesignWidth="1440" DesignHeight="900">
     <ContentControl x:Name="Chassis" Style="{StaticResource SR.Chassis}">
         <Grid>
             <Grid>
@@ -643,6 +657,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Originals" VerticalAlignment="Center" />
@@ -665,29 +680,60 @@
                                 <TextBlock><Run Text="Only start episodes during " /><Run Text="{Binding WindowText, Mode=OneWay}" /></TextBlock>
                             </ToggleButton>
 
-                            <sr:TrackedText Grid.Row="3" Style="{StaticResource SR.Silk}" Text="Phosphor" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="3" Style="{StaticResource SR.Silk}" Text="Window times" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,6">
+                                <Button Style="{StaticResource StepKey}" Command="{Binding WindowStartEarlierCommand}"
+                                        AutomationProperties.Name="Open the window half an hour earlier">
+                                    <Path Data="{StaticResource StepEarlier}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                                </Button>
+                                <ContentControl Style="{StaticResource SR.Plate}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="Window opens">
+                                    <sr:SevenSegmentDisplay Text="{Binding WindowStartText}" DigitHeight="18" Spacing="2"
+                                                            AutomationProperties.Name="{Binding WindowStartText}" />
+                                </ContentControl>
+                                <Button Style="{StaticResource StepKey}" Command="{Binding WindowStartLaterCommand}"
+                                        AutomationProperties.Name="Open the window half an hour later">
+                                    <Path Data="{StaticResource StepLater}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                                </Button>
+                                <sr:TrackedText Style="{StaticResource SR.Silk}" Text="to" VerticalAlignment="Center" Margin="14,0" />
+                                <Button Style="{StaticResource StepKey}" Command="{Binding WindowEndEarlierCommand}"
+                                        AutomationProperties.Name="Close the window half an hour earlier">
+                                    <Path Data="{StaticResource StepEarlier}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                                </Button>
+                                <ContentControl Style="{StaticResource SR.Plate}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="Window closes">
+                                    <sr:SevenSegmentDisplay Text="{Binding WindowEndText}" DigitHeight="18" Spacing="2"
+                                                            AutomationProperties.Name="{Binding WindowEndText}" />
+                                </ContentControl>
+                                <Button Style="{StaticResource StepKey}" Command="{Binding WindowEndLaterCommand}"
+                                        AutomationProperties.Name="Close the window half an hour later">
+                                    <Path Data="{StaticResource StepLater}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                                </Button>
+                            </StackPanel>
+
+                            <sr:TrackedText Grid.Row="4" Style="{StaticResource SR.Silk}" Text="Phosphor" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <sr:SeasonChip GroupName="phosphor" Content="AMBER" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorAmber}" />
                                 <sr:SeasonChip GroupName="phosphor" Content="GREEN" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorGreen}" />
                                 <sr:SeasonChip GroupName="phosphor" Content="ICE" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorIce}" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="4" Style="{StaticResource SR.Silk}" Text="Chassis" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="5" Style="{StaticResource SR.Silk}" Text="Chassis" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <sr:SeasonChip GroupName="chassis" Content="BEIGE" Style="{StaticResource OptionChip}" MinWidth="96" IsChecked="{Binding ChassisBeige}" />
                                 <sr:SeasonChip GroupName="chassis" Content="GRAPHITE" Style="{StaticResource OptionChip}" MinWidth="96" IsChecked="{Binding ChassisGraphite}" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="5" Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center" />
-                            <DockPanel Grid.Row="5" Grid.Column="1" Margin="0,8">
+                            <sr:TrackedText Grid.Row="6" Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="6" Grid.Column="1" Margin="0,8">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Command="{Binding ChooseLibraryCommand}"
                                         AutomationProperties.Name="Choose the library folder" />
                                 <TextBlock Style="{StaticResource SR.Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            Margin="0,0,10,0" Text="{Binding LibraryRoot}" ToolTip="{Binding LibraryRoot}" />
                             </DockPanel>
 
-                            <sr:TrackedText Grid.Row="6" Style="{StaticResource SR.Silk}" Text="Scratch" VerticalAlignment="Center" />
-                            <DockPanel Grid.Row="6" Grid.Column="1" Margin="0,8">
+                            <sr:TrackedText Grid.Row="7" Style="{StaticResource SR.Silk}" Text="Scratch" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="7" Grid.Column="1" Margin="0,8">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Command="{Binding ChooseScratchCommand}"
                                         AutomationProperties.Name="Choose the local scratch folder" />
                                 <TextBlock Style="{StaticResource SR.Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
@@ -702,4 +748,5 @@
             </Grid>
         </Grid>
     </ContentControl>
+    </ctl:DeckScaler>
 </Window>

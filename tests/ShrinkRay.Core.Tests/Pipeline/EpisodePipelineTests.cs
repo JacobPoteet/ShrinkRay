@@ -41,7 +41,14 @@ public class EpisodePipelineTests
 
         public string Work => EpisodePipeline.WorkFolder(Scratch, Episode);
 
-        public Task<PipelineResult> RunAsync(CancellationToken ct = default) => Pipeline.RunAsync(Episode, null, ct);
+        public List<EpisodeProgress> Reports { get; } = [];
+
+        /// <summary>Each phase once, in the order reported.</summary>
+        public IEnumerable<EpisodePhase> Phases =>
+            Reports.Select(r => r.Phase).Where((p, i) => i == 0 || Reports[i - 1].Phase != p);
+
+        public Task<PipelineResult> RunAsync(CancellationToken ct = default) =>
+            Pipeline.RunAsync(Episode, new ListProgress(Reports), ct);
     }
 
     private static MediaInfo Source() => MediaBuilder.Mkv().Duration(1400).Video().Audio("flac").Subtitle("ass").Build();
@@ -64,6 +71,51 @@ public class EpisodePipelineTests
                 SwapState.UploadedTemp, SwapState.OriginalRenamedAside, SwapState.Swapped, SwapState.OriginalDeleted,
             ],
             rig.Store.StatesFor(Episode));
+    }
+
+    [Fact]
+    public async Task Each_phase_is_reported_as_it_starts()
+    {
+        var rig = new Rig(Source(), Output());
+
+        await rig.RunAsync();
+
+        Assert.Equal(
+            [
+                EpisodePhase.Probing, EpisodePhase.Copying, EpisodePhase.Encoding,
+                EpisodePhase.Verifying, EpisodePhase.Uploading, EpisodePhase.Swapping,
+            ],
+            rig.Phases);
+        var encode = rig.Reports.Where(r => r.Encode is not null).ToList();
+        Assert.NotEmpty(encode);
+        Assert.All(encode, r => Assert.Equal(EpisodePhase.Encoding, r.Phase));
+    }
+
+    [Fact]
+    public async Task Font_restore_is_reported_between_encode_and_verify()
+    {
+        var source = MediaBuilder.Mkv().Duration(1400).Video().Audio("aac").Font().Build();
+        var encoded = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Build();
+        var rig = new Rig(source, encoded);
+
+        await rig.RunAsync();
+
+        Assert.Equal(
+            [
+                EpisodePhase.Probing, EpisodePhase.Copying, EpisodePhase.Encoding, EpisodePhase.RestoringFonts,
+                EpisodePhase.Verifying, EpisodePhase.Uploading, EpisodePhase.Swapping,
+            ],
+            rig.Phases);
+    }
+
+    [Fact]
+    public async Task A_kept_original_never_reports_an_upload()
+    {
+        var rig = new Rig(Source(), Output(), encodedBytes: 38);
+
+        await rig.RunAsync();
+
+        Assert.Equal([EpisodePhase.Probing, EpisodePhase.Copying, EpisodePhase.Encoding, EpisodePhase.Verifying], rig.Phases);
     }
 
     [Fact]
@@ -217,7 +269,55 @@ public class EpisodePipelineTests
     }
 
     [Fact]
-    public async Task Cancellation_marks_the_file_failed_and_rethrows()
+    public async Task Skip_or_stop_marks_the_file_cancelled_and_clears_its_scratch_folder()
+    {
+        var rig = new Rig(Source(), Output());
+        using var stop = new CancellationTokenSource();
+        rig.Encoder.CancelMidway = stop;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rig.RunAsync(stop.Token));
+
+        Assert.Equal(SwapState.Cancelled, rig.Journal.CurrentState(Episode));
+        Assert.DoesNotContain(SwapState.Failed, rig.Store.StatesFor(Episode));
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task A_cancelled_file_runs_again()
+    {
+        var rig = new Rig(Source(), Output());
+        using (var stop = new CancellationTokenSource())
+        {
+            rig.Encoder.CancelMidway = stop;
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rig.RunAsync(stop.Token));
+        }
+
+        rig.Encoder.CancelMidway = null;
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Stop_during_the_upload_removes_the_temp_file_and_marks_the_file_cancelled()
+    {
+        var rig = new Rig(Source(), Output());
+        using var stop = new CancellationTokenSource();
+        rig.Decoder.OnDecode = stop.Cancel;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rig.RunAsync(stop.Token));
+
+        Assert.Equal(SwapState.Cancelled, rig.Journal.CurrentState(Episode));
+        Assert.Contains(SwapState.UploadedTemp, rig.Store.StatesFor(Episode));
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.False(rig.Fs.FileExists(SwapPaths.Temp(Episode)));
+        Assert.False(rig.Fs.FileExists(SwapPaths.Backup(Episode)));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task A_cancellation_nobody_asked_for_still_fails_the_file()
     {
         var rig = new Rig(Source(), Output());
         rig.Encoder.Error = new OperationCanceledException();
@@ -226,6 +326,27 @@ public class EpisodePipelineTests
 
         Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
         Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+    }
+
+    [Fact]
+    public void Startup_removes_scratch_left_by_cancelled_files_only()
+    {
+        var fs = new InMemoryFileSystem();
+        var journal = new SwapJournal(new InMemoryJournalStore());
+        var cancelled = Episode;
+        var failed = Episode.Replace("S01E01", "S01E02");
+        foreach (var (path, end) in new[] { (cancelled, SwapState.Cancelled), (failed, SwapState.Failed) })
+        {
+            journal.Record(path, SwapState.Queued);
+            journal.Record(path, SwapState.CopiedToScratch);
+            journal.Record(path, end);
+            fs.Write(Path.Combine(EpisodePipeline.WorkFolder(Scratch, path), "encoded.mkv"), "partial");
+        }
+
+        EpisodePipeline.RemoveCancelledWork(fs, journal, Scratch);
+
+        Assert.False(fs.FileExists(Path.Combine(EpisodePipeline.WorkFolder(Scratch, cancelled), "encoded.mkv")));
+        Assert.True(fs.FileExists(Path.Combine(EpisodePipeline.WorkFolder(Scratch, failed), "encoded.mkv")));
     }
 
     [Fact]
@@ -290,6 +411,9 @@ public class EpisodePipelineTests
         public List<EncodePlan> Plans { get; } = [];
         public Exception? Error { get; set; }
 
+        /// <summary>Writes half an output, then presses Stop the way the deck does: through the run's token.</summary>
+        public CancellationTokenSource? CancelMidway { get; set; }
+
         public Task EncodeAsync(EncodePlan plan, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken)
         {
             Plans.Add(plan);
@@ -298,7 +422,15 @@ public class EpisodePipelineTests
                 throw Error;
             }
 
+            if (CancelMidway is { } stop)
+            {
+                fs.Write(plan.OutputPath, "half");
+                stop.Cancel();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             Assert.True(fs.FileExists(plan.InputPath));
+            progress?.Report(new EncodeProgress(1, 1, 50, 300, 300, null));
             fs.Write(plan.OutputPath, new string('h', bytes));
             probe.Results[plan.OutputPath] = output;
             return Task.CompletedTask;
@@ -329,10 +461,22 @@ public class EpisodePipelineTests
         }
     }
 
+    private sealed class ListProgress(List<EpisodeProgress> reports) : IProgress<EpisodeProgress>
+    {
+        public void Report(EpisodeProgress value) => reports.Add(value);
+    }
+
     public sealed class FakeDecoder : IDecodeChecker
     {
         public bool Clean { get; set; } = true;
 
-        public Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken) => Task.FromResult(Clean);
+        /// <summary>Runs during the check, such as a Stop that lands as the upload begins.</summary>
+        public Action? OnDecode { get; set; }
+
+        public Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken)
+        {
+            OnDecode?.Invoke();
+            return Task.FromResult(Clean);
+        }
     }
 }

@@ -74,6 +74,13 @@ public static class Composition
         var probe = new FfprobeMediaProbe(runner, s.FfprobePath);
         var check = new ProbeFinalFileCheck(fs, probe, new FfmpegDecodeChecker(runner, s.FfmpegPath), s);
         var folders = string.IsNullOrWhiteSpace(s.LibraryRoot) || !Directory.Exists(s.LibraryRoot) ? [] : new[] { s.LibraryRoot };
-        return Task.Run(() => new SwapRecovery(fs, journal, check).RecoverAsync(folders, ct), ct);
+        return Task.Run(
+            async () =>
+            {
+                var actions = await new SwapRecovery(fs, journal, check).RecoverAsync(folders, ct);
+                EpisodePipeline.RemoveCancelledWork(fs, journal, s.ScratchFolder);
+                return actions;
+            },
+            ct);
     }
 }

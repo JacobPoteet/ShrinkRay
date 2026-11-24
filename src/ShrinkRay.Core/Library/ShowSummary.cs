@@ -37,6 +37,9 @@ public static class EpisodeStatusRules
         {
             SwapState.KeptOriginal => EpisodeStatus.Kept,
             SwapState.Failed => EpisodeStatus.Failed,
+
+            // Skip or Stop is the user's call, not a failure. The file waits for the next run.
+            SwapState.Cancelled => EpisodeStatus.Queued,
             _ => EpisodeStatus.Queued,
         };
     }

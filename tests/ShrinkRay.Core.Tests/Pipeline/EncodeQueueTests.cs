@@ -20,12 +20,12 @@ public class EncodeQueueTests
 
         public Exception? Throw { get; set; }
 
-        public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken)
+        public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EpisodeProgress>? progress, CancellationToken cancellationToken)
         {
             var tcs = new TaskCompletionSource<PipelineResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             Pending[sourcePath] = tcs;
             Started.Enqueue(sourcePath);
-            progress?.Report(new EncodeProgress(1, 1, 50, 165, 160, null));
+            progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, 50, 165, 160, null)));
             _started.Release();
             if (Throw is { } error)
             {
@@ -72,7 +72,7 @@ public class EncodeQueueTests
         public RecordingGate Gate { get; } = new();
         public ConcurrentQueue<EpisodeFinished> Finished { get; } = new();
         public ConcurrentQueue<QueueState> States { get; } = new();
-        public ConcurrentQueue<(string, EncodeProgress)> Progress { get; } = new();
+        public ConcurrentQueue<(string, EpisodeProgress)> Progress { get; } = new();
         public bool MayStart { get; set; } = true;
         public int Delays { get; set; }
         public EncodeQueue Queue { get; }
@@ -111,7 +111,7 @@ public class EncodeQueueTests
         Assert.All(rig.Finished, f => Assert.Equal(EpisodeEnd.Finished, f.End));
         Assert.Equal(QueueState.Idle, rig.Queue.State);
         Assert.False(rig.Queue.IsRunning);
-        Assert.Contains(rig.Progress, p => p.Item1 == "a" && p.Item2.Percent == 50);
+        Assert.Contains(rig.Progress, p => p.Item1 == "a" && p.Item2.Phase == EpisodePhase.Encoding && p.Item2.Encode!.Percent == 50);
     }
 
     [Fact]

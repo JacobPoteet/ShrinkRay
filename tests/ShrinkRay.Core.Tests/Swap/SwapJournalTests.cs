@@ -26,6 +26,15 @@ public class SwapJournalTests
     [InlineData(SwapState.Failed, SwapState.Verified, false)]
     [InlineData(SwapState.KeptOriginal, SwapState.UploadedTemp, false)]
     [InlineData(SwapState.Skipped, SwapState.Queued, true)]
+    [InlineData(SwapState.Queued, SwapState.Cancelled, true)]
+    [InlineData(SwapState.Encoded, SwapState.Cancelled, true)]
+    [InlineData(SwapState.Verified, SwapState.Cancelled, true)]
+    [InlineData(SwapState.UploadedTemp, SwapState.Cancelled, true)]
+    [InlineData(SwapState.OriginalRenamedAside, SwapState.Cancelled, false)]
+    [InlineData(SwapState.Swapped, SwapState.Cancelled, false)]
+    [InlineData(SwapState.OriginalDeleted, SwapState.Cancelled, false)]
+    [InlineData(SwapState.Cancelled, SwapState.Queued, true)]
+    [InlineData(SwapState.Cancelled, SwapState.CopiedToScratch, false)]
     public void Transitions_follow_the_state_machine(SwapState? from, SwapState to, bool allowed)
     {
         Assert.Equal(allowed, SwapTransitions.IsAllowed(from, to));

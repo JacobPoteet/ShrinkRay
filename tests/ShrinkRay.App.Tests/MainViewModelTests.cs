@@ -200,6 +200,24 @@ public class MainViewModelTests
         Assert.Equal("Saves 9%, below the 15% minimum", track.Detail);
     }
 
+    [Fact]
+    public async Task An_episode_skipped_or_stopped_last_time_reads_queued_not_failed()
+    {
+        var rig = Library();
+        var stopped = DeckRig.Episode("Scrubs", 1, 2);
+        rig.Journal.Record(stopped, SwapState.Queued);
+        rig.Journal.Record(stopped, SwapState.CopiedToScratch);
+        rig.Journal.Record(stopped, SwapState.Encoded);
+        rig.Journal.Record(stopped, SwapState.Cancelled, EpisodePipeline.CancelledReason);
+
+        var vm = await rig.StartedWith("Scrubs");
+
+        var track = vm.Tracks.Single(t => t.Path == stopped);
+        Assert.Equal(TrackKind.Queued, track.Kind);
+        Assert.Equal("QUEUED", track.StatusText);
+        Assert.True(track.IsQueueable);
+    }
+
     // ---- Knob ----
 
     [Fact]
@@ -433,7 +451,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task The_run_lamp_names_the_phase_of_the_episode()
+    public async Task The_run_lamp_and_track_follow_the_reported_phase()
     {
         var rig = Library();
         var first = DeckRig.Episode("Scrubs", 1, 1);
@@ -442,11 +460,34 @@ public class MainViewModelTests
         vm.EncodeCommand.Execute(null);
         await rig.Runner.WaitUntilHeldAsync();
         Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("50%", vm.Tracks[0].StatusText);
 
-        rig.Runner.Report(99.9);
-
-        Assert.Equal("Checking S01E01", vm.RunLamp.Label);
+        // The phase comes from the report, not from the percent.
+        rig.Runner.Report(EpisodePhase.Copying);
+        Assert.Equal("Copying S01E01", vm.RunLamp.Label);
+        Assert.Equal("COPY", vm.Tracks[0].StatusText);
         Assert.Equal("  0", vm.FpsDigits);
+
+        rig.Runner.Report(42);
+        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("42%", vm.Tracks[0].StatusText);
+        Assert.Equal("170", vm.FpsDigits);
+
+        rig.Runner.Report(EpisodePhase.Verifying);
+        Assert.Equal("Checking S01E01", vm.RunLamp.Label);
+        Assert.Equal("CHECK", vm.Tracks[0].StatusText);
+        Assert.Equal("  0", vm.FpsDigits);
+        Assert.Equal("99.9", vm.PercentDigits);
+        Assert.Equal(0, vm.SourcePack);
+
+        rig.Runner.Report(EpisodePhase.Uploading);
+        Assert.Equal("Uploading S01E01", vm.RunLamp.Label);
+        Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
+
+        rig.Runner.Report(EpisodePhase.Swapping);
+        Assert.Equal("Swapping S01E01", vm.RunLamp.Label);
+        Assert.Equal("SWAP", vm.Tracks[0].StatusText);
+
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
         Assert.Equal("Ready", vm.RunLamp.Label);
@@ -470,6 +511,69 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Window_keys_move_the_times_and_the_dial_follows()
+    {
+        var rig = Library();
+        rig.Settings.EncodeWindowEnabled = true;
+        var vm = await rig.StartedWith("Scrubs");
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        var saves = rig.SettingsSaves;
+
+        vm.WindowStartLaterCommand.Execute(null);
+        vm.WindowEndEarlierCommand.Execute(null);
+        vm.WindowEndEarlierCommand.Execute(null);
+
+        Assert.Equal(new TimeOnly(23, 30), rig.Settings.EncodeWindowStart);
+        Assert.Equal(new TimeOnly(6, 0), rig.Settings.EncodeWindowEnd);
+        Assert.Equal("23:30", vm.WindowStartText);
+        Assert.Equal("06:00", vm.WindowEndText);
+        Assert.Equal(23.5, vm.WindowStartHours);
+        Assert.Equal(6, vm.WindowEndHours);
+        Assert.Contains(nameof(MainViewModel.WindowStartHours), changed);
+        Assert.Contains(nameof(MainViewModel.WindowEndHours), changed);
+        Assert.Contains(nameof(MainViewModel.WindowText), changed);
+        Assert.Equal(saves + 3, rig.SettingsSaves);
+
+        // 02:10 now sits inside 23:30 to 06:00; move the end before it and the window closes.
+        Assert.StartsWith("Active", vm.WindowLamp.Label);
+        for (var i = 0; i < 8; i++)
+        {
+            vm.WindowEndEarlierCommand.Execute(null);
+        }
+
+        Assert.Equal("02:00", vm.WindowEndText);
+        Assert.StartsWith("Closed", vm.WindowLamp.Label);
+        Assert.Equal("Runs overnight", vm.WindowDymo);
+    }
+
+    [Fact]
+    public async Task A_window_that_starts_where_it_ends_runs_any_time()
+    {
+        var rig = Library();
+        rig.Settings.EncodeWindowEnabled = true;
+        rig.Settings.EncodeWindowStart = new TimeOnly(7, 0);
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal("Runs any time", vm.WindowDymo);
+        Assert.StartsWith("Active", vm.WindowLamp.Label);
+    }
+
+    [Theory]
+    [InlineData("23:00", 1, "23:30")]
+    [InlineData("23:30", 1, "00:00")]
+    [InlineData("00:00", -1, "23:30")]
+    [InlineData("07:00", -1, "06:30")]
+    [InlineData("23:10", 1, "23:30")]
+    [InlineData("23:10", -1, "23:00")]
+    public void Window_times_step_by_half_hours_and_wrap_at_midnight(string from, int direction, string expected)
+    {
+        var time = TimeOnly.Parse(from, System.Globalization.CultureInfo.InvariantCulture);
+
+        Assert.Equal(expected, MainViewModel.StepTime(time, direction).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public async Task Settings_that_shape_a_run_are_locked_while_encoding()
     {
         var rig = Library();
@@ -484,6 +588,9 @@ public class MainViewModelTests
         Assert.True(rig.Settings.ReplaceOriginals);
         Assert.False(vm.CanEditSettings);
         Assert.False(vm.ChooseScratchCommand.CanExecute(null));
+        Assert.False(vm.WindowStartLaterCommand.CanExecute(null));
+        vm.WindowEndLaterCommand.Execute(null);
+        Assert.Equal(new TimeOnly(7, 0), rig.Settings.EncodeWindowEnd);
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
     }

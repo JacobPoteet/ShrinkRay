@@ -22,7 +22,8 @@ public sealed record PipelineResult(PipelineOutcome Outcome, string Message, Ver
 /// <summary>Runs one episode end to end. <see cref="EpisodePipeline"/> is the real one.</summary>
 public interface IEpisodeRunner
 {
-    Task<PipelineResult> RunAsync(string sourcePath, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken);
+    /// <param name="progress">Told each phase as it starts, and HandBrake's progress during the encode.</param>
+    Task<PipelineResult> RunAsync(string sourcePath, IProgress<EpisodeProgress>? progress, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -31,6 +32,8 @@ public interface IEpisodeRunner
 /// </summary>
 public sealed class EpisodePipeline : IEpisodeRunner
 {
+    public const string CancelledReason = "Skipped or stopped from the deck before the swap. The original was not touched.";
+
     private readonly IFileSystem _fs;
     private readonly IMediaProbe _probe;
     private readonly IVideoEncoder _encoder;
@@ -61,7 +64,7 @@ public sealed class EpisodePipeline : IEpisodeRunner
     }
 
     /// <exception cref="InvalidOperationException">No scratch folder is set, or the journal shows this file mid-run.</exception>
-    public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken)
+    public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EpisodeProgress>? progress, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_settings.ScratchFolder))
         {
@@ -69,7 +72,8 @@ public sealed class EpisodePipeline : IEpisodeRunner
         }
 
         var state = _journal.CurrentState(sourcePath);
-        if (state is not (null or SwapState.Queued or SwapState.Failed or SwapState.KeptOriginal or SwapState.Skipped or SwapState.OriginalDeleted))
+        if (state is not (null or SwapState.Queued or SwapState.Failed or SwapState.KeptOriginal or SwapState.Skipped
+            or SwapState.Cancelled or SwapState.OriginalDeleted))
         {
             throw new InvalidOperationException($"{sourcePath} is at {state} in the journal. Run recovery first.");
         }
@@ -84,15 +88,47 @@ public sealed class EpisodePipeline : IEpisodeRunner
         {
             return await RunStepsAsync(sourcePath, work, progress, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Skip or Stop. The share was not touched, so the file is cancelled rather than failed,
+            // and nothing in its scratch folder is worth keeping.
+            SettleIfStillLocal(sourcePath, SwapState.Cancelled, CancelledReason);
+            TryDeleteWork(work);
+            throw;
+        }
         catch (OperationCanceledException)
         {
-            FailIfStillLocal(sourcePath, "Cancelled");
+            SettleIfStillLocal(sourcePath, SwapState.Failed, "Cancelled");
             throw;
         }
         catch (Exception ex)
         {
-            FailIfStillLocal(sourcePath, ex.Message);
+            SettleIfStillLocal(sourcePath, SwapState.Failed, ex.Message);
             return new PipelineResult(PipelineOutcome.Failed, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Deletes the scratch folders of files the journal shows as cancelled. Skip and Stop delete
+    /// them straight away; this catches one a locked file kept. Run it on startup with recovery.
+    /// </summary>
+    public static void RemoveCancelledWork(IFileSystem fs, SwapJournal journal, string scratchFolder)
+    {
+        if (string.IsNullOrWhiteSpace(scratchFolder))
+        {
+            return;
+        }
+
+        foreach (var entry in journal.LatestEntries().Where(e => e.State == SwapState.Cancelled))
+        {
+            try
+            {
+                fs.DeleteDirectory(WorkFolder(scratchFolder, entry.Path));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Still locked. The next start or the file's next run tries again.
+            }
         }
     }
 
@@ -110,8 +146,9 @@ public sealed class EpisodePipeline : IEpisodeRunner
         return Path.Combine(scratchFolder, $"{safe.TrimEnd(' ', '.')}-{Convert.ToHexString(hash, 0, 6).ToLowerInvariant()}");
     }
 
-    private async Task<PipelineResult> RunStepsAsync(string sourcePath, string work, IProgress<EncodeProgress>? progress, CancellationToken ct)
+    private async Task<PipelineResult> RunStepsAsync(string sourcePath, string work, IProgress<EpisodeProgress>? progress, CancellationToken ct)
     {
+        progress?.Report(new EpisodeProgress(EpisodePhase.Probing));
         var source = await _probe.ProbeAsync(sourcePath, ct);
         var eligibility = Eligibility.Evaluate(source);
         if (!eligibility.IsEligible)
@@ -129,12 +166,16 @@ public sealed class EpisodePipeline : IEpisodeRunner
         _fs.CreateDirectory(work);
 
         _journal.Record(sourcePath, SwapState.CopiedToScratch);
+        progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
         await _fs.CopyFileAsync(sourcePath, localSource, ct);
 
         _journal.Record(sourcePath, SwapState.Encoded);
         var show = ShowFolder.NameFor(sourcePath, _settings.LibraryRoot);
         var plan = EncodePlanner.Build(source, localSource, encoded, _settings, show);
-        await _encoder.EncodeAsync(plan, progress, ct);
+        progress?.Report(new EpisodeProgress(EpisodePhase.Encoding));
+        var encodeProgress = progress is null ? null
+            : new InlineProgress<EncodeProgress>(p => progress.Report(new EpisodeProgress(EpisodePhase.Encoding, p)));
+        await _encoder.EncodeAsync(plan, encodeProgress, ct);
 
         var candidate = encoded;
         var output = await _probe.ProbeAsync(encoded, ct);
@@ -142,12 +183,14 @@ public sealed class EpisodePipeline : IEpisodeRunner
         if (fontPlan is not null)
         {
             _journal.Record(sourcePath, SwapState.FontsRestored);
+            progress?.Report(new EpisodeProgress(EpisodePhase.RestoringFonts));
             await _fonts.RestoreAsync(fontPlan, ct);
             candidate = withFonts;
             output = await _probe.ProbeAsync(candidate, ct);
         }
 
         _journal.Record(sourcePath, SwapState.Verified);
+        progress?.Report(new EpisodeProgress(EpisodePhase.Verifying));
         var decoded = await _decoder.DecodesCleanlyAsync(candidate, ct);
         var verification = OutputVerifier.Verify(
             new VerificationInput(source, output, _fs.GetFileSize(localSource), _fs.GetFileSize(candidate), decoded),
@@ -179,7 +222,18 @@ public sealed class EpisodePipeline : IEpisodeRunner
             return new PipelineResult(PipelineOutcome.KeptOriginal, message, verification);
         }
 
-        var swap = await _swap.SwapAsync(sourcePath, candidate, verification, _settings, ct);
+        var steps = progress is null ? null : new InlineProgress<SwapState>(step =>
+        {
+            if (step == SwapState.UploadedTemp)
+            {
+                progress.Report(new EpisodeProgress(EpisodePhase.Uploading));
+            }
+            else if (step == SwapState.OriginalRenamedAside)
+            {
+                progress.Report(new EpisodeProgress(EpisodePhase.Swapping));
+            }
+        });
+        var swap = await _swap.SwapAsync(sourcePath, candidate, verification, _settings, steps, ct);
         if (swap.Outcome != SwapOutcome.Swapped)
         {
             return new PipelineResult(PipelineOutcome.Failed, swap.Message ?? "Swap failed", verification);
@@ -189,12 +243,13 @@ public sealed class EpisodePipeline : IEpisodeRunner
         return new PipelineResult(PipelineOutcome.Replaced, swap.Message ?? "Replaced", verification);
     }
 
-    private void FailIfStillLocal(string sourcePath, string reason)
+    /// <summary>Ends a file the share has not seen yet. A share step is left to the swap's own rollback.</summary>
+    private void SettleIfStillLocal(string sourcePath, SwapState settled, string reason)
     {
         var state = _journal.CurrentState(sourcePath);
         if (state is SwapState.Queued || (state is { } s && s.IsLocalStep()))
         {
-            _journal.Record(sourcePath, SwapState.Failed, reason);
+            _journal.Record(sourcePath, settled, reason);
         }
     }
 

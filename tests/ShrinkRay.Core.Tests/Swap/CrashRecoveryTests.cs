@@ -12,6 +12,9 @@ public class CrashRecoveryTests
 {
     private const int SwapOperations = 8;
 
+    // A cancelled upload journals UploadedTemp, then its rollback journals Cancelled.
+    private const int CancelOperations = 2;
+
     // The sixth operation renames the temp file into place. From then on the new file wins.
     private const int RenameIntoPlace = 6;
 
@@ -142,6 +145,46 @@ public class CrashRecoveryTests
 
         Assert.Empty(actions);
         Assert.Equal(entries, h.Store.Entries.Count);
+    }
+
+    [Theory]
+    [MemberData(nameof(CancelCrashPoints))]
+    public async Task Crash_while_a_cancelled_upload_rolls_back_recovers_to_the_original(int crashAfter)
+    {
+        var h = new SwapHarness();
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        h.Crash.CrashAfter(crashAfter);
+        try
+        {
+            await h.SwapAsync(stop.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        h.Restart();
+        var actions = await h.RecoverAsync();
+
+        AssertClean(h);
+        Assert.DoesNotContain(actions, a => a.Kind == RecoveryKind.NeedsReview);
+        Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
+
+        // Only a rollback that finished counts as cancelled; one a crash cut short is a failure.
+        Assert.Equal(crashAfter >= CancelOperations ? SwapState.Cancelled : SwapState.Failed, h.State);
+        h.Restart();
+        Assert.Empty(await h.RecoverAsync());
+    }
+
+    public static TheoryData<int> CancelCrashPoints()
+    {
+        var data = new TheoryData<int>();
+        for (var i = 0; i <= CancelOperations; i++)
+        {
+            data.Add(i);
+        }
+
+        return data;
     }
 
     private static void AssertClean(SwapHarness h)
