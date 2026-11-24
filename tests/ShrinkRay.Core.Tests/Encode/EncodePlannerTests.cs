@@ -163,6 +163,29 @@ public class EncodePlannerTests
     }
 
     [Fact]
+    public void Mp4_with_captions_also_takes_the_caption_track_after_the_container_tracks()
+    {
+        var source = MediaBuilder.Mp4().Video()
+            .Subtitle("mov_text")
+            .Subtitle("hdmv_pgs_subtitle")
+            .Subtitle("mov_text")
+            .Build() with { HasClosedCaptions = true };
+
+        var plan = EncodePlanner.Build(source, "in.mp4", "out.mp4", Defaults);
+
+        Assert.Equal([1, 3, 4], plan.SubtitleTracks);
+        Assert.Equal("1,3,4", ValueAfter(plan.Arguments, "--subtitle"));
+    }
+
+    [Fact]
+    public void Mp4_with_captions_and_no_text_subtitles_takes_only_the_captions()
+    {
+        var source = MediaBuilder.Mp4().Video().Build() with { HasClosedCaptions = true };
+
+        Assert.Equal("1", ValueAfter(EncodePlanner.Build(source, "in.mp4", "out.mp4", Defaults).Arguments, "--subtitle"));
+    }
+
+    [Fact]
     public void Mkv_keeps_pgs_through_all_subtitles()
     {
         var source = MediaBuilder.Mkv().Video().Subtitle("hdmv_pgs_subtitle").Build();

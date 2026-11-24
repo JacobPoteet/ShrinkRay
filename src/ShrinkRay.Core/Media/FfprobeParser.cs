@@ -28,15 +28,23 @@ public static class FfprobeParser
             }
 
             var streams = new List<MediaStream>();
+            var closedCaptions = false;
             if (root.TryGetProperty("streams", out var streamArray) && streamArray.ValueKind == JsonValueKind.Array)
             {
                 foreach (var stream in streamArray.EnumerateArray())
                 {
-                    streams.Add(ParseStream(stream));
+                    var parsed = ParseStream(stream);
+                    streams.Add(parsed);
+
+                    // Older ffprobe builds flag captions on the video stream itself. ffprobe 9 does not.
+                    if (parsed.Type == StreamType.Video && !parsed.IsAttachedPicture && (GetLong(stream, "closed_captions") ?? 0) == 1)
+                    {
+                        closedCaptions = true;
+                    }
                 }
             }
 
-            var info = new MediaInfo { Streams = streams };
+            var info = new MediaInfo { Streams = streams, HasClosedCaptions = closedCaptions };
             if (root.TryGetProperty("format", out var format) && format.ValueKind == JsonValueKind.Object)
             {
                 info = info with
@@ -50,6 +58,61 @@ public static class FfprobeParser
             }
 
             return info;
+        }
+    }
+
+    /// <summary>The <c>side_data_type</c> ffprobe gives the EIA-608 captions carried in video frames.</summary>
+    public const string ClosedCaptionSideData = "ATSC A53 Part 4 Closed Captions";
+
+    /// <summary>
+    /// Parses the JSON from <c>ffprobe -show_entries frame_side_data=side_data_type -of json</c>.
+    /// True when any frame carries closed caption data.
+    /// </summary>
+    /// <exception cref="FormatException">The text is not ffprobe JSON.</exception>
+    public static bool HasClosedCaptionSideData(string json)
+    {
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(json);
+        }
+        catch (JsonException ex)
+        {
+            throw new FormatException("ffprobe output is not valid JSON.", ex);
+        }
+
+        using (document)
+        {
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                throw new FormatException("ffprobe output is not a JSON object.");
+            }
+
+            if (!root.TryGetProperty("frames", out var frames) || frames.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            foreach (var frame in frames.EnumerateArray())
+            {
+                if (frame.ValueKind != JsonValueKind.Object
+                    || !frame.TryGetProperty("side_data_list", out var sideData)
+                    || sideData.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var item in sideData.EnumerateArray())
+                {
+                    if (string.Equals(GetString(item, "side_data_type"), ClosedCaptionSideData, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
     }
 

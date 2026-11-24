@@ -49,6 +49,9 @@ internal sealed class CountingProbe : IMediaProbe
             : throw new IOException("ffprobe could not open the file");
     }
 
+    public Task<MediaInfo> DetectClosedCaptionsAsync(string path, MediaInfo info, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("A scan must not run the caption check.");
+
     public static MediaInfo H264(string path, double duration = 1320, double fps = 23.976)
     {
         var info = MediaBuilder.Mkv(path).Duration(duration).Video().Audio("aac").Build();

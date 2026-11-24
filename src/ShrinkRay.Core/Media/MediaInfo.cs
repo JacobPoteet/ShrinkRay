@@ -50,6 +50,14 @@ public sealed record MediaInfo
     public long? BitRate { get; init; }
     public IReadOnlyList<MediaStream> Streams { get; init; } = Array.Empty<MediaStream>();
 
+    /// <summary>
+    /// True when the video carries embedded EIA-608 closed captions (ATSC A53 data inside the
+    /// video frames). HandBrake turns them into one extra subtitle track. The parser sets it from
+    /// ffprobe's stream-level <c>closed_captions</c> flag, which ffprobe 9 no longer prints;
+    /// <see cref="IMediaProbe.DetectClosedCaptionsAsync"/> sets it from the frames themselves.
+    /// </summary>
+    public bool HasClosedCaptions { get; init; }
+
     /// <summary>Real video streams. Cover art pictures are left out.</summary>
     public IEnumerable<MediaStream> VideoStreams =>
         Streams.Where(s => s.Type == StreamType.Video && !s.IsAttachedPicture);

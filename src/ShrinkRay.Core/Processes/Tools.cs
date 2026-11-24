@@ -1,3 +1,4 @@
+using System.Globalization;
 using ShrinkRay.Core.Encode;
 using ShrinkRay.Core.Media;
 using ShrinkRay.Core.Verification;
@@ -45,6 +46,48 @@ public sealed class FfprobeMediaProbe : IMediaProbe
         catch (FormatException ex)
         {
             throw new ExternalToolException($"ffprobe output for {path} could not be read: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// How many video frames the caption check reads. A stream that carries captions repeats the
+    /// caption data in every frame, padding included, so the first frames show it. 120 frames is
+    /// four to five seconds at TV frame rates, enough to get past an opening frame or two without
+    /// the data, and decodes in under a second.
+    /// </summary>
+    public const int CaptionProbeFrames = 120;
+
+    public static IReadOnlyList<string> CaptionArguments(string path, int streamIndex) =>
+    [
+        "-v", "error",
+        "-select_streams", streamIndex.ToString(CultureInfo.InvariantCulture),
+        "-read_intervals", "%+#" + CaptionProbeFrames.ToString(CultureInfo.InvariantCulture),
+        "-show_entries", "frame_side_data=side_data_type",
+        "-of", "json",
+        path,
+    ];
+
+    public async Task<MediaInfo> DetectClosedCaptionsAsync(string path, MediaInfo info, CancellationToken cancellationToken)
+    {
+        if (info.HasClosedCaptions || info.VideoStreams.FirstOrDefault() is not { } video)
+        {
+            return info;
+        }
+
+        var spec = new ProcessSpec(_ffprobePath, CaptionArguments(path, video.Index), CaptureStandardOutput: true);
+        var result = await _runner.RunAsync(spec, cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            throw ExternalToolException.Exited("ffprobe", result);
+        }
+
+        try
+        {
+            return info with { HasClosedCaptions = FfprobeParser.HasClosedCaptionSideData(result.StandardOutput) };
+        }
+        catch (FormatException ex)
+        {
+            throw new ExternalToolException($"ffprobe frame data for {path} could not be read: {ex.Message}", ex);
         }
     }
 }

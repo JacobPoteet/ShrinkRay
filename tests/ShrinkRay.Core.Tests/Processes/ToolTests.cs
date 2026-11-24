@@ -47,6 +47,56 @@ public class ToolTests
     }
 
     [Fact]
+    public async Task Caption_check_reads_side_data_from_the_first_video_frames()
+    {
+        var runner = new FakeProcessRunner();
+        runner.StandardOutputLines.AddRange(Fixtures.Json("frames_captions").Split('\n'));
+        var info = MediaBuilder.Mp4().Video("mjpeg", attachedPicture: true).Video().Audio("aac").Build();
+
+        var result = await new FfprobeMediaProbe(runner, "ffprobe.exe").DetectClosedCaptionsAsync(@"C:\Scratch\in.mp4", info, CancellationToken.None);
+
+        Assert.True(result.HasClosedCaptions);
+        Assert.Equal(info.Streams, result.Streams);
+        var call = Assert.Single(runner.Calls);
+        Assert.Equal(
+            ["-v", "error", "-select_streams", "1", "-read_intervals", "%+#120", "-show_entries", "frame_side_data=side_data_type", "-of", "json", @"C:\Scratch\in.mp4"],
+            call.Arguments);
+        Assert.True(call.CaptureStandardOutput);
+    }
+
+    [Fact]
+    public async Task Caption_check_finds_none_in_plain_frames()
+    {
+        var runner = new FakeProcessRunner();
+        runner.StandardOutputLines.AddRange(Fixtures.Json("frames_no_captions").Split('\n'));
+
+        var result = await new FfprobeMediaProbe(runner, "ffprobe.exe")
+            .DetectClosedCaptionsAsync("in.mkv", MediaBuilder.Mkv().Video().Build(), CancellationToken.None);
+
+        Assert.False(result.HasClosedCaptions);
+    }
+
+    [Fact]
+    public async Task Caption_check_is_skipped_when_the_stream_flag_already_says_so_or_there_is_no_video()
+    {
+        var runner = new FakeProcessRunner();
+        var probe = new FfprobeMediaProbe(runner, "ffprobe.exe");
+
+        Assert.True((await probe.DetectClosedCaptionsAsync("a.mkv", Fixtures.Probe("mkv_h264_cc"), CancellationToken.None)).HasClosedCaptions);
+        Assert.False((await probe.DetectClosedCaptionsAsync("b.mkv", MediaBuilder.Mkv().Audio("aac").Build(), CancellationToken.None)).HasClosedCaptions);
+        Assert.Empty(runner.Calls);
+    }
+
+    [Fact]
+    public async Task Caption_check_failure_throws()
+    {
+        var runner = new FakeProcessRunner { ExitCode = 1 };
+
+        await Assert.ThrowsAsync<ExternalToolException>(() =>
+            new FfprobeMediaProbe(runner, "ffprobe.exe").DetectClosedCaptionsAsync("in.mkv", MediaBuilder.Mkv().Video().Build(), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task HandBrake_reports_progress_from_stdout()
     {
         var runner = new FakeProcessRunner();

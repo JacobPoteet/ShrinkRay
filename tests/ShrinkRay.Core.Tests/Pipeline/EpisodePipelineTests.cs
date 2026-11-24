@@ -74,6 +74,33 @@ public class EpisodePipelineTests
     }
 
     [Fact]
+    public async Task Captions_in_the_source_video_allow_one_extra_subtitle_track()
+    {
+        var output = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Subtitle("ass").Subtitle("ass").Build();
+        var rig = new Rig(Source(), output);
+        var localCopy = Path.Combine(rig.Work, "source.mkv");
+        rig.Probe.Captioned.Add(localCopy);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Replaced, result.Outcome);
+        Assert.Equal([localCopy], rig.Probe.CaptionChecks);
+    }
+
+    [Fact]
+    public async Task Extra_subtitle_track_fails_a_source_without_captions()
+    {
+        var output = MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Subtitle("ass").Subtitle("ass").Build();
+        var rig = new Rig(Source(), output);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Contains("Subtitle streams: expected 1, output has 2", result.Message);
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+    }
+
+    [Fact]
     public async Task Each_phase_is_reported_as_it_starts()
     {
         var rig = new Rig(Source(), Output());
@@ -213,7 +240,7 @@ public class EpisodePipelineTests
     }
 
     [Fact]
-    public async Task Failed_decode_keeps_the_original_and_the_scratch_files()
+    public async Task Failed_decode_keeps_the_original_and_clears_its_scratch_folder()
     {
         var rig = new Rig(Source(), Output());
         rig.Decoder.Clean = false;
@@ -224,7 +251,33 @@ public class EpisodePipelineTests
         Assert.Contains("Full decode reported errors", result.Message);
         Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
         Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
-        Assert.Contains(rig.Fs.Files, f => f.StartsWith(rig.Work, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Failed_verification_clears_its_scratch_folder()
+    {
+        var rig = new Rig(Source(), MediaBuilder.Mkv().Duration(1400).Video("hevc").Audio("aac").Build());
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Contains("Subtitle streams", result.Message);
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Failed_swap_clears_its_scratch_folder_once_the_journal_says_failed()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Fs.Write(SwapPaths.Backup(Episode), "left by an earlier swap");
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.Failed, result.Outcome);
+        Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
+        Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -266,6 +319,7 @@ public class EpisodePipelineTests
         Assert.Contains("code 2", result.Message);
         Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
         Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -326,27 +380,68 @@ public class EpisodePipelineTests
 
         Assert.Equal(SwapState.Failed, rig.Journal.CurrentState(Episode));
         Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void Startup_removes_scratch_left_by_cancelled_files_only()
+    public void Startup_removes_scratch_left_by_settled_files_and_keeps_the_rest()
     {
         var fs = new InMemoryFileSystem();
         var journal = new SwapJournal(new InMemoryJournalStore());
-        var cancelled = Episode;
-        var failed = Episode.Replace("S01E01", "S01E02");
-        foreach (var (path, end) in new[] { (cancelled, SwapState.Cancelled), (failed, SwapState.Failed) })
+        string Ep(int n) => Episode.Replace("S01E01", $"S01E{n:00}");
+        string Leftover(string path) => Path.Combine(EpisodePipeline.WorkFolder(Scratch, path), "encoded.mkv");
+        void Run(string path, string? reason, params SwapState[] states)
         {
-            journal.Record(path, SwapState.Queued);
-            journal.Record(path, SwapState.CopiedToScratch);
-            journal.Record(path, end);
-            fs.Write(Path.Combine(EpisodePipeline.WorkFolder(Scratch, path), "encoded.mkv"), "partial");
+            for (var i = 0; i < states.Length; i++)
+            {
+                journal.Record(path, states[i], i == states.Length - 1 ? reason : null);
+            }
+
+            fs.Write(Leftover(path), "partial");
         }
 
-        EpisodePipeline.RemoveCancelledWork(fs, journal, Scratch);
+        SwapState[] local = [SwapState.Queued, SwapState.CopiedToScratch, SwapState.Encoded, SwapState.Verified];
+        Run(Ep(1), EpisodePipeline.CancelledReason, SwapState.Queued, SwapState.CopiedToScratch, SwapState.Cancelled);
+        Run(Ep(2), "Full decode reported errors", [.. local, SwapState.Failed]);
+        Run(Ep(3), "Saves 5.0%, below the 15.0% minimum", [.. local, SwapState.KeptOriginal]);
+        Run(Ep(4), "Already hevc", SwapState.Queued, SwapState.Skipped);
+        Run(Ep(5), EpisodePipeline.ReplaceOffReason + @" The verified encode is at C:\Scratch\x\encoded.mkv.", [.. local, SwapState.KeptOriginal]);
+        Run(Ep(6), null, [.. local, SwapState.UploadedTemp, SwapState.OriginalRenamedAside]);
+        Run(Ep(7), null, local);
+        fs.Write(@"C:\Scratch\notes.txt", "not ShrinkRay's");
 
-        Assert.False(fs.FileExists(Path.Combine(EpisodePipeline.WorkFolder(Scratch, cancelled), "encoded.mkv")));
-        Assert.True(fs.FileExists(Path.Combine(EpisodePipeline.WorkFolder(Scratch, failed), "encoded.mkv")));
+        EpisodePipeline.RemoveSettledWork(fs, journal, Scratch);
+
+        Assert.False(fs.FileExists(Leftover(Ep(1))), "cancelled");
+        Assert.False(fs.FileExists(Leftover(Ep(2))), "failed");
+        Assert.False(fs.FileExists(Leftover(Ep(3))), "kept original for low savings");
+        Assert.False(fs.FileExists(Leftover(Ep(4))), "skipped");
+        Assert.True(fs.FileExists(Leftover(Ep(5))), "kept original because replacing is off");
+        Assert.True(fs.FileExists(Leftover(Ep(6))), "mid-swap");
+        Assert.True(fs.FileExists(Leftover(Ep(7))), "a local step recovery has not settled");
+        Assert.True(fs.FileExists(@"C:\Scratch\notes.txt"));
+    }
+
+    [Fact]
+    public async Task Startup_after_recovery_removes_scratch_of_a_file_cut_short_locally()
+    {
+        var fs = new InMemoryFileSystem();
+        var journal = new SwapJournal(new InMemoryJournalStore());
+        fs.Write(Episode, OriginalBytes);
+        foreach (var state in new[] { SwapState.Queued, SwapState.CopiedToScratch, SwapState.Encoded })
+        {
+            journal.Record(Episode, state);
+        }
+
+        var leftover = Path.Combine(EpisodePipeline.WorkFolder(Scratch, Episode), "encoded.mkv");
+        fs.Write(leftover, "half an encode");
+
+        await new SwapRecovery(fs, journal, new FakeFinalCheck()).RecoverAsync([], CancellationToken.None);
+        EpisodePipeline.RemoveSettledWork(fs, journal, Scratch);
+
+        Assert.Equal(SwapState.Failed, journal.CurrentState(Episode));
+        Assert.False(fs.FileExists(leftover));
+        Assert.Equal(OriginalBytes, fs.Read(Episode));
     }
 
     [Fact]
@@ -402,8 +497,19 @@ public class EpisodePipelineTests
     {
         public Dictionary<string, MediaInfo> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Files whose video carries closed captions, as the frame check would find them.</summary>
+        public HashSet<string> Captioned { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> CaptionChecks { get; } = [];
+
         public Task<MediaInfo> ProbeAsync(string path, CancellationToken cancellationToken) =>
             Task.FromResult(Results[path] with { FileName = path });
+
+        public Task<MediaInfo> DetectClosedCaptionsAsync(string path, MediaInfo info, CancellationToken cancellationToken)
+        {
+            CaptionChecks.Add(path);
+            return Task.FromResult(info with { HasClosedCaptions = info.HasClosedCaptions || Captioned.Contains(path) });
+        }
     }
 
     public sealed class FakeEncoder(InMemoryFileSystem fs, FakeProbe probe, MediaInfo output, int bytes) : IVideoEncoder

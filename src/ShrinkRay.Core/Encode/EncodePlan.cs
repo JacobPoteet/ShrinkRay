@@ -92,13 +92,26 @@ public static class EncodePlanner
     public static bool IsMp4TextSubtitle(MediaStream stream) =>
         stream.CodecName is "mov_text" or "subrip";
 
-    /// <summary>HandBrake's 1-based subtitle track numbers for the text subtitles in an MP4 source.</summary>
-    public static IReadOnlyList<int> Mp4SubtitleTracks(MediaInfo source) =>
-        source.SubtitleStreams
+    /// <summary>
+    /// HandBrake's 1-based subtitle track numbers for the text subtitles in an MP4 source, plus
+    /// the closed captions when the video carries them. HandBrake lists the captions after the
+    /// container's own tracks and writes them to MP4 as a text track. MKV needs no list, since
+    /// <c>--all-subtitles</c> takes the captions too.
+    /// </summary>
+    public static IReadOnlyList<int> Mp4SubtitleTracks(MediaInfo source)
+    {
+        var tracks = source.SubtitleStreams
             .Select((stream, i) => (stream, track: i + 1))
             .Where(x => IsMp4TextSubtitle(x.stream))
             .Select(x => x.track)
             .ToList();
+        if (source.HasClosedCaptions)
+        {
+            tracks.Add(source.SubtitleStreams.Count() + 1);
+        }
+
+        return tracks;
+    }
 
     private static string Join(IEnumerable<string> values) => string.Join(',', values);
 }

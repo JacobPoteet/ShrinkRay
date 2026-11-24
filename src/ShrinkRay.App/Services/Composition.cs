@@ -78,7 +78,7 @@ public static class Composition
             async () =>
             {
                 var actions = await new SwapRecovery(fs, journal, check).RecoverAsync(folders, ct);
-                EpisodePipeline.RemoveCancelledWork(fs, journal, s.ScratchFolder);
+                EpisodePipeline.RemoveSettledWork(fs, journal, s.ScratchFolder);
                 return actions;
             },
             ct);

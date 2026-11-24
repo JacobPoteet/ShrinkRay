@@ -95,6 +95,60 @@ public class OutputVerifierTests
     }
 
     [Fact]
+    public void Extra_subtitle_track_fails_when_the_source_has_no_captions()
+    {
+        var output = MkvOutput() with { Streams = [.. MkvOutput().Streams, new MediaStream { Index = 9, Type = StreamType.Subtitle, CodecName = "ass" }] };
+
+        var result = Verify(MkvSource(), output);
+
+        Assert.Equal(VerificationOutcome.Fail, result.Outcome);
+        Assert.Contains("Subtitle streams: expected 2, output has 3", result.Reasons);
+    }
+
+    private static MediaInfo CaptionedSource() => MediaBuilder.Mkv().Duration(2604).Video().Audio("eac3", 6)
+        .Subtitle("subrip").Subtitle("subrip").Build() with { HasClosedCaptions = true };
+
+    private static MediaInfo CaptionedOutput(int subtitles)
+    {
+        var builder = MediaBuilder.Mkv().Duration(2604).Video("hevc").Audio("eac3", 6);
+        for (var i = 0; i < subtitles; i++)
+        {
+            builder.Subtitle(i < 2 ? "subrip" : "ass");
+        }
+
+        return builder.Build();
+    }
+
+    [Fact]
+    public void Captioned_source_passes_with_one_extra_subtitle_track()
+    {
+        Assert.Equal(VerificationOutcome.Pass, Verify(CaptionedSource(), CaptionedOutput(3)).Outcome);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void Captioned_source_fails_without_exactly_one_extra_track(int subtitles)
+    {
+        var result = Verify(CaptionedSource(), CaptionedOutput(subtitles));
+
+        Assert.Equal(VerificationOutcome.Fail, result.Outcome);
+        Assert.Contains($"Subtitle streams (closed captions add one): expected 3, output has {subtitles}", result.Reasons);
+    }
+
+    [Fact]
+    public void Captioned_mp4_expects_its_text_subtitles_plus_the_captions()
+    {
+        var source = MediaBuilder.Mp4().Duration(1300).Video().Audio("aac").Subtitle("mov_text").Subtitle("hdmv_pgs_subtitle").Build()
+            with { HasClosedCaptions = true };
+        var withCaptions = MediaBuilder.Mp4().Duration(1300).Video("hevc").Audio("aac").Subtitle("mov_text").Subtitle("mov_text").Build();
+        var withoutCaptions = MediaBuilder.Mp4().Duration(1300).Video("hevc").Audio("aac").Subtitle("mov_text").Build();
+
+        Assert.True(Verify(source, withCaptions).Passed);
+        Assert.Equal(VerificationOutcome.Fail, Verify(source, withoutCaptions).Outcome);
+    }
+
+    [Fact]
     public void Mp4_may_drop_pgs_subtitles()
     {
         var source = MediaBuilder.Mp4().Duration(1300).Video().Audio("aac").Subtitle("mov_text").Subtitle("hdmv_pgs_subtitle").Build();

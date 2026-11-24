@@ -28,7 +28,9 @@ public sealed class ProbeFinalFileCheck : IFinalFileCheck
         try
         {
             // The backup keeps the original's name plus a suffix, so probe data names the original.
-            var source = await _probe.ProbeAsync(backupPath, cancellationToken) with { FileName = finalPath };
+            // The caption check matters here as in the pipeline: a captioned original's encode has one more subtitle track.
+            var backup = await _probe.ProbeAsync(backupPath, cancellationToken);
+            var source = await _probe.DetectClosedCaptionsAsync(backupPath, backup, cancellationToken) with { FileName = finalPath };
             var output = await _probe.ProbeAsync(finalPath, cancellationToken);
             var decoded = await _decoder.DecodesCleanlyAsync(finalPath, cancellationToken);
             var input = new VerificationInput(source, output, _fs.GetFileSize(backupPath), _fs.GetFileSize(finalPath), decoded);
