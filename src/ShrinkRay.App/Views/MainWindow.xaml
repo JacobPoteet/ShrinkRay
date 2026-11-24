@@ -10,7 +10,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="ShrinkRay"
-        Width="1440" Height="900" MinWidth="1440" MinHeight="900"
+        Width="1440" Height="900" MinWidth="1024" MinHeight="640"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SR.ChassisSurface}"
@@ -147,6 +147,8 @@
         </DataTemplate>
     </Window.Resources>
 
+    <!-- The deck is drawn for 1440 by 900. A smaller window scales it down evenly instead of clipping it. -->
+    <ctl:DeckScaler x:Name="Scaler" DesignWidth="1440" DesignHeight="900">
     <ContentControl x:Name="Chassis" Style="{StaticResource SR.Chassis}">
         <Grid>
             <Grid>
@@ -746,4 +748,5 @@
             </Grid>
         </Grid>
     </ContentControl>
+    </ctl:DeckScaler>
 </Window>
