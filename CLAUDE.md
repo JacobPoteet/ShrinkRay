@@ -72,7 +72,8 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
 It publishes Release into `%LOCALAPPDATA%\Programs\ShrinkRay`, adds a Start menu shortcut and
 records the commit in `install.txt` and the exe's version. It refuses while ShrinkRay is running,
 since an encode may be mid-swap, and never touches `%LOCALAPPDATA%\ShrinkRay`, where settings and
-the journal live. `gitview.toml` lists the build, test, run and install tasks GitView shows.
+the journal live. `gitview.toml` adds the Release build and test tasks and the install tasks to GitView,
+which guesses a run task for the app and the gallery on its own.
 
 ## Architecture
 
