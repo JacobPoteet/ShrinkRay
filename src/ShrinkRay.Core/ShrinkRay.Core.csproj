@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>ShrinkRay.Core</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
   </PropertyGroup>
 
 </Project>
