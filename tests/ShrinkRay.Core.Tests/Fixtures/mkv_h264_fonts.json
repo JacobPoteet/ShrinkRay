@@ -1,0 +1,76 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+            "profile": "High",
+            "codec_type": "video",
+            "width": 1920,
+            "height": 1080,
+            "pix_fmt": "yuv420p",
+            "r_frame_rate": "24000/1001",
+            "disposition": { "default": 1, "attached_pic": 0 },
+            "tags": { "language": "jpn" }
+        },
+        {
+            "index": 1,
+            "codec_name": "flac",
+            "codec_type": "audio",
+            "sample_rate": "48000",
+            "channels": 2,
+            "channel_layout": "stereo",
+            "disposition": { "default": 1, "attached_pic": 0 },
+            "tags": { "language": "jpn", "title": "Stereo" }
+        },
+        {
+            "index": 2,
+            "codec_name": "ac3",
+            "codec_type": "audio",
+            "sample_rate": "48000",
+            "channels": 6,
+            "channel_layout": "5.1(side)",
+            "disposition": { "default": 0, "attached_pic": 0 },
+            "tags": { "LANGUAGE": "eng" }
+        },
+        {
+            "index": 3,
+            "codec_name": "ass",
+            "codec_type": "subtitle",
+            "disposition": { "default": 1, "attached_pic": 0 },
+            "tags": { "language": "eng" }
+        },
+        {
+            "index": 4,
+            "codec_name": "hdmv_pgs_subtitle",
+            "codec_type": "subtitle",
+            "width": 1920,
+            "height": 1080,
+            "disposition": { "default": 0, "attached_pic": 0 },
+            "tags": { "language": "spa" }
+        },
+        {
+            "index": 5,
+            "codec_name": "ttf",
+            "codec_type": "attachment",
+            "tags": { "filename": "ExampleSans-Regular.ttf", "mimetype": "application/x-truetype-font" }
+        },
+        {
+            "index": 6,
+            "codec_name": "otf",
+            "codec_type": "attachment",
+            "tags": { "filename": "ExampleSerif-Bold.otf", "mimetype": "application/vnd.ms-opentype" }
+        }
+    ],
+    "format": {
+        "filename": "Example Show S01E01.mkv",
+        "nb_streams": 7,
+        "format_name": "matroska,webm",
+        "format_long_name": "Matroska / WebM",
+        "start_time": "0.000000",
+        "duration": "1420.512000",
+        "size": "1480000000",
+        "bit_rate": "8335000",
+        "probe_score": 100
+    }
+}

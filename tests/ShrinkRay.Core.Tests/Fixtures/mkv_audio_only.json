@@ -1,0 +1,16 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "opus",
+            "codec_type": "audio",
+            "channels": 2
+        }
+    ],
+    "format": {
+        "filename": "Example Show S01E03.mkv",
+        "format_name": "matroska,webm",
+        "duration": "60.0",
+        "size": "1000000"
+    }
+}

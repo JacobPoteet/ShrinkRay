@@ -1,0 +1,49 @@
+{
+    "streams": [
+        {
+            "index": 0,
+            "codec_name": "h264",
+            "profile": "Main",
+            "codec_type": "video",
+            "width": 1280,
+            "height": 720,
+            "pix_fmt": "yuv420p",
+            "disposition": { "default": 1, "attached_pic": 0 },
+            "tags": { "language": "und", "handler_name": "VideoHandler" }
+        },
+        {
+            "index": 1,
+            "codec_name": "aac",
+            "profile": "LC",
+            "codec_type": "audio",
+            "channels": 2,
+            "disposition": { "default": 1, "attached_pic": 0 },
+            "tags": { "language": "eng" }
+        },
+        {
+            "index": 2,
+            "codec_name": "mov_text",
+            "codec_type": "subtitle",
+            "disposition": { "default": 0, "attached_pic": 0 },
+            "tags": { "language": "eng" }
+        },
+        {
+            "index": 3,
+            "codec_name": "mjpeg",
+            "profile": "Baseline",
+            "codec_type": "video",
+            "width": 600,
+            "height": 900,
+            "pix_fmt": "yuvj420p",
+            "disposition": { "default": 0, "attached_pic": 1 }
+        }
+    ],
+    "format": {
+        "filename": "Example Show S02E05.mp4",
+        "nb_streams": 4,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "duration": 1302.4,
+        "size": "512000000",
+        "bit_rate": "3144800"
+    }
+}
