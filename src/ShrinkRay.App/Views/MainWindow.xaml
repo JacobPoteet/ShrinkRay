@@ -147,6 +147,10 @@
         </DataTemplate>
     </Window.Resources>
 
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelCloseCommand}" />
+    </Window.InputBindings>
+
     <!-- The deck is drawn for 1440 by 900. A smaller window scales it down evenly instead of clipping it. -->
     <ctl:DeckScaler x:Name="Scaler" DesignWidth="1440" DesignHeight="900">
     <ContentControl x:Name="Chassis" Style="{StaticResource SR.Chassis}">
@@ -743,6 +747,31 @@
 
                         <TextBlock Style="{StaticResource SR.Text.Caption}" Margin="0,14,0,0" Text="{Binding Notice}"
                                    Visibility="{Binding Notice, Converter={StaticResource NotEmpty}}" />
+                    </StackPanel>
+                </ContentControl>
+            </Grid>
+
+            <!-- ============ CLOSE CONFIRM ============ -->
+            <!-- Closing during a run asks first. Escape keeps running; once confirmed, the card shows the wait. -->
+            <Grid x:Name="CloseOverlay" Visibility="{Binding IsCloseOverlayOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
+                <Rectangle Fill="#8C000000" />
+                <ContentControl Style="{StaticResource SR.Card}" Width="540" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
+                                KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle"
+                                AutomationProperties.Name="Close ShrinkRay during a run">
+                    <StackPanel>
+                        <sr:TrackedText Style="{StaticResource SR.Heading}" Text="{Binding CloseHeading}" />
+                        <TextBlock Style="{StaticResource SR.Text.Caption}" Margin="0,10,0,0" FontSize="14" Text="{Binding CloseText}" />
+                        <ContentControl Style="{StaticResource SR.Plate}" Margin="0,18,0,0" Padding="14,10" HorizontalAlignment="Left">
+                            <sr:Lamp Style="{StaticResource PanelLamp}" Foreground="{DynamicResource SR.SilkLight}"
+                                     Content="{Binding RunLamp.Label}" State="{Binding RunLamp.State}" Blink="{Binding RunLamp.Blink}" />
+                        </ContentControl>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0"
+                                    Visibility="{Binding IsCloseConfirmOpen, Converter={StaticResource Visible}}">
+                            <sr:PianoKey x:Name="KeepRunningKey" Label="Keep running" MinWidth="150" Width="150"
+                                         Command="{Binding CancelCloseCommand}" AutomationProperties.Name="Keep running and leave ShrinkRay open" />
+                            <sr:PianoKey Label="{Binding CloseKeyLabel}" MinWidth="150" Width="150" Margin="14,0,0,0"
+                                         Command="{Binding ConfirmCloseCommand}" AutomationProperties.Name="{Binding CloseKeyLabel}" />
+                        </StackPanel>
                     </StackPanel>
                 </ContentControl>
             </Grid>

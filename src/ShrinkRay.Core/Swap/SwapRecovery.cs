@@ -11,7 +11,11 @@ public enum RecoveryKind
     /// <summary>The new file was already in place. Recovery finished the swap.</summary>
     Completed,
 
-    /// <summary>A local step was cut short. The share was not touched and the file is marked Failed.</summary>
+    /// <summary>
+    /// A local step was cut short, by a crash or a forced exit. The share was not touched, so
+    /// startup recovery marks the file Cancelled: it goes back in the queue and its scratch
+    /// folder is removed.
+    /// </summary>
     Interrupted,
 
     /// <summary>A temp file with no journal entry was deleted.</summary>
@@ -65,7 +69,11 @@ public sealed class SwapRecovery
             }
 
             handled.Add(entry.Path);
-            var action = await ResolveAsync(entry.Path, cancellationToken);
+
+            // A file left at a local step never reached the share. ShrinkRay stopped under it, so
+            // it is cancelled like a Stop rather than failed. Share steps still settle as Failed.
+            var settleAs = entry.State.IsLocalStep() ? SwapState.Cancelled : SwapState.Failed;
+            var action = await ResolveAsync(entry.Path, settleAs, cancellationToken);
             if (action.Kind != RecoveryKind.NoAction)
             {
                 actions.Add(action);
@@ -120,7 +128,8 @@ public sealed class SwapRecovery
 
     /// <param name="settleAs">
     /// Where a file that is put back to its original ends: <see cref="SwapState.Failed"/> after a
-    /// crash or an error, <see cref="SwapState.Cancelled"/> when Skip or Stop cut the upload short.
+    /// crash or an error, <see cref="SwapState.Cancelled"/> when Skip or Stop cut the upload short
+    /// or a crash cut a local step short.
     /// Failed whenever the journal does not allow <paramref name="settleAs"/> from the current
     /// state, and always when a swapped-in file fails its check.
     /// </param>

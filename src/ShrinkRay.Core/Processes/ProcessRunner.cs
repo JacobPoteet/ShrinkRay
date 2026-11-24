@@ -43,11 +43,14 @@ public sealed class ProcessRunner : IProcessRunner
 {
     private const int StandardErrorTailLines = 40;
     private readonly ProcessGate? _gate;
+    private readonly ChildProcessJob? _job;
 
     /// <param name="gate">Lets the Pause key suspend the tools this runner starts. Optional.</param>
-    public ProcessRunner(ProcessGate? gate = null)
+    /// <param name="job">Ties each tool to ShrinkRay's lifetime, so a crash does not leave it running. Optional.</param>
+    public ProcessRunner(ProcessGate? gate = null, ChildProcessJob? job = null)
     {
         _gate = gate;
+        _job = job;
     }
 
     public async Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken cancellationToken)
@@ -78,6 +81,10 @@ public sealed class ProcessRunner : IProcessRunner
             throw new ExternalToolException($"Could not start {spec.FileName}: {ex.Message}", ex);
         }
 
+        // Assigned straight after the start, since Process cannot start one suspended. If
+        // ShrinkRay dies in the microseconds between the two calls, that one tool outlives it;
+        // none of the tools starts children of its own that could slip out in that gap.
+        _job?.Assign(process);
         _gate?.Started(process);
         try
         {

@@ -49,6 +49,7 @@ public sealed class EncodeQueue
     private TaskCompletionSource _resume = NewSignal();
     private bool _paused;
     private bool _skipRequested;
+    private bool _stopAfterCurrent;
 
     /// <param name="mayStart">False holds the next episode, such as outside the encode window.</param>
     /// <param name="delay">Waits between window checks. Tests pass a fake.</param>
@@ -99,18 +100,21 @@ public sealed class EncodeQueue
 
             _run = new CancellationTokenSource();
             token = _run.Token;
+            _stopAfterCurrent = false;
         }
 
         try
         {
             foreach (var path in paths)
             {
-                if (!await WaitToStartAsync(token).ConfigureAwait(false))
+                if (StopAfterCurrentRequested() || !await WaitToStartAsync(token).ConfigureAwait(false))
                 {
                     break;
                 }
 
-                if (!await RunEpisodeAsync(path, token).ConfigureAwait(false))
+                // Checked again after the wait, so a request made while the queue waited never
+                // lets a whole new episode run.
+                if (StopAfterCurrentRequested() || !await RunEpisodeAsync(path, token).ConfigureAwait(false))
                 {
                     break;
                 }
@@ -123,6 +127,7 @@ public sealed class EncodeQueue
                 _run?.Dispose();
                 _run = null;
                 _paused = false;
+                _stopAfterCurrent = false;
                 _resume.TrySetResult();
             }
 
@@ -203,6 +208,33 @@ public sealed class EncodeQueue
         // Resume first so the gate forgets the pause; a suspended tool is then killed by the cancel.
         _gate?.Resume();
         if (run is not null)
+        {
+            CancelQuietly(run);
+        }
+    }
+
+    /// <summary>
+    /// Lets the current episode run to its end, then ends the run. Between episodes, with
+    /// nothing to finish, it stops at once. A pause is released so the episode can finish.
+    /// </summary>
+    public void StopAfterCurrent()
+    {
+        CancellationTokenSource? run;
+        bool betweenEpisodes;
+        lock (_lock)
+        {
+            run = _run;
+            if (run is null)
+            {
+                return;
+            }
+
+            _stopAfterCurrent = true;
+            betweenEpisodes = _episode is null;
+        }
+
+        Resume();
+        if (betweenEpisodes)
         {
             CancelQuietly(run);
         }
@@ -304,6 +336,14 @@ public sealed class EncodeQueue
             }
 
             Current = null;
+        }
+    }
+
+    private bool StopAfterCurrentRequested()
+    {
+        lock (_lock)
+        {
+            return _stopAfterCurrent;
         }
     }
 

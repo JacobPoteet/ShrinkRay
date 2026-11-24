@@ -74,8 +74,10 @@ public class CrashRecoveryTests
         }
         else
         {
+            // A crash before the first share step leaves the file at Verified, a local step,
+            // which recovery cancels. Any later crash before the rename is a failed swap.
             Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
-            Assert.Equal(SwapState.Failed, h.State);
+            Assert.Equal(crashAfter == 0 ? SwapState.Cancelled : SwapState.Failed, h.State);
         }
     }
 
@@ -98,8 +100,9 @@ public class CrashRecoveryTests
             Assert.Equal(1, h.Check.Calls);
         }
 
+        // A crash before the first operation leaves the file at Verified, which recovery cancels.
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
-        Assert.Equal(SwapState.Failed, h.State);
+        Assert.Equal(crashAfter == 0 ? SwapState.Cancelled : SwapState.Failed, h.State);
     }
 
     [Theory]
@@ -171,7 +174,8 @@ public class CrashRecoveryTests
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
 
         // Only a rollback that finished counts as cancelled; one a crash cut short is a failure.
-        Assert.Equal(crashAfter >= CancelOperations ? SwapState.Cancelled : SwapState.Failed, h.State);
+        // A crash before the first operation leaves the file at Verified, which recovery cancels.
+        Assert.Equal(crashAfter is 0 or >= CancelOperations ? SwapState.Cancelled : SwapState.Failed, h.State);
         h.Restart();
         Assert.Empty(await h.RecoverAsync());
     }

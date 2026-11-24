@@ -203,6 +203,9 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
 
     public ConcurrentQueue<string> Ran { get; } = new();
 
+    /// <summary>The token each episode ran with, to tell a cancelled episode from one left to finish.</summary>
+    public ConcurrentDictionary<string, CancellationToken> Tokens { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public void Report(double percent) =>
         _progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, percent, 170, 165, null)));
 
@@ -211,6 +214,7 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
     public async Task<PipelineResult> RunAsync(string sourcePath, IProgress<EpisodeProgress>? progress, CancellationToken cancellationToken)
     {
         Ran.Enqueue(sourcePath);
+        Tokens[sourcePath] = cancellationToken;
         _progress = progress;
         progress?.Report(new EpisodeProgress(EpisodePhase.Probing));
         progress?.Report(new EpisodeProgress(EpisodePhase.Copying));

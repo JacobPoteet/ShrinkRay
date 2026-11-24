@@ -27,6 +27,17 @@ public enum EpisodePhase
     Swapping,
 }
 
+public static class EpisodePhases
+{
+    /// <summary>
+    /// True once the swap has renamed the original aside. From there the swap ignores
+    /// cancellation and runs to the end, so the deck lets it finish instead of cancelling it. Up
+    /// to and through the upload a cancel is safe: the temp file is removed and the original was
+    /// never touched.
+    /// </summary>
+    public static bool IsPastUpload(this EpisodePhase phase) => phase >= EpisodePhase.Swapping;
+}
+
 /// <param name="Encode">HandBrake's progress. Set only during <see cref="EpisodePhase.Encoding"/>, once HandBrake reports.</param>
 public sealed record EpisodeProgress(EpisodePhase Phase, EncodeProgress? Encode = null);
 

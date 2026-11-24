@@ -241,6 +241,60 @@ public class EncodeQueueTests
     }
 
     [Fact]
+    public async Task Stop_after_current_lets_the_episode_finish_and_starts_no_other()
+    {
+        var rig = new Rig();
+        var run = rig.Queue.RunAsync(["a", "b", "c"]);
+        await rig.Runner.WaitForStartAsync();
+
+        rig.Queue.StopAfterCurrent();
+        Assert.False(run.IsCompleted);
+        rig.Runner.Finish("a");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a"], rig.Runner.Started);
+        var only = Assert.Single(rig.Finished);
+        Assert.Equal(EpisodeEnd.Finished, only.End);
+        Assert.Equal(PipelineOutcome.Replaced, only.Result!.Outcome);
+        Assert.Equal(QueueState.Idle, rig.Queue.State);
+    }
+
+    [Fact]
+    public async Task Stop_after_current_releases_a_pause_so_the_episode_can_finish()
+    {
+        var rig = new Rig();
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+        rig.Queue.Pause();
+
+        rig.Queue.StopAfterCurrent();
+        Assert.False(rig.Gate.IsPaused);
+        rig.Runner.Finish("a");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a"], rig.Runner.Started);
+    }
+
+    [Fact]
+    public async Task Stop_after_current_between_episodes_stops_at_once()
+    {
+        var rig = new Rig();
+        var waiting = new TaskCompletionSource();
+        var queue = new EncodeQueue(rig.Runner, rig.Gate, () => false, async (_, ct) =>
+        {
+            waiting.TrySetResult();
+            await Task.Delay(Timeout, ct);
+        });
+        var run = queue.RunAsync(["a"]);
+        await waiting.Task.WaitAsync(Timeout);
+
+        queue.StopAfterCurrent();
+        await run.WaitAsync(Timeout);
+
+        Assert.Empty(rig.Runner.Started);
+    }
+
+    [Fact]
     public void Transport_keys_do_nothing_when_idle()
     {
         var rig = new Rig();
@@ -248,6 +302,7 @@ public class EncodeQueueTests
         rig.Queue.Pause();
         rig.Queue.Skip();
         rig.Queue.Stop();
+        rig.Queue.StopAfterCurrent();
 
         Assert.Equal(QueueState.Idle, rig.Queue.State);
         Assert.Empty(rig.Gate.Calls.Where(c => c == "pause"));
