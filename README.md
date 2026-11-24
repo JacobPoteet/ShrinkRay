@@ -2,17 +2,19 @@
 
 A Windows desktop app that re-encodes a Plex TV library from H.264 to H.265 on an NVIDIA GPU. It writes each new file back under the original filename, so Plex keeps your metadata and watch history.
 
-Status: in development. The encode engine and the theme kit exist; the app itself does not yet. To see the look, run the theme gallery:
+Status: in development. The main deck works end to end on a test library; there is no installer or release yet. Run it from source:
 
 ```powershell
-dotnet run --project src/ShrinkRay.Gallery
+dotnet run --project src/ShrinkRay.App
 ```
 
-## Planned
+## How it works
 
-- Point it at a library folder, local or on a network share, and pick one show at a time.
-- It probes every file first, skips anything already in HEVC, and estimates the space you'll save.
-- HandBrakeCLI encodes with NVENC in a local scratch folder. ShrinkRay checks the result and only then replaces the original.
+- Choose a library folder, local or on a mapped network share, or drop a show folder on the window. Monitor A lists the shows that still have H.264 episodes.
+- Load a show, set its quality on the CQ knob, and press Encode. ShrinkRay probes every file first, skips anything already in HEVC, and estimates the space you'll get back.
+- HandBrakeCLI encodes each episode with NVENC in a local scratch folder. ShrinkRay checks duration, streams and a full decode, and replaces the original only when every check passes and the file shrinks by at least 15 percent.
+
+To see every control in the theme, run the gallery: `dotnet run --project src/ShrinkRay.Gallery`.
 
 Requires Windows 10 or 11, an NVIDIA GPU with HEVC NVENC, HandBrakeCLI, and ffmpeg.
 

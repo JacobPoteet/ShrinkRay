@@ -67,6 +67,7 @@ public static class FfprobeParser
             Width = (int?)GetLong(stream, "width"),
             Height = (int?)GetLong(stream, "height"),
             PixelFormat = GetString(stream, "pix_fmt"),
+            FrameRate = GetRate(stream, "avg_frame_rate") ?? GetRate(stream, "r_frame_rate"),
             Channels = (int?)GetLong(stream, "channels"),
             Language = GetTag(tags, "language"),
             AttachmentFileName = GetTag(tags, "filename"),
@@ -127,6 +128,30 @@ public static class FfprobeParser
         return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
             && double.IsFinite(value)
             ? value
+            : null;
+    }
+
+    // Rates arrive as fractions such as "24000/1001". "0/0" means unknown.
+    private static double? GetRate(JsonElement element, string name)
+    {
+        var text = GetString(element, name);
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var parts = text.Split('/');
+        if (parts.Length == 2
+            && double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var numerator)
+            && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator)
+            && denominator > 0)
+        {
+            var rate = numerator / denominator;
+            return double.IsFinite(rate) && rate > 0 ? rate : null;
+        }
+
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var plain) && double.IsFinite(plain) && plain > 0
+            ? plain
             : null;
     }
 

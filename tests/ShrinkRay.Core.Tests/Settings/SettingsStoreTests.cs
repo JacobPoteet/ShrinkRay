@@ -33,11 +33,11 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Default_path_is_under_appdata()
+    public void Default_path_is_under_local_appdata()
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
-        Assert.Equal(Path.Combine(appData, "ShrinkRay", "settings.json"), SettingsStore.DefaultPath);
+        Assert.Equal(Path.Combine(localAppData, "ShrinkRay", "settings.json"), SettingsStore.DefaultPath);
     }
 
     [Fact]

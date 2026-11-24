@@ -32,6 +32,34 @@ public class FfprobeParserTests
     }
 
     [Fact]
+    public void Parses_frame_rate_fraction()
+    {
+        var video = Assert.Single(Fixtures.Probe("mkv_h264_fonts").VideoStreams);
+
+        Assert.Equal(23.976, video.FrameRate!.Value, 3);
+    }
+
+    [Theory]
+    [InlineData("\"avg_frame_rate\": \"30000/1001\", \"r_frame_rate\": \"60/1\"", 29.97)]
+    [InlineData("\"avg_frame_rate\": \"0/0\", \"r_frame_rate\": \"25/1\"", 25.0)]
+    [InlineData("\"avg_frame_rate\": \"0/0\"", null)]
+    public void Prefers_average_frame_rate_and_ignores_unknown(string rates, double? expected)
+    {
+        var json = "{\"streams\": [{\"index\": 0, \"codec_type\": \"video\", " + rates + "}]}";
+
+        var rate = Assert.Single(FfprobeParser.Parse(json).Streams).FrameRate;
+
+        if (expected is null)
+        {
+            Assert.Null(rate);
+        }
+        else
+        {
+            Assert.Equal(expected.Value, rate!.Value, 2);
+        }
+    }
+
+    [Fact]
     public void Parses_audio_streams_and_upper_case_language_tags()
     {
         var audio = Fixtures.Probe("mkv_h264_fonts").AudioStreams.ToList();

@@ -5,7 +5,8 @@ using System.Text.Json.Serialization;
 namespace ShrinkRay.Core.Settings;
 
 /// <summary>
-/// Reads and writes <c>%APPDATA%\ShrinkRay\settings.json</c>. A missing, unreadable or corrupt
+/// Reads and writes <c>%LOCALAPPDATA%\ShrinkRay\settings.json</c>. Local rather than roaming,
+/// since the library and scratch paths belong to this machine. A missing, unreadable or corrupt
 /// file gives the defaults, and missing or null fields take their default values.
 /// </summary>
 public static class SettingsStore
@@ -23,7 +24,7 @@ public static class SettingsStore
     };
 
     public static string DefaultPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ShrinkRay", "settings.json");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ShrinkRay", "settings.json");
 
     public static ShrinkRaySettings Load(string path)
     {

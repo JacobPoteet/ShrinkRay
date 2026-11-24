@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    # WPF projects (ShrinkRay.Theme, ShrinkRay.Gallery and their tests) need Windows.
+    # WPF projects (ShrinkRay.Theme, ShrinkRay.Gallery, ShrinkRay.App and their tests) need Windows.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

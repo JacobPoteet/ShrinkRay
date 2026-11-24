@@ -19,11 +19,17 @@ public enum PipelineOutcome
 
 public sealed record PipelineResult(PipelineOutcome Outcome, string Message, VerificationResult? Verification = null);
 
+/// <summary>Runs one episode end to end. <see cref="EpisodePipeline"/> is the real one.</summary>
+public interface IEpisodeRunner
+{
+    Task<PipelineResult> RunAsync(string sourcePath, IProgress<EncodeProgress>? progress, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Takes one episode from the share through copy, encode, font restore, verification and swap,
 /// journaling each step. Everything before the swap happens in the scratch folder.
 /// </summary>
-public sealed class EpisodePipeline
+public sealed class EpisodePipeline : IEpisodeRunner
 {
     private readonly IFileSystem _fs;
     private readonly IMediaProbe _probe;

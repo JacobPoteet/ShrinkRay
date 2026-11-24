@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ShrinkRay.App</RootNamespace>
+    <AssemblyName>ShrinkRay</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ShrinkRay.Core\ShrinkRay.Core.csproj" />
+    <ProjectReference Include="..\ShrinkRay.Theme\ShrinkRay.Theme.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ShrinkRay.App.Tests" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+</Project>
