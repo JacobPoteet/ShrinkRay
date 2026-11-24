@@ -663,6 +663,26 @@ public sealed partial class MainViewModel
         Raise(nameof(ScratchFolder));
     }
 
+    private void StepWindow(bool start, int direction)
+    {
+        if (IsEncoding)
+        {
+            return;
+        }
+
+        if (start)
+        {
+            _settings.EncodeWindowStart = StepTime(_settings.EncodeWindowStart, direction);
+        }
+        else
+        {
+            _settings.EncodeWindowEnd = StepTime(_settings.EncodeWindowEnd, direction);
+        }
+
+        Save();
+        RefreshWindow(force: true);
+    }
+
     private void SetPhosphorIf(bool value, Phosphor phosphor)
     {
         if (!value || _prefs.Phosphor == phosphor)
@@ -775,6 +795,10 @@ public sealed partial class MainViewModel
         ChooseLibraryCommand.Refresh();
         ChooseScratchCommand.Refresh();
         RescanCommand.Refresh();
+        WindowStartEarlierCommand.Refresh();
+        WindowStartLaterCommand.Refresh();
+        WindowEndEarlierCommand.Refresh();
+        WindowEndLaterCommand.Refresh();
     }
 
     private void RefreshSeasonLamps()
@@ -854,6 +878,7 @@ public sealed partial class MainViewModel
         }
 
         Raise(nameof(WindowEnabled), nameof(WindowText), nameof(WindowDymo), nameof(NowHours),
-            nameof(WindowStartHours), nameof(WindowEndHours), nameof(EncodeWindowEnabled));
+            nameof(WindowStartHours), nameof(WindowEndHours), nameof(EncodeWindowEnabled),
+            nameof(WindowStartText), nameof(WindowEndText));
     }
 }
