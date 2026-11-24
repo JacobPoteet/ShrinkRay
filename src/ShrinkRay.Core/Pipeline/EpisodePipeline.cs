@@ -34,6 +34,9 @@ public sealed class EpisodePipeline : IEpisodeRunner
 {
     public const string CancelledReason = "Skipped or stopped from the deck before the swap. The original was not touched.";
 
+    /// <summary>Starts the journal reason for an encode kept in scratch because replacing originals is off.</summary>
+    public const string ReplaceOffReason = "Replacing originals is off.";
+
     private readonly IFileSystem _fs;
     private readonly IMediaProbe _probe;
     private readonly IVideoEncoder _encoder;
@@ -90,36 +93,52 @@ public sealed class EpisodePipeline : IEpisodeRunner
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Skip or Stop. The share was not touched, so the file is cancelled rather than failed,
-            // and nothing in its scratch folder is worth keeping.
+            // Skip or Stop. The share was not touched, so the file is cancelled rather than failed.
             SettleIfStillLocal(sourcePath, SwapState.Cancelled, CancelledReason);
-            TryDeleteWork(work);
+            RemoveWorkIfSettled(sourcePath, work);
             throw;
         }
         catch (OperationCanceledException)
         {
             SettleIfStillLocal(sourcePath, SwapState.Failed, "Cancelled");
+            RemoveWorkIfSettled(sourcePath, work);
             throw;
         }
         catch (Exception ex)
         {
             SettleIfStillLocal(sourcePath, SwapState.Failed, ex.Message);
+            RemoveWorkIfSettled(sourcePath, work);
             return new PipelineResult(PipelineOutcome.Failed, ex.Message);
         }
     }
 
     /// <summary>
-    /// Deletes the scratch folders of files the journal shows as cancelled. Skip and Stop delete
-    /// them straight away; this catches one a locked file kept. Run it on startup with recovery.
+    /// True when a file's scratch folder holds nothing worth keeping: the file ended Failed,
+    /// KeptOriginal, Skipped or Cancelled, with the original untouched on the share. A file
+    /// mid-swap, or one recovery left for review, keeps its folder. So does the verified encode
+    /// kept because replacing originals is off, since the deck says those stay in scratch.
     /// </summary>
-    public static void RemoveCancelledWork(IFileSystem fs, SwapJournal journal, string scratchFolder)
+    public static bool IsWorkDisposable(JournalEntry? entry) => entry?.State switch
+    {
+        SwapState.Failed or SwapState.Skipped or SwapState.Cancelled => true,
+        SwapState.KeptOriginal => entry.Reason?.StartsWith(ReplaceOffReason, StringComparison.Ordinal) != true,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Deletes the scratch folders of files the journal shows settled with nothing to keep (see
+    /// <see cref="IsWorkDisposable"/>). The pipeline deletes them as each file ends; this catches
+    /// a folder a locked file kept, or one left by an older version. Run it on startup after
+    /// recovery, so a file recovery has just settled counts too.
+    /// </summary>
+    public static void RemoveSettledWork(IFileSystem fs, SwapJournal journal, string scratchFolder)
     {
         if (string.IsNullOrWhiteSpace(scratchFolder))
         {
             return;
         }
 
-        foreach (var entry in journal.LatestEntries().Where(e => e.State == SwapState.Cancelled))
+        foreach (var entry in journal.LatestEntries().Where(IsWorkDisposable))
         {
             try
             {
@@ -203,9 +222,11 @@ public sealed class EpisodePipeline : IEpisodeRunner
         {
             case VerificationOutcome.Fail:
             {
-                // The work folder stays for inspection.
+                // The reasons go to the journal and the deck. The encode is gigabytes of scratch
+                // nobody can use, so it goes too.
                 var reasons = string.Join("; ", verification.Reasons);
                 _journal.Record(sourcePath, SwapState.Failed, reasons);
+                RemoveWorkIfSettled(sourcePath, work);
                 return new PipelineResult(PipelineOutcome.Failed, reasons, verification);
             }
 
@@ -213,14 +234,14 @@ public sealed class EpisodePipeline : IEpisodeRunner
             {
                 var reason = string.Join("; ", verification.Reasons);
                 _journal.Record(sourcePath, SwapState.KeptOriginal, reason);
-                TryDeleteWork(work);
+                RemoveWorkIfSettled(sourcePath, work);
                 return new PipelineResult(PipelineOutcome.KeptOriginal, reason, verification);
             }
         }
 
         if (!_settings.ReplaceOriginals)
         {
-            var message = $"Replacing originals is off. The verified encode is at {candidate}.";
+            var message = $"{ReplaceOffReason} The verified encode is at {candidate}.";
             _journal.Record(sourcePath, SwapState.KeptOriginal, message);
             return new PipelineResult(PipelineOutcome.KeptOriginal, message, verification);
         }
@@ -239,6 +260,8 @@ public sealed class EpisodePipeline : IEpisodeRunner
         var swap = await _swap.SwapAsync(sourcePath, candidate, verification, _settings, steps, ct);
         if (swap.Outcome != SwapOutcome.Swapped)
         {
+            // Only once the swap has rolled back to Failed. A rollback that failed leaves the file mid-swap.
+            RemoveWorkIfSettled(sourcePath, work);
             return new PipelineResult(PipelineOutcome.Failed, swap.Message ?? "Swap failed", verification);
         }
 
@@ -253,6 +276,14 @@ public sealed class EpisodePipeline : IEpisodeRunner
         if (state is SwapState.Queued || (state is { } s && s.IsLocalStep()))
         {
             _journal.Record(sourcePath, settled, reason);
+        }
+    }
+
+    private void RemoveWorkIfSettled(string sourcePath, string work)
+    {
+        if (IsWorkDisposable(_journal.Latest(sourcePath)))
+        {
+            TryDeleteWork(work);
         }
     }
 
