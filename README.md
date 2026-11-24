@@ -2,7 +2,11 @@
 
 A Windows desktop app that re-encodes a Plex TV library from H.264 to H.265 on an NVIDIA GPU. It writes each new file back under the original filename, so Plex keeps your metadata and watch history.
 
-Status: planning. Nothing to run yet.
+Status: in development. The encode engine and the theme kit exist; the app itself does not yet. To see the look, run the theme gallery:
+
+```powershell
+dotnet run --project src/ShrinkRay.Gallery
+```
 
 ## Planned
 

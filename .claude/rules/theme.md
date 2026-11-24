@@ -1,0 +1,50 @@
+---
+paths:
+  - "src/ShrinkRay.Theme/**"
+  - "src/ShrinkRay.Gallery/**"
+---
+
+# Theme rules
+
+The look is cassette futurism: 1980s industrial hardware. Beige or graphite ABS, charcoal
+recessed plates, piano-key transport, amber phosphor CRTs, seven-segment readouts, tape reels,
+VU needles, Dymo labels.
+
+## House rules
+
+- Phosphor is the only light source. Screens, digits and live readouts glow. Nothing else
+  does, so never add a glow to chassis, keys or labels.
+- Signal red marks Encode and anything that deletes. Use it nowhere else.
+- Pair every status lamp with a word. Never rely on color alone.
+- Silkscreen labels are uppercase Barlow Condensed 600 or 700, tracked about +18%. Use
+  `TrackedText`; TextBlock has no letter spacing.
+- Michroma is for the wordmark, the badge and kit headings only.
+- Only parts that move on real hardware animate: reels, needles, lamps, keys. Reel spin, lamp
+  blink and CRT flicker stop when `MotionPolicy.IsMotionEnabled` is false.
+
+## scientifica
+
+- scientifica is a bitmap font drawn at 11 px. Set it at exactly 22 px on any CRT or LCD so
+  each font pixel covers 2 by 2 screen pixels.
+- Render it with `TextOptions.TextFormattingMode="Display"`,
+  `TextOptions.TextRenderingMode="Aliased"` and no smoothing. `SR.Text.Pixel` and `CrtPanel`
+  set all of this, and `PixelText.Size` snaps the size to a multiple of 11 device pixels on
+  scaled displays.
+- Never put a blur or drop shadow on an ancestor of scientifica text except the phosphor glow
+  `CrtPanel` applies.
+
+## Tokens
+
+- Reference tokens with DynamicResource. `ThemeManager` rewrites the phosphor and chassis keys
+  in `ThemeKeys` at runtime.
+- Inks printed on the chassis come from `ChassisPalette`. `PaletteContrastTests` checks them
+  against WCAG on both chassis; keep it passing when you change a color.
+- Inks on paper (J-card, VU face, cassette label) stay fixed.
+
+## Building controls
+
+- Put geometry and arithmetic in `Mechanics/` as static, testable helpers.
+- Build depth from stacked borders. Keep blur effects on content-free layers so text never
+  renders through an effect.
+- Give interactive controls real Button, ToggleButton or RadioButton semantics, an automation
+  name, and `SR.FocusVisual`.
