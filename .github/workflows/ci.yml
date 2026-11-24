@@ -11,8 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # global.json picks the SDK that builds (9.0, latest feature band). The 8.0 install
+      # brings the runtime the net8.0 test projects run on.
       - uses: actions/setup-dotnet@v4
         with:
+          global-json-file: global.json
           dotnet-version: 8.0.x
 
       - name: Check font licenses

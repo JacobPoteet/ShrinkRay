@@ -22,7 +22,8 @@ that loads a show and runs its episodes through the engine.
 ## Build and test
 
 Run dotnet from PowerShell. Core targets `net8.0`; the theme, gallery, app and their tests
-target `net8.0-windows`. Any SDK from 8 up builds them.
+target `net8.0-windows`. `global.json` pins the .NET 9 SDK, any feature band from 9.0.100,
+and the tests run on the .NET 8 runtime, so install both.
 
 ```powershell
 dotnet build ShrinkRay.sln -c Release
