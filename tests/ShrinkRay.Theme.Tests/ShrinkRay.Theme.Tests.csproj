@@ -8,7 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <!-- Speeds up restore: xunit asks for 1.6.1, which pulls dozens of old System.* packages. -->
     <PackageReference Include="NETStandard.Library" Version="2.0.3" />
