@@ -117,6 +117,10 @@ against an in-memory library, a scripted episode runner and a fake gate. `Compos
 the real services. Keep logic in Core or the view model; the window's code-behind handles
 chrome, drag and drop, the half-second tick and the power-on self-test only.
 
+One copy runs per data folder. `SingleInstance` claims it before anything reads it, since a
+second copy's recovery would act on the first one's encode. A refused copy brings the first one
+forward and exits.
+
 Startup order matters: `StartAsync` runs journal recovery, then opens first-run setup or scans
 the library, and Encode stays off until recovery ends and while setup or its tour is up. Setup
 runs when settings name no library, or when it was quit before the originals choice. The trial
