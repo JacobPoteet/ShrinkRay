@@ -206,7 +206,7 @@ public sealed partial class MainViewModel
     private void RefreshStopping()
     {
         Raise(nameof(IsStopCardOpen), nameof(StopLamp), nameof(StopLampBlink), nameof(StopKeyName), nameof(StopCardHeading),
-            nameof(StopCardText), nameof(StopPrimaryLabel), nameof(StopPrimaryName));
+            nameof(StopCardText), nameof(StopPrimaryLabel), nameof(StopPrimaryName), nameof(CloseText));
         StopPrimaryCommand.Refresh();
         StopNowCommand.Refresh();
         DismissCardCommand.Refresh();

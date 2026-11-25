@@ -679,7 +679,7 @@
             <!-- Closing during a run asks first. Escape keeps running; once confirmed, the card shows the wait. -->
             <Grid x:Name="CloseOverlay" Visibility="{Binding IsCloseOverlayOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
                 <Rectangle Fill="#8C000000" />
-                <ContentControl Style="{StaticResource SR.Card}" Width="540" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
+                <ContentControl Style="{StaticResource SR.Card}" Width="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
                                 KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle"
                                 AutomationProperties.Name="Close ShrinkRay during a run">
                     <StackPanel>
@@ -693,6 +693,10 @@
                                     Visibility="{Binding IsCloseConfirmOpen, Converter={StaticResource Visible}}">
                             <sr:PianoKey x:Name="KeepRunningKey" Label="Keep running" MinWidth="150" Width="150"
                                          Command="{Binding CancelCloseCommand}" AutomationProperties.Name="Keep running and leave ShrinkRay open" />
+                            <sr:PianoKey Label="Close after this episode" MinWidth="220" Width="220" Margin="14,0,0,0"
+                                         Visibility="{Binding CanCloseAfterEpisode, Converter={StaticResource Visible}}"
+                                         Command="{Binding CloseAfterEpisodeCommand}"
+                                         AutomationProperties.Name="Let this episode finish, then close ShrinkRay" />
                             <sr:PianoKey Label="{Binding CloseKeyLabel}" MinWidth="150" Width="150" Margin="14,0,0,0"
                                          Command="{Binding ConfirmCloseCommand}" AutomationProperties.Name="{Binding CloseKeyLabel}" />
                         </StackPanel>

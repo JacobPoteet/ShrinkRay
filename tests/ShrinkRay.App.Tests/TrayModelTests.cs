@@ -102,6 +102,72 @@ public class TrayModelTests
     }
 
     [Fact]
+    public void The_stop_item_reads_keep_going_while_armed()
+    {
+        Assert.Equal("Stop after this episode", TrayModel.StopAfterTextFor(armed: false));
+        Assert.Equal("Keep going", TrayModel.StopAfterTextFor(armed: true));
+    }
+
+    [Fact]
+    public async Task The_stop_item_follows_the_run_arms_the_stop_and_takes_it_back()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        using var model = new TrayModel(vm);
+        var changes = 0;
+        model.Changed += (_, _) => changes++;
+
+        Assert.False(model.CanStopAfter);
+        Assert.Equal("Stop after this episode", model.StopAfterText);
+
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+        Assert.True(model.CanStopAfter);
+        Assert.Equal("Stop after this episode", model.StopAfterText);
+
+        model.ToggleStopAfter();
+        Assert.True(vm.IsStopArmed);
+        Assert.Equal("Keep going", model.StopAfterText);
+        Assert.True(model.CanStopAfter);
+
+        model.ToggleStopAfter();
+        Assert.False(vm.IsStopArmed);
+        Assert.Equal("Stop after this episode", model.StopAfterText);
+        Assert.True(changes >= 3);
+
+        model.ToggleStopAfter();
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.False(model.CanStopAfter);
+        Assert.Equal("Stop after this episode", model.StopAfterText);
+        Assert.Single(rig.Runner.Ran);
+    }
+
+    [Fact]
+    public async Task The_stop_item_is_off_once_a_close_is_confirmed()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        using var model = new TrayModel(vm);
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        Assert.False(vm.RequestClose());
+        vm.CloseAfterEpisodeCommand.Execute(null);
+
+        Assert.False(model.CanStopAfter);
+        Assert.Equal("Keep going", model.StopAfterText);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+    }
+
+    [Fact]
     public async Task A_disposed_model_stops_listening()
     {
         var rig = Library();

@@ -284,12 +284,23 @@ public class StopCardTests
 
         Assert.False(vm.RequestClose());
         Assert.True(vm.CanCloseAfterEpisode);
+        string? shown = null;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.CloseText))
+            {
+                shown = vm.CloseText;
+            }
+        };
         vm.CloseAfterEpisodeCommand.Execute(null);
 
         Assert.True(vm.IsClosing);
         Assert.True(vm.IsStopArmed);
         Assert.Equal("Last episode", vm.RunLamp.Label);
-        Assert.Contains("S01E01", vm.CloseText);
+        Assert.Contains("Finishing S01E01", vm.CloseText);
+
+        // The card is told about the final text, not only the one from before the stop was armed.
+        Assert.Equal(vm.CloseText, shown);
         Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
         Assert.False(vm.RequestClose());
         Assert.Equal(0, ready);

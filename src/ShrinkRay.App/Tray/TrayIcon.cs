@@ -15,6 +15,7 @@ public sealed class TrayIcon : IDisposable
     private readonly TrayModel _model;
     private readonly WinForms.NotifyIcon _notify;
     private readonly Dictionary<TrayState, Drawing.Icon> _icons = [];
+    private readonly WinForms.ToolStripMenuItem _stopAfter;
 
     public TrayIcon(Window window, TrayModel model)
     {
@@ -38,6 +39,11 @@ public sealed class TrayIcon : IDisposable
 
         var menu = new WinForms.ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => Open());
+        _stopAfter = new WinForms.ToolStripMenuItem(_model.StopAfterText, null, (_, _) => _model.ToggleStopAfter())
+        {
+            Enabled = _model.CanStopAfter,
+        };
+        menu.Items.Add(_stopAfter);
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Exit());
 
@@ -101,5 +107,7 @@ public sealed class TrayIcon : IDisposable
     {
         _notify.Icon = _icons[_model.State];
         _notify.Text = _model.Tooltip;
+        _stopAfter.Text = _model.StopAfterText;
+        _stopAfter.Enabled = _model.CanStopAfter;
     }
 }
