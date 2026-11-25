@@ -204,10 +204,10 @@ public sealed class EncodeQueue
         lock (_lock)
         {
             run = _run;
-            _paused = false;
-            _resume.TrySetResult();
         }
 
+        // The queue's own pause hold stays: a queue held between episodes wakes on the cancel,
+        // and releasing the hold first would let it start the next one. RunAsync clears it on exit.
         // Resume first so the gate forgets the pause; a suspended tool is then killed by the cancel.
         _gate?.Resume();
         if (run is not null)
