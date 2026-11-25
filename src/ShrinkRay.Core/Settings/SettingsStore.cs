@@ -89,6 +89,8 @@ public static class SettingsStore
             EncodeWindowEnabled = file.EncodeWindowEnabled ?? false,
             EncodeWindowStart = TimeOr(file.EncodeWindowStart, ShrinkRaySettings.DefaultEncodeWindowStart),
             EncodeWindowEnd = TimeOr(file.EncodeWindowEnd, ShrinkRaySettings.DefaultEncodeWindowEnd),
+            FirstRunCompleted = file.FirstRunCompleted,
+            FirstEpisodePending = file.FirstEpisodePending ?? false,
         };
         return Normalize(settings);
     }
@@ -113,6 +115,8 @@ public static class SettingsStore
             EncodeWindowEnabled = s.EncodeWindowEnabled,
             EncodeWindowStart = s.EncodeWindowStart.ToString(TimeFormat, CultureInfo.InvariantCulture),
             EncodeWindowEnd = s.EncodeWindowEnd.ToString(TimeFormat, CultureInfo.InvariantCulture),
+            FirstRunCompleted = s.FirstRunCompleted,
+            FirstEpisodePending = s.FirstEpisodePending,
         };
         return JsonSerializer.Serialize(file, Options);
     }
@@ -179,5 +183,7 @@ public static class SettingsStore
         public bool? EncodeWindowEnabled { get; set; }
         public string? EncodeWindowStart { get; set; }
         public string? EncodeWindowEnd { get; set; }
+        public bool? FirstRunCompleted { get; set; }
+        public bool? FirstEpisodePending { get; set; }
     }
 }

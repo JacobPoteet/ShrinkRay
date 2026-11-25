@@ -109,6 +109,7 @@ public class MainViewModelTests
     {
         var rig = Library();
         rig.Settings.LibraryRoot = "";
+        rig.Settings.FirstRunCompleted = true; // Past setup, with the library setting cleared.
         var vm = rig.Create();
 
         await vm.StartAsync();
@@ -124,9 +125,20 @@ public class MainViewModelTests
     {
         var rig = Library();
         rig.Settings.ScratchFolder = "";
+        var vm = rig.Create();
+        var shown = vm.ScratchFolder;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.ScratchFolder))
+            {
+                shown = vm.ScratchFolder;
+            }
+        };
 
-        await rig.Create().StartAsync();
+        await vm.StartAsync();
 
+        // The window reads the folder before the start, so the default has to announce itself.
+        Assert.Equal(@"C:\Default\Scratch", shown);
         Assert.Equal(@"C:\Default\Scratch", rig.Settings.ScratchFolder);
         Assert.True(rig.SettingsSaves > 0);
     }
@@ -1201,6 +1213,7 @@ public class MainViewModelTests
     {
         var rig = Library();
         rig.Settings.LibraryRoot = "";
+        rig.Settings.FirstRunCompleted = true; // Past setup, with the library setting cleared.
         var vm = rig.Create();
         await vm.StartAsync();
 
@@ -1261,6 +1274,7 @@ public class MainViewModelTests
         rig.Disk.AddFile(loose, DeckRig.Gigabyte);
         rig.Probe.Results[loose] = rig.Probe.Results[DeckRig.Episode("Scrubs", 1, 1)] with { FileName = loose };
         rig.Settings.LibraryRoot = "";
+        rig.Settings.FirstRunCompleted = true; // Past setup, with the library setting cleared.
         var vm = rig.Create();
         await vm.StartAsync();
 

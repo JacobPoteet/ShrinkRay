@@ -51,6 +51,7 @@ public sealed class EncodeQueue
     private bool _skipRequested;
     private bool _stopAfterCurrent;
     private bool _stopCommitted;
+    private bool _armFirst;
 
     /// <param name="mayStart">False holds the next episode, such as outside the encode window.</param>
     /// <param name="delay">Waits between window checks. Tests pass a fake.</param>
@@ -87,6 +88,13 @@ public sealed class EncodeQueue
         }
     }
 
+    /// <summary>
+    /// Arms <see cref="StopAfterCurrent"/> as the first episode starts, so the run ends after it.
+    /// <see cref="ContinueAfterCurrent"/> takes it back, before or during that episode.
+    /// Set it before <see cref="RunAsync"/>.
+    /// </summary>
+    public bool StopAfterFirst { get; set; }
+
     /// <summary>Runs every path in order. Returns when the list is done or Stop is pressed.</summary>
     /// <exception cref="InvalidOperationException">A run is already going.</exception>
     public async Task RunAsync(IReadOnlyList<string> paths)
@@ -103,6 +111,7 @@ public sealed class EncodeQueue
             token = _run.Token;
             _stopAfterCurrent = false;
             _stopCommitted = false;
+            _armFirst = StopAfterFirst;
         }
 
         try
@@ -255,6 +264,14 @@ public sealed class EncodeQueue
     {
         lock (_lock)
         {
+            if (_run is not null && _armFirst && !_stopAfterCurrent && !_run.IsCancellationRequested)
+            {
+                // Taken back before the first episode started.
+                _armFirst = false;
+                return true;
+            }
+
+            _armFirst = false;
             if (_run is null || !_stopAfterCurrent || _stopCommitted || _run.IsCancellationRequested)
             {
                 return false;
@@ -325,6 +342,12 @@ public sealed class EncodeQueue
         {
             _episode = episode;
             _skipRequested = false;
+            if (_armFirst)
+            {
+                // In the same lock that names the episode, so it cannot finish unarmed.
+                _armFirst = false;
+                _stopAfterCurrent = true;
+            }
         }
 
         Current = path;

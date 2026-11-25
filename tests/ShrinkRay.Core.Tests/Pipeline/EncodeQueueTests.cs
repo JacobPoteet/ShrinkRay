@@ -485,6 +485,65 @@ public class EncodeQueueTests
     }
 
     [Fact]
+    public async Task Stop_after_first_ends_the_run_after_one_episode()
+    {
+        var rig = new Rig();
+        rig.Queue.StopAfterFirst = true;
+
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+        rig.Runner.Finish("a");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a"], rig.Runner.Started);
+    }
+
+    [Fact]
+    public async Task Stop_after_first_can_be_taken_back_during_the_episode()
+    {
+        var rig = new Rig();
+        rig.Queue.StopAfterFirst = true;
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+
+        Assert.True(rig.Queue.ContinueAfterCurrent());
+        rig.Runner.Finish("a");
+        await rig.Runner.WaitForStartAsync();
+        rig.Runner.Finish("b");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a", "b"], rig.Runner.Started);
+    }
+
+    [Fact]
+    public async Task Stop_after_first_can_be_taken_back_while_waiting_for_the_window()
+    {
+        var rig = new Rig();
+        var open = false;
+        var waiting = new TaskCompletionSource();
+        var queue = new EncodeQueue(rig.Runner, rig.Gate, () => open, async (_, ct) =>
+        {
+            waiting.TrySetResult();
+            await Task.Delay(5, ct);
+        })
+        {
+            StopAfterFirst = true,
+        };
+        var run = queue.RunAsync(["a", "b"]);
+        await waiting.Task.WaitAsync(Timeout);
+
+        Assert.True(queue.ContinueAfterCurrent());
+        open = true;
+        await rig.Runner.WaitForStartAsync();
+        rig.Runner.Finish("a");
+        await rig.Runner.WaitForStartAsync();
+        rig.Runner.Finish("b");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a", "b"], rig.Runner.Started);
+    }
+
+    [Fact]
     public void Transport_keys_do_nothing_when_idle()
     {
         var rig = new Rig();

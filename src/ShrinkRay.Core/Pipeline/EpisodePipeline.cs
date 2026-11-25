@@ -17,7 +17,9 @@ public enum PipelineOutcome
     Failed,
 }
 
-public sealed record PipelineResult(PipelineOutcome Outcome, string Message, VerificationResult? Verification = null);
+/// <param name="KeptEncodePath">The verified encode left in scratch because replacing originals is off.</param>
+public sealed record PipelineResult(
+    PipelineOutcome Outcome, string Message, VerificationResult? Verification = null, string? KeptEncodePath = null);
 
 /// <summary>Runs one episode end to end. <see cref="EpisodePipeline"/> is the real one.</summary>
 public interface IEpisodeRunner
@@ -243,7 +245,7 @@ public sealed class EpisodePipeline : IEpisodeRunner
         {
             var message = $"{ReplaceOffReason} The verified encode is at {candidate}.";
             _journal.Record(sourcePath, SwapState.KeptOriginal, message);
-            return new PipelineResult(PipelineOutcome.KeptOriginal, message, verification);
+            return new PipelineResult(PipelineOutcome.KeptOriginal, message, verification, candidate);
         }
 
         var steps = progress is null ? null : new InlineProgress<SwapState>(step =>

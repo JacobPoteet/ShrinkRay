@@ -30,6 +30,8 @@ public partial class MainWindow : Window
         _timer.Tick += (_, _) => viewModel.Tick();
         Loaded += (_, _) => _timer.Start();
         Loaded += (_, _) => SelfTest();
+        // The screens warm up from a line. It only draws, so recovery and the scan carry on.
+        Loaded += (_, _) => CrtWarmUp.Play(Chassis);
         Closed += (_, _) => _timer.Stop();
         Drop += OnDrop;
         DragOver += OnDragOver;
@@ -53,6 +55,18 @@ public partial class MainWindow : Window
                 StopPrimaryKey.Focus();
             }
         };
+
+        // Each tour stop takes the keyboard as it appears.
+        foreach (var mark in new[] { LibraryMark, EncodeMark, SavingsMark })
+        {
+            mark.IsVisibleChanged += (_, _) =>
+            {
+                if (mark.IsVisible)
+                {
+                    Dispatcher.BeginInvoke(mark.FocusNext, DispatcherPriority.Input);
+                }
+            };
+        }
 
         // Open no larger than the work area. The deck scales down to fit a smaller window.
         var area = SystemParameters.WorkArea;
@@ -88,7 +102,7 @@ public partial class MainWindow : Window
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = DroppedFolder(e) is not null && !ViewModel.IsEncoding ? DragDropEffects.Link : DragDropEffects.None;
+        e.Effects = DroppedFolder(e) is not null && ViewModel.CanDropFolder ? DragDropEffects.Link : DragDropEffects.None;
         e.Handled = true;
     }
 

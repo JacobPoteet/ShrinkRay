@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
+using ShrinkRay.Theme.Mechanics;
 
 namespace ShrinkRay.Theme.Controls;
 
@@ -68,6 +70,32 @@ public class CrtPanel : ContentControl
     {
         base.OnApplyTemplate();
         UpdateFlicker();
+        ApplyWarmUp();
+    }
+
+    // Draws the current frame of CrtWarmUp: the line, and the picture opening around it.
+    internal void ApplyWarmUp()
+    {
+        if (GetTemplateChild("PART_Screen") is not FrameworkElement screen
+            || GetTemplateChild("PART_Line") is not FrameworkElement line)
+        {
+            return;
+        }
+
+        var progress = CrtWarmUp.GetProgress(this);
+        if (progress >= 1)
+        {
+            screen.ClearValue(RenderTransformProperty);
+            line.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        screen.RenderTransformOrigin = new Point(0.5, 0.5);
+        screen.RenderTransform = new ScaleTransform(1, WarmUpMath.Opening(progress));
+        line.RenderTransformOrigin = new Point(0.5, 0.5);
+        line.RenderTransform = new ScaleTransform(WarmUpMath.LineWidth(progress), 1);
+        line.Opacity = WarmUpMath.LineOpacity(progress);
+        line.Visibility = Visibility.Visible;
     }
 
     private static void OnFlickerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>

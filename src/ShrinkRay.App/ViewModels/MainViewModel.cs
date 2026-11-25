@@ -96,22 +96,23 @@ public sealed partial class MainViewModel : ObservableObject
         _defaultScratch = defaultScratch;
         _scanner = new LibraryScanner(services.Disk, services.Probe, services.Cache);
 
-        EncodeCommand = new RelayCommand(Encode, () => (_loaded is not null && !_isRecovering) || IsEncoding);
+        EncodeCommand = new RelayCommand(Encode, () => (_loaded is not null && !_isRecovering && !IsDeckHeld) || IsEncoding);
         PauseCommand = new RelayCommand(TogglePause);
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
         BackToRunCommand = new RelayCommand(BackToRun);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
-        OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
+        OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true, () => !IsDeckHeld);
         CloseSettingsCommand = new RelayCommand(() => IsSettingsOpen = false);
-        RescanCommand = new RelayCommand(() => _ = ScanLibraryAsync(_loaded?.Name), () => !IsEncoding && !_isRecovering);
+        RescanCommand = new RelayCommand(() => _ = ScanLibraryAsync(_loaded?.Name), () => !IsEncoding && !_isRecovering && !IsDeckHeld);
         WindowStartEarlierCommand = new RelayCommand(() => StepWindow(start: true, -1), () => !IsEncoding);
         WindowStartLaterCommand = new RelayCommand(() => StepWindow(start: true, 1), () => !IsEncoding);
         WindowEndEarlierCommand = new RelayCommand(() => StepWindow(start: false, -1), () => !IsEncoding);
         WindowEndLaterCommand = new RelayCommand(() => StepWindow(start: false, 1), () => !IsEncoding);
         CreateCloseCommands();
         CreateStopCommands();
+        CreateFirstRunCommands();
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
         _cqIndex = NearestDetent(_settings.Cq);
@@ -272,6 +273,12 @@ public sealed partial class MainViewModel : ObservableObject
             if (_isRecovering)
             {
                 return "RECOVERY CHECK...";
+            }
+
+            if (_flow.IsCard)
+            {
+                // Setup's cards ask and explain, so the monitor only reports a scan.
+                return _isScanning ? _scanStatus : "";
             }
 
             if (string.IsNullOrWhiteSpace(_settings.LibraryRoot))

@@ -1,0 +1,270 @@
+<UserControl x:Class="ShrinkRay.App.Views.SetupCards"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sr="urn:shrinkray-theme"
+             xmlns:vm="clr-namespace:ShrinkRay.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+             Focusable="False">
+
+    <!--
+        First-run setup: one question per card, over the dimmed deck, in the style of the Stop card.
+        The originals card is the one with red on it.
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="DeckStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="SetupCard" TargetType="ContentControl" BasedOn="{StaticResource SR.Card}">
+                <Setter Property="Width" Value="660" />
+                <Setter Property="Padding" Value="28,24" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle" />
+                <Setter Property="KeyboardNavigation.DirectionalNavigation" Value="Cycle" />
+            </Style>
+
+            <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Caption}">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Margin" Value="0,12,0,0" />
+            </Style>
+
+            <!-- Text printed on a screen, as folder paths and commands are -->
+            <Style x:Key="Printed" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Pixel}">
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{DynamicResource SR.Phosphor}" />
+            </Style>
+
+            <Style x:Key="Keys" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Margin" Value="0,22,0,0" />
+            </Style>
+
+            <Style x:Key="CardKey" TargetType="sr:PianoKey" BasedOn="{StaticResource {x:Type sr:PianoKey}}">
+                <Setter Property="MinWidth" Value="130" />
+                <Setter Property="Margin" Value="14,0,0,0" />
+            </Style>
+
+            <!-- The self-test's lamps, in a row -->
+            <DataTemplate x:Key="TestLamp" DataType="{x:Type vm:ToolCheckViewModel}">
+                <sr:Lamp Style="{StaticResource PanelLamp}" Foreground="{DynamicResource SR.SilkLight}" Margin="0,3,22,3"
+                         Content="{Binding Lamp.Label}" State="{Binding Lamp.State}" Blink="{Binding Lamp.Blink}" />
+            </DataTemplate>
+
+            <!-- What to do about one missing part: its command with Copy and Locate, or a note -->
+            <DataTemplate x:Key="MissingTool" DataType="{x:Type vm:ToolCheckViewModel}">
+                <StackPanel Margin="0,14,0,0">
+                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="{Binding Name}" />
+                    <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0" Text="{Binding Note}"
+                               Visibility="{Binding Note, Converter={StaticResource NotEmpty}}" />
+                    <DockPanel Margin="0,6,0,0" Visibility="{Binding HasCommand, Converter={StaticResource Visible}}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Locate..." Margin="10,0,0,0"
+                                Command="{Binding LocateCommand}" AutomationProperties.Name="{Binding LocateName}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="{Binding CopyLabel}" Margin="10,0,0,0"
+                                MinWidth="72" Command="{Binding CopyCommand}" AutomationProperties.Name="{Binding CopyName}" />
+                        <sr:CrtPanel CornerRadius="8" Padding="12,6" TubeShadow="16" IsFlickerEnabled="False">
+                            <TextBlock Style="{StaticResource Printed}" Text="{Binding Command}" />
+                        </sr:CrtPanel>
+                    </DockPanel>
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Rectangle Fill="#8C000000" Visibility="{Binding IsSetupCardOpen, Converter={StaticResource Visible}}" />
+        <Rectangle Fill="#8C000000" Visibility="{Binding IsFirstEpisodeCardOpen, Converter={StaticResource Visible}}" />
+
+        <!-- ============ 1. SELF-TEST ============ -->
+        <!-- Wider than the others, so an install command stays on one line -->
+        <ContentControl Style="{StaticResource SetupCard}" Width="730" AutomationProperties.Name="Setup, self-test"
+                        Visibility="{Binding IsToolsCard, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <sr:TrackedText Style="{StaticResource SR.Heading}" Text="{Binding ToolsHeading}" />
+                <ContentControl Style="{StaticResource SR.Plate}" Margin="0,16,0,0" Padding="16,10">
+                    <ItemsControl ItemsSource="{Binding ToolChecks}" ItemTemplate="{StaticResource TestLamp}" Focusable="False"
+                                  AutomationProperties.Name="Self-test results">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </ContentControl>
+                <ItemsControl ItemsSource="{Binding ToolChecks}" ItemTemplate="{StaticResource MissingTool}" Focusable="False">
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                </ItemsControl>
+                <StackPanel Style="{StaticResource Keys}">
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Cancel" Command="{Binding SetupCancelCommand}"
+                                 Visibility="{Binding CanCancelSetup, Converter={StaticResource Visible}}"
+                                 AutomationProperties.Name="Cancel setup" />
+                    <sr:PianoKey x:Name="CheckAgainKey" Style="{StaticResource CardKey}" Label="Check again" Width="150"
+                                 Command="{Binding CheckToolsAgainCommand}"
+                                 Visibility="{Binding HasMissingTools, Converter={StaticResource Visible}}"
+                                 AutomationProperties.Name="Check for the tools again" />
+                </StackPanel>
+            </StackPanel>
+        </ContentControl>
+
+        <!-- ============ 2. LIBRARY ============ -->
+        <ContentControl Style="{StaticResource SetupCard}" AutomationProperties.Name="Setup, library"
+                        Visibility="{Binding IsLibraryCard, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <sr:TrackedText Style="{StaticResource SR.Heading}" Text="Where's your TV library?" />
+
+                <TextBlock Style="{StaticResource Body}" Visibility="{Binding IsLibraryAsking, Converter={StaticResource Visible}}"
+                           Text="Choose a folder, or drop one on the deck. Your whole TV folder or one show both work." />
+
+                <sr:CrtPanel CornerRadius="12" Padding="16,12" TubeShadow="24" Margin="0,16,0,0"
+                             Visibility="{Binding IsLibraryScanning, Converter={StaticResource Visible}}">
+                    <TextBlock Style="{StaticResource Printed}" Text="{Binding LibraryScanText}" />
+                </sr:CrtPanel>
+
+                <StackPanel Visibility="{Binding IsLibraryFound, Converter={StaticResource Visible}}">
+                    <ContentControl Style="{StaticResource SR.Readout}" Padding="22,16" Margin="0,16,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <sr:SevenSegmentDisplay Text="{Binding PayoffDigits}" DigitHeight="64" Spacing="5" Glow="True"
+                                                    AutomationProperties.Name="{Binding PayoffText}" />
+                            <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="20" Tracking="0.08" Text="GB to free"
+                                            Margin="16,0,0,4" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                            Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                        </StackPanel>
+                    </ContentControl>
+                    <TextBlock Style="{StaticResource Body}" Text="{Binding PayoffText}" />
+                    <ToggleButton Style="{StaticResource SR.ToggleSwitch}" Margin="0,14,0,0" HorizontalAlignment="Left"
+                                  Content="Is the share's recycle bin on? Replaced originals go there."
+                                  IsChecked="{Binding IsRecycleBinChecked}"
+                                  Visibility="{Binding ShowsRecycleReminder, Converter={StaticResource Visible}}"
+                                  AutomationProperties.Name="The share's recycle bin is on" />
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding IsLibraryEmpty, Converter={StaticResource Visible}}">
+                    <TextBlock Style="{StaticResource Body}" Text="No episodes there. ShrinkRay expects this layout:" />
+                    <sr:CrtPanel CornerRadius="12" Padding="16,12" TubeShadow="24" Margin="0,10,0,0" IsFlickerEnabled="False">
+                        <TextBlock Style="{StaticResource Printed}" Text="Show\Season 01\Show - S01E01.mkv" />
+                    </sr:CrtPanel>
+                </StackPanel>
+
+                <StackPanel Style="{StaticResource Keys}">
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Cancel" Command="{Binding SetupCancelCommand}"
+                                 Visibility="{Binding CanCancelSetup, Converter={StaticResource Visible}}"
+                                 AutomationProperties.Name="Cancel setup" />
+                    <sr:PianoKey x:Name="ChooseLibraryKey" Style="{StaticResource CardKey}" Label="{Binding LibraryChooseLabel}" Width="170"
+                                 Command="{Binding ChooseLibraryCommand}" AutomationProperties.Name="Choose the library folder" />
+                    <sr:PianoKey x:Name="LibraryNextKey" Style="{StaticResource CardKey}" Label="Next" Command="{Binding SetupNextCommand}"
+                                 Visibility="{Binding IsLibraryFound, Converter={StaticResource Visible}}" AutomationProperties.Name="Next" />
+                </StackPanel>
+            </StackPanel>
+        </ContentControl>
+
+        <!-- ============ 3. SCRATCH ============ -->
+        <ContentControl Style="{StaticResource SetupCard}" AutomationProperties.Name="Setup, scratch folder"
+                        Visibility="{Binding IsScratchCard, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <sr:TrackedText Style="{StaticResource SR.Heading}" Text="Where should encodes happen?" />
+                <TextBlock Style="{StaticResource Body}"
+                           Text="Pick a fast local disk. The library only receives finished, checked files." />
+                <sr:CrtPanel CornerRadius="12" Padding="16,12" TubeShadow="24" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Printed}" Text="{Binding ScratchFolder}" />
+                        <TextBlock Style="{StaticResource Printed}" Opacity="0.7" Margin="0,6,0,0" Text="{Binding ScratchFreeText}" />
+                    </StackPanel>
+                </sr:CrtPanel>
+                <DockPanel Margin="0,12,0,0" Visibility="{Binding ScratchWarning, Converter={StaticResource NotEmpty}}">
+                    <sr:Lamp DockPanel.Dock="Left" Diameter="9" State="Active" VerticalAlignment="Top" Margin="0,5,10,0" />
+                    <TextBlock Style="{StaticResource Body}" Margin="0" Text="{Binding ScratchWarning}" />
+                </DockPanel>
+                <StackPanel Style="{StaticResource Keys}">
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Cancel" Command="{Binding SetupCancelCommand}"
+                                 Visibility="{Binding CanCancelSetup, Converter={StaticResource Visible}}"
+                                 AutomationProperties.Name="Cancel setup" />
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Back" Command="{Binding SetupBackCommand}"
+                                 AutomationProperties.Name="Back to the library" />
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Choose" Command="{Binding ChooseScratchCommand}"
+                                 AutomationProperties.Name="Choose another scratch folder" />
+                    <sr:PianoKey x:Name="UseScratchKey" Style="{StaticResource CardKey}" Label="Use this folder" Width="180"
+                                 Command="{Binding SetupNextCommand}" AutomationProperties.Name="Use this folder" />
+                </StackPanel>
+            </StackPanel>
+        </ContentControl>
+
+        <!-- ============ 4. ORIGINALS ============ -->
+        <!-- Neither choice has the keyboard when the card opens, so Enter cannot pick one by accident -->
+        <ContentControl x:Name="OriginalsCard" Style="{StaticResource SetupCard}" Focusable="True" FocusVisualStyle="{x:Null}"
+                        AutomationProperties.Name="Setup, originals"
+                        Visibility="{Binding IsOriginalsCard, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <sr:TrackedText Style="{StaticResource SR.Heading}" Text="What happens to originals?" />
+                <TextBlock Style="{StaticResource Body}"
+                           Text="ShrinkRay replaces each episode under the same name, so Plex keeps its watch history. It deletes the original only after the new file passes every check." />
+
+                <DockPanel Margin="0,22,0,0">
+                    <sr:PianoKey Label="Replace after checks" Width="260" Command="{Binding ReplaceAfterChecksCommand}"
+                                 AutomationProperties.Name="Replace originals after every check passes. Deletes originals." />
+                    <sr:DymoLabel Text="Deletes originals" Tape="Red" Margin="22,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                </DockPanel>
+
+                <DockPanel Margin="0,20,0,0">
+                    <sr:PianoKey Label="Trial run, keep originals" Width="260" Command="{Binding TrialRunCommand}"
+                                 AutomationProperties.Name="Trial run, keep originals" />
+                    <TextBlock Style="{StaticResource Body}" Margin="22,0,0,0" VerticalAlignment="Center"
+                               Text="Checked encodes stay in scratch and the library stays as it is. Setup can turn replacing on later." />
+                </DockPanel>
+
+                <StackPanel Style="{StaticResource Keys}">
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Cancel" Command="{Binding SetupCancelCommand}"
+                                 Visibility="{Binding CanCancelSetup, Converter={StaticResource Visible}}"
+                                 AutomationProperties.Name="Cancel setup" />
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Back" Command="{Binding SetupBackCommand}"
+                                 AutomationProperties.Name="Back to the scratch folder" />
+                </StackPanel>
+            </StackPanel>
+        </ContentControl>
+
+        <!-- ============ AFTER THE FIRST EPISODE ============ -->
+        <ContentControl Style="{StaticResource SetupCard}" AutomationProperties.Name="First episode"
+                        Visibility="{Binding IsFirstEpisodeCardOpen, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <sr:TrackedText Style="{StaticResource SR.Heading}" Text="{Binding FirstEpisodeHeading}" />
+                <!-- The fonts have no arrow glyph, so the arrow is drawn, as in the bottom bar -->
+                <ContentControl Style="{StaticResource SR.Plate}" Padding="18,12" Margin="0,16,0,0" HorizontalAlignment="Left"
+                                Visibility="{Binding HasFirstEpisodeSizes, Converter={StaticResource Visible}}">
+                    <StackPanel Orientation="Horizontal">
+                        <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="20" Text="{Binding FirstEpisodeBefore}" />
+                        <Path Data="M0,5 L18,5 M13,1 L18,5 L13,9" Stroke="{DynamicResource SR.SilkLight}" StrokeThickness="2" Width="18" Height="10"
+                              Margin="12,0" VerticalAlignment="Center" />
+                        <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="20" Foreground="{DynamicResource SR.Phosphor}"
+                                        Effect="{DynamicResource SR.PhosphorTextGlow}" Text="{Binding FirstEpisodeAfter}" />
+                    </StackPanel>
+                </ContentControl>
+                <TextBlock Style="{StaticResource Body}" Text="{Binding FirstEpisodeText}" />
+                <sr:CrtPanel CornerRadius="12" Padding="16,12" TubeShadow="24" Margin="0,12,0,0" IsFlickerEnabled="False"
+                             Visibility="{Binding FirstEpisodeFile, Converter={StaticResource NotEmpty}}">
+                    <TextBlock Style="{StaticResource Printed}" Text="{Binding FirstEpisodeFile}" />
+                </sr:CrtPanel>
+                <StackPanel Style="{StaticResource Keys}">
+                    <sr:PianoKey x:Name="DoneKey" Style="{StaticResource CardKey}" Label="{Binding FirstEpisodeCloseLabel}" Width="170"
+                                 Command="{Binding DoneForNowCommand}" AutomationProperties.Name="{Binding FirstEpisodeCloseLabel}" />
+                    <sr:PianoKey Style="{StaticResource CardKey}" Label="Encode the rest" Width="180" Command="{Binding EncodeRestCommand}"
+                                 Visibility="{Binding CanEncodeRest, Converter={StaticResource Visible}}"
+                                 AutomationProperties.Name="Encode the rest of the show" />
+                </StackPanel>
+            </StackPanel>
+        </ContentControl>
+    </Grid>
+</UserControl>

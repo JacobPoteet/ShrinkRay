@@ -3,6 +3,7 @@ using ShrinkRay.Core.Media;
 using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Processes;
 using ShrinkRay.Core.Settings;
+using ShrinkRay.Core.Setup;
 using ShrinkRay.Core.Swap;
 using ShrinkRay.Theme;
 
@@ -63,6 +64,40 @@ public sealed class DeckServices
     };
 
     public Func<string, bool> DirectoryExists { get; init; } = Directory.Exists;
+
+    /// <summary>Free bytes on the drive holding a path, or null when the drive does not say.</summary>
+    public Func<string, long?> FreeSpace { get; init; } = path =>
+    {
+        try
+        {
+            return Path.GetPathRoot(path) is { Length: > 0 } root ? new DriveInfo(root).AvailableFreeSpace : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    };
+
+    /// <summary>True for a path on a share: a server path or a mapped network drive.</summary>
+    public Func<string, bool> IsNetworkPath { get; init; } = path =>
+    {
+        if (ScratchCheck.IsNetworkShare(path))
+        {
+            return true;
+        }
+
+        try
+        {
+            return Path.GetPathRoot(path) is { Length: > 0 } root && new DriveInfo(root).DriveType == DriveType.Network;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+    };
+
+    /// <summary>Puts text on the clipboard.</summary>
+    public Action<string> CopyText { get; init; } = _ => { };
 
     public Func<DateTime> Now { get; init; } = () => DateTime.Now;
 

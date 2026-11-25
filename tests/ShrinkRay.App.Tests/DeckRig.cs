@@ -34,6 +34,17 @@ internal sealed class DeckRig
     public DeckPreferences? SavedPreferences { get; private set; }
     public IReadOnlyList<RecoveryAction> RecoveryActions { get; set; } = [];
     public string? PickedFolder { get; set; }
+    public string? PickedProgram { get; set; }
+
+    /// <summary>The graphics card setup's self-test asks. Null wires no monitor at all.</summary>
+    public FakeGpu? Gpu { get; set; }
+
+    public long FreeBytes { get; set; } = 500 * Gigabyte;
+
+    /// <summary>Path starts that count as being on a share.</summary>
+    public List<string> NetworkPaths { get; } = [];
+
+    public List<string> Copied { get; } = [];
 
     /// <summary>Tool names that resolve to nothing, as when an exe is not installed.</summary>
     public HashSet<string> MissingTools { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -94,6 +105,10 @@ internal sealed class DeckRig
             Journal = Journal,
             Ledger = Ledger,
             Gate = Gate,
+            Gpu = Gpu,
+            FreeSpace = _ => FreeBytes,
+            IsNetworkPath = path => NetworkPaths.Any(n => path.StartsWith(n, StringComparison.OrdinalIgnoreCase)),
+            CopyText = Copied.Add,
             CreateRunner = settings =>
             {
                 RunSettings.Add(settings);
@@ -131,7 +146,18 @@ internal sealed class DeckRig
     internal sealed class FakePicker(DeckRig rig) : IFolderPicker
     {
         public string? PickFolder(string title, string? initialFolder) => rig.PickedFolder;
+
+        public string? PickProgram(string title, string fileName) => rig.PickedProgram;
     }
+}
+
+internal sealed class FakeGpu : IGpuMonitor
+{
+    public string? Card { get; set; } = "RTX 2070S";
+
+    public Task<string?> NameAsync(CancellationToken cancellationToken) => Task.FromResult(Card);
+
+    public Task<double?> EncoderLoadAsync(CancellationToken cancellationToken) => Task.FromResult<double?>(0);
 }
 
 internal sealed class FakeDisk : ILibraryDisk

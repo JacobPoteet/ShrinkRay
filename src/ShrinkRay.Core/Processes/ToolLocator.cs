@@ -3,7 +3,8 @@ namespace ShrinkRay.Core.Processes;
 /// <summary>
 /// Finds the external tools. A full path in settings wins; a bare name is looked for on PATH
 /// and then in the folders winget installs portable packages to, where HandBrakeCLI lands
-/// without joining PATH.
+/// without joining PATH. It reads the saved PATH as well as the process's own, so a tool
+/// installed while ShrinkRay runs is found without a restart.
 /// </summary>
 public static class ToolLocator
 {
@@ -57,6 +58,18 @@ public static class ToolLocator
             .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>The folder winget links portable commands into, such as ffmpeg.</summary>
+    public static string WingetLinks(string localAppData) => Path.Combine(localAppData, "Microsoft", "WinGet", "Links");
+
+    /// <summary>
+    /// One PATH from several, in order. A running process keeps the PATH it started with, so the
+    /// saved user and machine values go after it. Saved values may name variables, which expand.
+    /// </summary>
+    public static string JoinPaths(params string?[] paths) =>
+        string.Join(Path.PathSeparator, paths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => Environment.ExpandEnvironmentVariables(p!)));
+
     /// <summary>Resolves against this machine's PATH and winget folders.</summary>
     public static string? ResolveOnThisMachine(string configured)
     {
@@ -72,6 +85,10 @@ public static class ToolLocator
                 return [];
             }
         });
-        return Resolve(configured, Environment.GetEnvironmentVariable("PATH"), winget, File.Exists);
+        var path = JoinPaths(
+            Environment.GetEnvironmentVariable("PATH"),
+            Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
+            Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine));
+        return Resolve(configured, path, winget.Append(WingetLinks(localAppData)), File.Exists);
     }
 }

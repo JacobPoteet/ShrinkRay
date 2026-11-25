@@ -20,9 +20,15 @@ public interface IFontRestorer
 public sealed class FfprobeMediaProbe : IMediaProbe
 {
     private readonly IProcessRunner _runner;
-    private readonly string _ffprobePath;
+    private readonly Func<string> _ffprobePath;
 
     public FfprobeMediaProbe(IProcessRunner runner, string ffprobePath)
+        : this(runner, () => ffprobePath)
+    {
+    }
+
+    /// <param name="ffprobePath">Asked before each probe, so a tool found or moved later is used.</param>
+    public FfprobeMediaProbe(IProcessRunner runner, Func<string> ffprobePath)
     {
         _runner = runner;
         _ffprobePath = ffprobePath;
@@ -33,7 +39,7 @@ public sealed class FfprobeMediaProbe : IMediaProbe
 
     public async Task<MediaInfo> ProbeAsync(string path, CancellationToken cancellationToken)
     {
-        var result = await _runner.RunAsync(new ProcessSpec(_ffprobePath, Arguments(path), CaptureStandardOutput: true), cancellationToken);
+        var result = await _runner.RunAsync(new ProcessSpec(_ffprobePath(), Arguments(path), CaptureStandardOutput: true), cancellationToken);
         if (result.ExitCode != 0)
         {
             throw ExternalToolException.Exited("ffprobe", result);
@@ -74,7 +80,7 @@ public sealed class FfprobeMediaProbe : IMediaProbe
             return info;
         }
 
-        var spec = new ProcessSpec(_ffprobePath, CaptionArguments(path, video.Index), CaptureStandardOutput: true);
+        var spec = new ProcessSpec(_ffprobePath(), CaptionArguments(path, video.Index), CaptureStandardOutput: true);
         var result = await _runner.RunAsync(spec, cancellationToken);
         if (result.ExitCode != 0)
         {

@@ -114,4 +114,71 @@
         </Setter>
     </Style>
 
+    <!-- Coach mark: a phosphor callout. Its screen carries the line, its keys sit on a plate below. -->
+    <Style TargetType="sr:CoachMark">
+        <Setter Property="Width" Value="360" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:CoachMark">
+                    <DockPanel>
+                        <Path x:Name="LeftPointer" DockPanel.Dock="Left" Data="M13,0 L0,11 L13,22 Z" Width="13" Height="22"
+                              VerticalAlignment="Top" Fill="{DynamicResource SR.Phosphor}">
+                            <Path.RenderTransform>
+                                <TranslateTransform Y="{Binding PointerOffset, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Path.RenderTransform>
+                        </Path>
+                        <Path x:Name="BottomPointer" DockPanel.Dock="Bottom" Data="M0,0 L11,13 L22,0 Z" Width="22" Height="13"
+                              HorizontalAlignment="Left" Fill="{DynamicResource SR.Phosphor}" Visibility="Collapsed">
+                            <Path.RenderTransform>
+                                <TranslateTransform X="{Binding PointerOffset, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Path.RenderTransform>
+                        </Path>
+                        <Grid>
+                            <Border Margin="0,3,0,-3" CornerRadius="12" Background="#66000000" IsHitTestVisible="False">
+                                <Border.Effect>
+                                    <BlurEffect Radius="12" />
+                                </Border.Effect>
+                            </Border>
+                            <Border CornerRadius="12" BorderThickness="2" BorderBrush="{DynamicResource SR.Phosphor}"
+                                    Background="{DynamicResource SR.PlateFill}" Padding="8">
+                                <StackPanel>
+                                    <sr:CrtPanel CornerRadius="8" Padding="14,10" TubeShadow="20">
+                                        <TextBlock Style="{DynamicResource SR.Text.Pixel}" Foreground="{DynamicResource SR.Phosphor}"
+                                                   Text="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" TextWrapping="Wrap" />
+                                    </sr:CrtPanel>
+                                    <DockPanel Margin="4,8,0,0" LastChildFill="False">
+                                        <sr:TrackedText DockPanel.Dock="Left" Text="{TemplateBinding Step}" VerticalAlignment="Center"
+                                                        Style="{DynamicResource SR.SilkOnPlate}" FontSize="11" />
+                                        <Button x:Name="PART_Next" DockPanel.Dock="Right" Style="{DynamicResource SR.HardwareKey}" Width="76"
+                                                Command="{Binding NextCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                                AutomationProperties.Name="{Binding NextLabel, RelativeSource={RelativeSource TemplatedParent}}">
+                                            <sr:TrackedText Text="{Binding NextLabel, RelativeSource={RelativeSource TemplatedParent}}"
+                                                            FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="11"
+                                                            Tracking="0.16" Foreground="{DynamicResource SR.Ink}" />
+                                        </Button>
+                                        <Button x:Name="Skip" DockPanel.Dock="Right" Style="{DynamicResource SR.HardwareKey}" Width="76"
+                                                Margin="0,0,8,0" AutomationProperties.Name="Skip the tour"
+                                                Command="{Binding SkipCommand, RelativeSource={RelativeSource TemplatedParent}}">
+                                            <sr:TrackedText Text="Skip" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="11"
+                                                            Tracking="0.16" Foreground="{DynamicResource SR.Ink}" />
+                                        </Button>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Pointer" Value="Bottom">
+                            <Setter TargetName="LeftPointer" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="BottomPointer" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="SkipCommand" Value="{x:Null}">
+                            <Setter TargetName="Skip" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

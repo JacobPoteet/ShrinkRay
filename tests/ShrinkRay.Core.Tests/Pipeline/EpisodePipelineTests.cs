@@ -320,6 +320,7 @@ public class EpisodePipelineTests
         Assert.Equal(OriginalBytes, rig.Fs.Read(Episode));
         Assert.DoesNotContain(rig.Store.StatesFor(Episode), s => s == SwapState.UploadedTemp);
         Assert.True(rig.Fs.FileExists(Path.Combine(rig.Work, "encoded.mkv")));
+        Assert.Equal(Path.Combine(rig.Work, "encoded.mkv"), result.KeptEncodePath);
     }
 
     [Fact]
