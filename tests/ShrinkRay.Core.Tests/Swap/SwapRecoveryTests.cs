@@ -119,6 +119,47 @@ public class SwapRecoveryTests
         Assert.Equal(RecoveryKind.RolledBack, action.Kind);
         Assert.False(h.TempExists);
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
+        Assert.Equal(SwapState.Cancelled, h.State);
+    }
+
+    [Fact]
+    public async Task Crash_before_the_upload_made_a_temp_file_settles_as_cancelled()
+    {
+        var h = AtState(SwapState.UploadedTemp);
+
+        var action = Assert.Single(await h.RecoverAsync());
+
+        Assert.Equal(RecoveryKind.RolledBack, action.Kind);
+        Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
+        Assert.Equal(SwapState.Cancelled, h.State);
+    }
+
+    [Fact]
+    public async Task Upload_crash_with_a_backup_and_no_original_still_settles_as_failed()
+    {
+        // The original was renamed aside, which UploadedTemp never does. That is not an
+        // untouched original, so the file reads as failed.
+        var h = AtState(SwapState.UploadedTemp);
+        h.Fs.Write(Temp, "half");
+        h.Fs.MoveFile(Original, Backup);
+
+        await h.RecoverAsync();
+
+        Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
+        Assert.Equal(SwapState.Failed, h.State);
+    }
+
+    [Fact]
+    public async Task Upload_crash_with_the_original_missing_needs_review()
+    {
+        var h = AtState(SwapState.UploadedTemp);
+        h.Fs.Write(Temp, "half");
+        h.Fs.DeleteFile(Original);
+
+        var action = Assert.Single(await h.RecoverAsync());
+
+        Assert.Equal(RecoveryKind.NeedsReview, action.Kind);
+        Assert.Equal(SwapState.UploadedTemp, h.State);
     }
 
     [Fact]
