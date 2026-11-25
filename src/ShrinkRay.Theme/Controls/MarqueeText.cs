@@ -36,10 +36,9 @@ public class MarqueeText : Decorator
     private static readonly DependencyProperty PhaseProperty = DependencyProperty.Register(
         "Phase", typeof(double), typeof(MarqueeText), new PropertyMetadata(0.0, OnPhaseChanged));
 
-    /// <summary>The soft edge on the right, where the text runs on past the viewport.</summary>
-    private const double FadeWidth = 12;
-
     private double _fadeWidth;
+    private Brush? _rightFade;
+    private Brush? _bothFade;
     private readonly TextBlock _text = new() { TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly TranslateTransform _shift = new();
     private double _textWidth;
@@ -146,12 +145,15 @@ public class MarqueeText : Decorator
         ToolTip = overflows ? Text : null;
         if (!scrolls)
         {
+            _rightFade = _bothFade = null;
             OpacityMask = null;
         }
-        else if (OpacityMask is null || Math.Abs(_fadeWidth - arrangeSize.Width) > 0.5)
+        else if (_rightFade is null || Math.Abs(_fadeWidth - arrangeSize.Width) > 0.5)
         {
             _fadeWidth = arrangeSize.Width;
-            OpacityMask = CreateEdgeFade(arrangeSize.Width);
+            _rightFade = CreateEdgeFade(arrangeSize.Width, fadeLeft: false);
+            _bothFade = CreateEdgeFade(arrangeSize.Width, fadeLeft: true);
+            UpdateFade();
         }
 
         if (changed)
@@ -177,17 +179,43 @@ public class MarqueeText : Decorator
     private static void OnPhaseChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((MarqueeText)d).Apply((double)e.NewValue);
 
-    /// <summary>Opaque, then clear over the last <see cref="FadeWidth"/> px of the viewport.</summary>
-    private static Brush CreateEdgeFade(double width)
+    /// <summary>
+    /// Clear over the last <see cref="MarqueeMath.EdgeFadeWidth"/> px of the viewport, and over the first
+    /// <see cref="MarqueeMath.EdgeFadeWidth"/> px too when <paramref name="fadeLeft"/> is set. The left fade is
+    /// only used once the text has scrolled, so the title's first letters stay crisp at rest.
+    /// </summary>
+    private static Brush CreateEdgeFade(double width, bool fadeLeft)
     {
-        var brush = new LinearGradientBrush(
-            [new GradientStop(Colors.Black, 0), new GradientStop(Colors.Transparent, 1)],
-            new Point(Math.Max(0, width - FadeWidth), 0), new Point(Math.Max(FadeWidth, width), 0))
+        var edge = MarqueeMath.EdgeStop(width);
+        var stops = new GradientStopCollection();
+        if (fadeLeft)
+        {
+            stops.Add(new GradientStop(Colors.Transparent, 0));
+            stops.Add(new GradientStop(Colors.Black, edge));
+        }
+        else
+        {
+            stops.Add(new GradientStop(Colors.Black, 0));
+        }
+
+        stops.Add(new GradientStop(Colors.Black, 1 - edge));
+        stops.Add(new GradientStop(Colors.Transparent, 1));
+        var brush = new LinearGradientBrush(stops, new Point(0, 0), new Point(Math.Max(1, width), 0))
         {
             MappingMode = BrushMappingMode.Absolute,
         };
         brush.Freeze();
         return brush;
+    }
+
+    /// <summary>Fades the left edge only while the text is shifted away from its start.</summary>
+    private void UpdateFade()
+    {
+        var mask = MarqueeMath.FadesLeft(-_shift.X) ? _bothFade : _rightFade;
+        if (!ReferenceEquals(OpacityMask, mask))
+        {
+            OpacityMask = mask;
+        }
     }
 
     private void OnMotionChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() =>
@@ -232,5 +260,6 @@ public class MarqueeText : Decorator
         var (offset, opacity) = MarqueeMath.FrameAt(seconds, _distance);
         _shift.X = -offset;
         _text.Opacity = opacity;
+        UpdateFade();
     }
 }
