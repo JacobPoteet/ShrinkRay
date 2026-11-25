@@ -84,19 +84,35 @@ public sealed class JsonLinesJournalStore : ICompactableJournalStore
                 Directory.CreateDirectory(directory);
             }
 
-            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            try
             {
-                stream.Write(bytes);
-                stream.Flush(flushToDisk: true);
-            }
+                using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+                {
+                    stream.Write(bytes);
+                    stream.Flush(flushToDisk: true);
+                }
 
-            if (File.Exists(_path))
-            {
-                File.Replace(temp, _path, destinationBackupFileName: null);
+                if (File.Exists(_path))
+                {
+                    File.Replace(temp, _path, destinationBackupFileName: null);
+                }
+                else
+                {
+                    File.Move(temp, _path);
+                }
             }
-            else
+            catch
             {
-                File.Move(temp, _path);
+                // The old journal is still in place. Remove the half-done temp file if we can.
+                try
+                {
+                    File.Delete(temp);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                }
+
+                throw;
             }
         }
     }
@@ -186,10 +202,24 @@ public sealed class SwapJournal
     /// Rewrites the journal with only the newest entry for each file, so it stops growing. Run it
     /// on startup after recovery. Recovery, the queue and the track list read only a file's
     /// latest entry, so nothing they need is lost, whether the state is terminal or not.
-    /// A journal with one line per file is left as it is.
+    /// A journal with one line per file is left as it is. If the store cannot write (a file held
+    /// open, a full disk, no permission) the old journal stays and this returns 0 rather than throwing.
     /// </summary>
     /// <returns>How many lines were dropped.</returns>
     public int Compact()
+    {
+        try
+        {
+            return CompactCore();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Housekeeping only. A held, full or locked journal stays as it was and startup goes on.
+            return 0;
+        }
+    }
+
+    private int CompactCore()
     {
         lock (_gate)
         {

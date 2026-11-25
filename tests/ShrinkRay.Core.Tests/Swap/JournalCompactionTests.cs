@@ -128,6 +128,38 @@ public class JournalCompactionTests
         Assert.Equal(2, store.ReadAll().Count);
     }
 
+    [Theory]
+    [InlineData(typeof(IOException))]
+    [InlineData(typeof(UnauthorizedAccessException))]
+    public async Task A_failing_compaction_does_not_block_recovery_and_leaves_the_journal_alone(Type error)
+    {
+        var h = new SwapHarness();
+        h.Crash.CrashAfter(3);
+        await h.SwapAsync();
+        var failing = new FailingStore(h.Store, (Exception)Activator.CreateInstance(error, "held by antivirus")!);
+        var journal = new SwapJournal(failing);
+        var recovery = new SwapRecovery(h.Fs, journal, h.Check);
+        h.Crash.Restart();
+
+        var actions = await recovery.RecoverAsync([SwapHarness.ShowFolder], CancellationToken.None);
+        var before = failing.ReadAll();
+        var dropped = journal.Compact();
+
+        Assert.NotEmpty(actions);
+        Assert.Equal(0, dropped);
+        Assert.Equal(before, failing.ReadAll());
+        Assert.Equal(SwapState.Failed, journal.CurrentState(SwapHarness.Original));
+    }
+
+    private sealed class FailingStore(InMemoryJournalStore inner, Exception error) : ICompactableJournalStore
+    {
+        public void Append(JournalEntry entry) => inner.Append(entry);
+
+        public IReadOnlyList<JournalEntry> ReadAll() => inner.ReadAll();
+
+        public void ReplaceAll(IReadOnlyList<JournalEntry> entries) => throw error;
+    }
+
     private sealed class AppendOnlyStore : IJournalStore
     {
         private readonly List<JournalEntry> _entries = [];
@@ -209,6 +241,21 @@ public class JsonLinesJournalCompactionTests : IDisposable
 
         Assert.Equal(2, File.ReadAllLines(JournalPath).Length);
         Assert.DoesNotContain("garbage", File.ReadAllText(JournalPath));
+        Assert.False(File.Exists(JournalPath + ".compact.tmp"));
+    }
+
+    [Fact]
+    public void A_failed_replace_leaves_the_old_journal_and_no_temp_file()
+    {
+        var store = new JsonLinesJournalStore(JournalPath);
+        var journal = Fill(store);
+        var before = File.ReadAllText(JournalPath);
+        using var held = new FileStream(JournalPath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        Assert.Equal(0, journal.Compact());
+
+        held.Dispose();
+        Assert.Equal(before, File.ReadAllText(JournalPath));
         Assert.False(File.Exists(JournalPath + ".compact.tmp"));
     }
 
