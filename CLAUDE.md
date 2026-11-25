@@ -137,6 +137,22 @@ switches palettes with `ThemeManager`. Geometry and arithmetic for the controls 
 Keep the house rules intact: phosphor is the only light, and signal red marks only Encode and
 anything that deletes.
 
+## Cutting a release
+
+Run `/release`. The release PR, on `release/vX.Y.Z`, changes two things:
+
+- `<Version>` in `Directory.Build.props`, the only version file.
+- `release-notes/vX.Y.Z.md`, written for users. The workflow publishes it as the release text.
+
+After the squash merge, tag that commit `vX.Y.Z` and push the tag. `release.yml` fails a tag that
+differs from `<Version>` or has no notes file, then tests, builds a self-contained win-x64 zip and
+Inno Setup installer (`tools/build-release.ps1`, `installer/ShrinkRay.iss`), installs, starts and
+uninstalls the result, and publishes the release with both files.
+
+A pull request that touches the workflow, installer, build script, version or notes runs the same
+package job without publishing. Keep the installer's two promises: it never closes a running copy,
+which may be mid-swap, and never touches `%LOCALAPPDATA%\ShrinkRay`.
+
 ## Rules that protect the library
 
 The app deletes originals on a live Plex library, so these hold everywhere:

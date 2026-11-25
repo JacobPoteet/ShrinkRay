@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # A change to the packaging builds and installs the downloads without publishing them.
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - installer/**
+      - release-notes/**
+      - tools/build-release.ps1
+      - Directory.Build.props
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x
+
+      - name: Check the version and release notes
+        shell: pwsh
+        run: |
+          $version = "$(([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version)".Trim()
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Directory.Build.props says version '$version' but the tag is '$env:GITHUB_REF_NAME'."
+          }
+          if (-not (Test-Path "release-notes/v$version.md")) { throw "release-notes/v$version.md is missing." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Test
+        if: github.ref_type == 'tag'
+        run: dotnet test ShrinkRay.sln -c Release
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build the zip and installer
+        shell: pwsh
+        run: ./tools/build-release.ps1 -Installer
+
+      - name: Install, start and uninstall
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path "artifacts/release/ShrinkRay-Setup-$env:VERSION.exe").Path
+          $dir = Join-Path $env:RUNNER_TEMP 'installed'
+          $quiet = '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          function Invoke-Setup { (Start-Process $setup -ArgumentList ($quiet + "/DIR=$dir") -Wait -PassThru).ExitCode }
+
+          $running = [System.Threading.Mutex]::new($false, 'ShrinkRay.Running')
+          if ((Invoke-Setup) -eq 0 -or (Test-Path "$dir\ShrinkRay.exe")) { throw 'Setup installed over a running copy.' }
+          $running.Dispose()
+
+          $code = Invoke-Setup
+          if ($code -ne 0) { throw "Setup failed with exit code $code." }
+          foreach ($file in 'ShrinkRay.exe', 'LICENSE.txt', 'unins000.exe') {
+            if (-not (Test-Path "$dir\$file")) { throw "Setup did not install $file." }
+          }
+
+          $app = Start-Process "$dir\ShrinkRay.exe" -ArgumentList '--data', "$env:RUNNER_TEMP\data" -PassThru
+          if ($app.WaitForExit(15000)) { throw "ShrinkRay exited on its own with code $($app.ExitCode)." }
+          Stop-Process -Id $app.Id -Force
+          $app.WaitForExit()
+
+          # The uninstaller hands off to a copy of itself, so wait for the files to go.
+          Start-Process "$dir\unins000.exe" -ArgumentList $quiet -Wait
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Test-Path "$dir\ShrinkRay.exe") -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path "$dir\ShrinkRay.exe") { throw 'Uninstall left ShrinkRay.exe behind.' }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: downloads
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/*.exe
+          if-no-files-found: error
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: downloads
+          path: downloads
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" downloads/*
+          --verify-tag
+          --title "ShrinkRay ${GITHUB_REF_NAME#v}"
+          --notes-file "release-notes/$GITHUB_REF_NAME.md"

@@ -1,5 +1,7 @@
 <Project>
   <PropertyGroup>
+    <!-- The release version. A release tag must match it. -->
+    <Version>0.1.0</Version>
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
