@@ -242,8 +242,6 @@
                     <Grid Grid.Column="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="14" />
-                            <RowDefinition Height="136" />
                         </Grid.RowDefinitions>
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
@@ -314,24 +312,6 @@
                             </DockPanel>
                         </ContentControl>
 
-                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Bezel}" Padding="14,10,12,10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="112" />
-                                </Grid.ColumnDefinitions>
-                                <ItemsControl ItemsSource="{Binding RuleLamps}" VerticalAlignment="Center" Focusable="False">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type vm:LampViewModel}">
-                                            <sr:Lamp Style="{StaticResource PanelLamp}" Margin="0,4" Content="{Binding Label}" State="{Binding State}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <sr:PianoKey Grid.Column="1" Label="Load tape" Icon="{StaticResource SR.Icon.Load}" VerticalAlignment="Center"
-                                             MinWidth="0" ShowLamp="True" Lamp="{Binding LoadLampState}" LampBlink="{Binding LoadLampBlink}"
-                                             Command="{Binding LoadTapeCommand}" AutomationProperties.Name="Load the selected show into the deck" />
-                            </Grid>
-                        </ContentControl>
                     </Grid>
 
                     <!-- Centre: transport -->
@@ -500,12 +480,10 @@
                         </Grid>
                     </Grid>
 
-                    <!-- Right: J-card and encode window -->
+                    <!-- Right: J-card -->
                     <Grid Grid.Column="4">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="14" />
-                            <RowDefinition Height="150" />
                         </Grid.RowDefinitions>
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
@@ -560,27 +538,6 @@
                             </DockPanel>
                         </ContentControl>
 
-                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Bezel}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="126" />
-                                    <ColumnDefinition Width="14" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ctl:EncodeWindowDial Width="126" Height="126" StartHours="{Binding WindowStartHours}" EndHours="{Binding WindowEndHours}"
-                                                      NowHours="{Binding NowHours}" IsLit="{Binding WindowEnabled}"
-                                                      ArcBrush="{DynamicResource SR.Phosphor}" ArcDimBrush="{DynamicResource SR.PhosphorDim}"
-                                                      GlowBrush="{DynamicResource SR.PhosphorGlow}" LabelFont="{DynamicResource SR.Font.Silk}"
-                                                      AutomationProperties.Name="Encode window clock" />
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Encode window" />
-                                    <TextBlock Style="{StaticResource Pixel}" Text="{Binding WindowText}" Foreground="{DynamicResource SR.Ink}" Margin="0,8,0,0" />
-                                    <sr:Lamp Style="{StaticResource PanelLamp}" Margin="0,8,0,0" Content="{Binding WindowLamp.Label}"
-                                             State="{Binding WindowLamp.State}" Blink="{Binding WindowLamp.Blink}" />
-                                    <sr:DymoLabel Text="{Binding WindowDymo}" HorizontalAlignment="Left" Margin="0,8,0,0" />
-                                </StackPanel>
-                            </Grid>
-                        </ContentControl>
                     </Grid>
                 </Grid>
 

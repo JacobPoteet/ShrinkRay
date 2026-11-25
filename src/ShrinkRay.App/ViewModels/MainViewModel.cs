@@ -62,7 +62,6 @@ public sealed partial class MainViewModel : ObservableObject
     private double _encoderLoad;
     private DateTime _lastLoadPoll = DateTime.MinValue;
     private bool _loadPollBusy;
-    private int _lastMinute = -1;
 
     private bool _isRecovering;
     private bool _isScanning;
@@ -101,7 +100,6 @@ public sealed partial class MainViewModel : ObservableObject
         CreateCloseCommands();
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
-        RuleLamps = [new LampViewModel("Skip HEVC files", LampState.Ok), KeepLamp, FontsLamp, new LampViewModel("Same container", LampState.Ok)];
         _cqIndex = NearestDetent(_settings.Cq);
         RefreshAll();
     }
@@ -172,7 +170,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (Set(ref _selectedShow, value))
             {
-                Raise(nameof(CursorInfo), nameof(LoadLampState), nameof(LoadLampBlink));
+                Raise(nameof(CursorInfo));
                 LoadTapeCommand.Refresh();
             }
         }
@@ -295,19 +293,6 @@ public sealed partial class MainViewModel : ObservableObject
                 + $"SAVE ~{Format.WholeGigabytes(s.ProjectedSavings(cq))} OF {Format.WholeGigabytes(s.TotalBytes)} @ CQ{cq}";
         }
     }
-
-    /// <summary>Load tape's lamp blinks when the cursor sits on a show that is not in the deck.</summary>
-    public LampState LoadLampState => _selectedShow is not null && !string.Equals(_selectedShow.FolderName, _loaded?.Name, StringComparison.OrdinalIgnoreCase)
-        ? LampState.Active
-        : LampState.Off;
-
-    public bool LoadLampBlink => LoadLampState == LampState.Active;
-
-    public ObservableCollection<LampViewModel> RuleLamps { get; }
-
-    public LampViewModel KeepLamp { get; } = new("Keep under 15%", LampState.Ok);
-
-    public LampViewModel FontsLamp { get; } = new("Restore fonts", LampState.Ok);
 
     // ---- Deck ----
 
@@ -510,62 +495,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Encode window ----
 
-    public bool WindowEnabled => _settings.EncodeWindowEnabled;
-
-    public double WindowStartHours => _settings.EncodeWindowStart.ToTimeSpan().TotalHours;
-
-    public double WindowEndHours => _settings.EncodeWindowEnd.ToTimeSpan().TotalHours;
-
-    public double NowHours => _s.Now().TimeOfDay.TotalHours;
-
     public string WindowText => string.Create(CultureInfo.InvariantCulture,
         $"{_settings.EncodeWindowStart:HH\\:mm} – {_settings.EncodeWindowEnd:HH\\:mm}");
-
-    public LampViewModel WindowLamp { get; } = new("Off");
 
     /// <summary>The window's opening time, as the service panel's readout shows it.</summary>
     public string WindowStartText => _settings.EncodeWindowStart.ToString("HH:mm", CultureInfo.InvariantCulture);
 
     public string WindowEndText => _settings.EncodeWindowEnd.ToString("HH:mm", CultureInfo.InvariantCulture);
-
-    /// <summary>A start equal to the end opens the window all day, as the settings read it.</summary>
-    public string WindowDymo => !_settings.EncodeWindowEnabled || _settings.EncodeWindowStart == _settings.EncodeWindowEnd ? "Runs any time"
-        : IsMostlyOvernight(_settings.EncodeWindowStart, _settings.EncodeWindowEnd) ? "Runs overnight"
-        : "Runs by day";
-
-    /// <summary>Night, for the window's label, runs from 22:00 to 07:00.</summary>
-    public static readonly TimeOnly NightStart = new(22, 0);
-
-    public static readonly TimeOnly NightEnd = new(7, 0);
-
-    /// <summary>
-    /// True when more than half of a window's minutes fall between <see cref="NightStart"/> and
-    /// <see cref="NightEnd"/>. A window whose start is after its end wraps past midnight.
-    /// </summary>
-    public static bool IsMostlyOvernight(TimeOnly start, TimeOnly end)
-    {
-        const int day = 24 * 60;
-        var from = (start.Hour * 60) + start.Minute;
-        var length = ((((end.Hour * 60) + end.Minute - from) % day) + day) % day;
-        if (length == 0)
-        {
-            length = day;
-        }
-
-        var nightFrom = (NightStart.Hour * 60) + NightStart.Minute;
-        var nightLength = ((((NightEnd.Hour * 60) + NightEnd.Minute - nightFrom) % day) + day) % day;
-        var night = 0;
-        for (var i = 0; i < length; i++)
-        {
-            var sinceNightFell = ((from + i - nightFrom) % day + day) % day;
-            if (sinceNightFell < nightLength)
-            {
-                night++;
-            }
-        }
-
-        return night * 2 > length;
-    }
 
     /// <summary>
     /// Moves a time to the next or previous <see cref="WindowStepMinutes"/> mark, wrapping at
@@ -691,7 +627,6 @@ public sealed partial class MainViewModel : ObservableObject
 
             _settings.RestoreFonts = value;
             Save();
-            RefreshRuleLamps();
             Raise();
         }
     }
@@ -709,7 +644,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             _settings.EncodeWindowEnabled = value;
             Save();
-            RefreshWindow(force: true);
+            RefreshWindow();
             Raise();
         }
     }

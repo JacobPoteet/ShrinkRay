@@ -98,7 +98,6 @@ public class MainViewModelTests
         Assert.StartsWith("H.264 \u00b7 3 TO DO", lines[1]);
         Assert.Equal("SAVE ~2.6 OF 4.0 @ CQ28", lines[2]);
         Assert.DoesNotContain("GB", vm.CursorInfo);
-        Assert.Equal(LampState.Active, vm.LoadLampState);
     }
 
     [Fact]
@@ -875,7 +874,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task Window_keys_move_the_times_and_the_dial_follows()
+    public async Task Window_keys_move_the_times_the_service_panel_shows()
     {
         var rig = Library();
         rig.Settings.EncodeWindowEnabled = true;
@@ -892,54 +891,18 @@ public class MainViewModelTests
         Assert.Equal(new TimeOnly(6, 0), rig.Settings.EncodeWindowEnd);
         Assert.Equal("23:30", vm.WindowStartText);
         Assert.Equal("06:00", vm.WindowEndText);
-        Assert.Equal(23.5, vm.WindowStartHours);
-        Assert.Equal(6, vm.WindowEndHours);
-        Assert.Contains(nameof(MainViewModel.WindowStartHours), changed);
-        Assert.Contains(nameof(MainViewModel.WindowEndHours), changed);
+        Assert.Equal("23:30 – 06:00", vm.WindowText);
+        Assert.Contains(nameof(MainViewModel.WindowStartText), changed);
+        Assert.Contains(nameof(MainViewModel.WindowEndText), changed);
         Assert.Contains(nameof(MainViewModel.WindowText), changed);
         Assert.Equal(saves + 3, rig.SettingsSaves);
 
-        // 02:10 now sits inside 23:30 to 06:00; move the end before it and the window closes.
-        Assert.StartsWith("Active", vm.WindowLamp.Label);
         for (var i = 0; i < 8; i++)
         {
             vm.WindowEndEarlierCommand.Execute(null);
         }
 
         Assert.Equal("02:00", vm.WindowEndText);
-        Assert.StartsWith("Closed", vm.WindowLamp.Label);
-        Assert.Equal("Runs overnight", vm.WindowDymo);
-    }
-
-    [Fact]
-    public async Task A_window_that_starts_where_it_ends_runs_any_time()
-    {
-        var rig = Library();
-        rig.Settings.EncodeWindowEnabled = true;
-        rig.Settings.EncodeWindowStart = new TimeOnly(7, 0);
-        var vm = await rig.StartedWith("Scrubs");
-
-        Assert.Equal("Runs any time", vm.WindowDymo);
-        Assert.StartsWith("Active", vm.WindowLamp.Label);
-    }
-
-    [Theory]
-    [InlineData("00:00", "06:30", "Runs overnight")]
-    [InlineData("23:00", "07:00", "Runs overnight")]
-    [InlineData("09:00", "17:00", "Runs by day")]
-    [InlineData("20:00", "03:00", "Runs overnight")]
-    [InlineData("18:00", "02:00", "Runs by day")]
-    [InlineData("05:00", "13:00", "Runs by day")]
-    public async Task The_window_label_says_overnight_when_most_of_it_is_night(string start, string end, string expected)
-    {
-        var rig = Library();
-        rig.Settings.EncodeWindowEnabled = true;
-        rig.Settings.EncodeWindowStart = TimeOnly.Parse(start, System.Globalization.CultureInfo.InvariantCulture);
-        rig.Settings.EncodeWindowEnd = TimeOnly.Parse(end, System.Globalization.CultureInfo.InvariantCulture);
-
-        var vm = await rig.StartedWith("Scrubs");
-
-        Assert.Equal(expected, vm.WindowDymo);
     }
 
     [Theory]

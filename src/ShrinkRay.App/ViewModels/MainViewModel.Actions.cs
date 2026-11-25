@@ -629,11 +629,10 @@ public sealed partial class MainViewModel
 
     /// <summary>
     /// Called twice a second by the window. Reads the output file's growth for the bitrate
-    /// needle and polls the encoder load, and keeps the encode window clock current.
+    /// needle and polls the encoder load.
     /// </summary>
     public void Tick()
     {
-        RefreshWindow(force: false);
         if (_current is null || _runSettings is null || !IsSpinning)
         {
             BitrateMeterRest();
@@ -732,7 +731,7 @@ public sealed partial class MainViewModel
         }
 
         Save();
-        RefreshWindow(force: true);
+        RefreshWindow();
     }
 
     private void SetPhosphorIf(bool value, Phosphor phosphor)
@@ -787,11 +786,10 @@ public sealed partial class MainViewModel
         RefreshDeck();
         RefreshTransport();
         RefreshSeasonLamps();
-        RefreshRuleLamps();
         RefreshFooterLamps();
-        RefreshWindow(force: true);
+        RefreshWindow();
         Raise(nameof(IsTapeLoaded), nameof(LoadedName), nameof(JCardHeader), nameof(SeasonFooter),
-            nameof(LoadLampState), nameof(LoadLampBlink), nameof(EstimateText), nameof(IsKnobEnabled));
+            nameof(EstimateText), nameof(IsKnobEnabled));
         EjectCommand.Refresh();
         EncodeCommand.Refresh();
     }
@@ -871,12 +869,6 @@ public sealed partial class MainViewModel
         }
     }
 
-    private void RefreshRuleLamps()
-    {
-        KeepLamp.Label = $"Keep under {Format.Percent(_settings.MinimumSavings)}";
-        FontsLamp.State = _settings.RestoreFonts ? LampState.Ok : LampState.Off;
-    }
-
     private void RefreshFooterLamps()
     {
         if (_settings.ReplaceOriginals)
@@ -912,32 +904,6 @@ public sealed partial class MainViewModel
         ScratchLamp.State = root is not null && _s.DirectoryExists(root) ? LampState.Ok : LampState.Off;
     }
 
-    private void RefreshWindow(bool force)
-    {
-        var now = _s.Now();
-        var minute = (now.Hour * 60) + now.Minute;
-        if (!force && minute == _lastMinute)
-        {
-            return;
-        }
-
-        _lastMinute = minute;
-        var clock = now.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
-        if (!_settings.EncodeWindowEnabled)
-        {
-            WindowLamp.Show("Off · now " + clock, LampState.Off);
-        }
-        else if (_settings.IsInsideEncodeWindow(TimeOnly.FromDateTime(now)))
-        {
-            WindowLamp.Show("Active · now " + clock, LampState.Active);
-        }
-        else
-        {
-            WindowLamp.Show("Closed · now " + clock, LampState.Off);
-        }
-
-        Raise(nameof(WindowEnabled), nameof(WindowText), nameof(WindowDymo), nameof(NowHours),
-            nameof(WindowStartHours), nameof(WindowEndHours), nameof(EncodeWindowEnabled),
-            nameof(WindowStartText), nameof(WindowEndText));
-    }
+    private void RefreshWindow() =>
+        Raise(nameof(WindowText), nameof(EncodeWindowEnabled), nameof(WindowStartText), nameof(WindowEndText));
 }
