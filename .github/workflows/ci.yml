@@ -1,8 +1,16 @@
 name: CI
 
 on:
+  # A branch builds through its pull request, merged into main. Pushes build main alone.
   push:
+    branches: [main]
   pull_request:
+
+# A new push to a pull request cancels its older run. Each run on main gets its own group,
+# so every merged commit finishes its build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build:
