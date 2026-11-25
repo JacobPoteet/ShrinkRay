@@ -28,6 +28,7 @@ public sealed partial class MainViewModel
         {
             _settings.ScratchFolder = _defaultScratch;
             Save();
+            Raise(nameof(ScratchFolder));
         }
 
         RefreshSystemLamps();

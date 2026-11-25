@@ -548,7 +548,8 @@
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0" AutomationProperties.Name="{Binding SizeCaption}">
                                 <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="14" Text="{Binding SizeBeforeText}" />
                                 <Path Data="M0,5 L14,5 M9,1 L14,5 L9,9" Stroke="{DynamicResource SR.SilkLight}" StrokeThickness="1.6" Width="14" Height="10"
-                                      Margin="9,0,9,0" VerticalAlignment="Center" />
+                                      Margin="9,0,9,0" VerticalAlignment="Center"
+                                      Visibility="{Binding SizeBeforeText, Converter={StaticResource NotEmpty}}" />
                                 <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="14" Text="{Binding SizeAfterText}" />
                             </StackPanel>
                         </StackPanel>
