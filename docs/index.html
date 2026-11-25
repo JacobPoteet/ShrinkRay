@@ -682,18 +682,19 @@
         <h2 class="heading" id="inst-h">Install</h2>
         <div class="install-grid">
           <div>
+            <p>Download the installer or the zip from the latest release. Both include .NET. The installer sets ShrinkRay up for your user and adds a Start menu shortcut.</p>
+            <div class="keyrow"><a class="key" href="https://github.com/JacobPoteet/ShrinkRay/releases/latest">Download</a></div>
+            <p style="margin-top: 28px">Or build it from source:</p>
 <pre><span class="c"># PowerShell</span>
 git clone https://github.com/JacobPoteet/ShrinkRay.git
 cd ShrinkRay
 powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
-            <p>Builds Release into your user profile and adds a Start menu shortcut. A packaged release arrives at 1.0.</p>
-            <div class="keyrow"><a class="key" href="https://github.com/JacobPoteet/ShrinkRay">Source on GitHub</a></div>
           </div>
           <ul class="needs">
             <li><span class="lamp ok" aria-hidden="true"></span>Windows 10 or 11</li>
             <li><span class="lamp ok" aria-hidden="true"></span>An NVIDIA GPU with HEVC NVENC</li>
             <li><span class="lamp ok" aria-hidden="true"></span>HandBrakeCLI, ffmpeg and ffprobe</li>
-            <li><span class="lamp ok" aria-hidden="true"></span>The .NET 8 SDK, to build</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>To build: the .NET 8 runtime and .NET 9 SDK</li>
           </ul>
         </div>
       </div>

@@ -4,13 +4,21 @@ A Windows desktop app that re-encodes a Plex TV library from H.264 to H.265 on a
 
 The [project page](https://jacobpoteet.github.io/ShrinkRay/) shows the deck at work, the system design, the crash-safe swap, the quality test behind the default setting, and the design. Its source is in `docs/`.
 
-Status: in development. The main deck works end to end on a test library; there is no installer or release yet. Run it from source:
+Status: early. Version 0.1 can replace your originals, so start with the trial run that first-run setup offers, which keeps them.
+
+## Install
+
+Download the installer or the zip from the [latest release](https://github.com/JacobPoteet/ShrinkRay/releases/latest). Both include .NET. The installer sets ShrinkRay up for your user with a Start menu shortcut and no admin prompt. The files are unsigned, so Windows SmartScreen may ask you to confirm.
+
+## Build from source
+
+Run it from a checkout:
 
 ```powershell
 dotnet run --project src/ShrinkRay.App
 ```
 
-Or build it and install it for your user, with a Start menu shortcut. Rerun this after you pull to pick up new changes:
+Or build it and install it for your user, over a release install if you have one. Rerun this after you pull to pick up new changes:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
