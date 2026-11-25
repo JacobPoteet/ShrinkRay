@@ -113,7 +113,7 @@ paths use drive letters such as `X:\TV`.
 talks to the engine only through `DeckServices`, so `tests/ShrinkRay.App.Tests` drives it
 against an in-memory library, a scripted episode runner and a fake gate. `Composition` wires
 the real services. Keep logic in Core or the view model; the window's code-behind handles
-chrome, drag and drop, and the half-second tick only.
+chrome, drag and drop, the half-second tick and the power-on self-test only.
 
 Startup order matters: `StartAsync` runs journal recovery, then scans the library, and Encode
 stays off until recovery ends. Each run takes a snapshot of the settings, so the Quality row and the

@@ -7,6 +7,7 @@ using ShrinkRay.Core.Settings;
 using ShrinkRay.Core.Swap;
 using ShrinkRay.Theme;
 using ShrinkRay.Theme.Controls;
+using ShrinkRay.Theme.Mechanics;
 
 namespace ShrinkRay.App.ViewModels;
 
@@ -255,6 +256,11 @@ public sealed partial class MainViewModel
 
     private void LoadShow(ShowScan scan)
     {
+        // The payoff belongs to the show it happened in.
+        EndBank();
+        SavedRoll = null;
+        LifetimeSavedRoll = null;
+        Raise(nameof(SavedRoll), nameof(LifetimeSavedRoll));
         _loaded = scan;
         foreach (var row in Shows)
         {
@@ -536,6 +542,8 @@ public sealed partial class MainViewModel
     private void OnEpisodeFinished(EpisodeFinished finished)
     {
         var track = Find(finished.Path);
+        var savedBefore = SavedDigits;
+        var lifetimeBefore = LifetimeSavedDigits;
         if (track is not null)
         {
             switch (finished.End)
@@ -562,7 +570,40 @@ public sealed partial class MainViewModel
 
         _estimator?.Rebase(_s.Now(), FramesLeft());
         RefreshAll();
+        if (track is not null && finished.Result?.Outcome == PipelineOutcome.Replaced)
+        {
+            Bank(track, savedBefore, lifetimeBefore);
+        }
+
         RefreshClosing();
+    }
+
+    // ---- Payoff ----
+
+    /// <summary>A file was replaced: stamp its row, light the Banked lamp and count both totals up.</summary>
+    private void Bank(TrackViewModel track, string savedBefore, string lifetimeBefore)
+    {
+        EndBank();
+        _banked = track;
+        _bankedUntil = _s.Now() + BankedHold;
+        _bankedCount++;
+        track.Stamp();
+        SavedRoll = new CounterRoll(savedBefore, _bankedCount);
+        LifetimeSavedRoll = new CounterRoll(lifetimeBefore, _bankedCount);
+        Raise(nameof(IsBanked), nameof(BankedLamp), nameof(SavedRoll), nameof(LifetimeSavedRoll));
+    }
+
+    /// <summary>Puts the lamp out once the payoff has had its time. The stamp stays on the row.</summary>
+    private void EndBank()
+    {
+        if (_banked is null)
+        {
+            return;
+        }
+
+        _banked.SettleStamp();
+        _banked = null;
+        Raise(nameof(IsBanked), nameof(BankedLamp));
     }
 
     private void ApplyResult(TrackViewModel track, PipelineResult result)
@@ -643,6 +684,11 @@ public sealed partial class MainViewModel
     /// </summary>
     public void Tick()
     {
+        if (_banked is not null && _s.Now() >= _bankedUntil)
+        {
+            EndBank();
+        }
+
         if (IsEncoding)
         {
             // The counter counts down with the clock, so it reads again on every tick.
@@ -826,7 +872,7 @@ public sealed partial class MainViewModel
             nameof(FpsDigits), nameof(PercentDigits), nameof(EpisodeDetail), nameof(EpisodeCounterName), nameof(ShowLeftHourDigits),
             nameof(ShowLeftMinuteDigits), nameof(ShowLeftDetail), nameof(ShowLeftName), nameof(DeckAutomationName), nameof(SizeCaption),
             nameof(SizeBeforeText), nameof(SizeAfterText), nameof(AfterFraction),
-            nameof(EncodeLampBlink));
+            nameof(EncodeLampBlink), nameof(EpisodeFraction), nameof(HeadLamp));
 
     /// <summary>Marks the chosen and the recommended CQ on the Quality chips.</summary>
     private void RefreshCqChips()
@@ -850,7 +896,7 @@ public sealed partial class MainViewModel
     {
         _estimator?.SetFrozen(_queue?.State is QueueState.Paused or QueueState.WaitingForWindow, _s.Now());
         Raise(nameof(IsEncoding), nameof(IsPaused), nameof(EncodeLamp), nameof(EncodeLampBlink), nameof(IsSpinning),
-            nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits));
+            nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits), nameof(HeadLamp));
         RefreshRunLamp();
         RefreshSeasonLamps();
         EncodeCommand.Refresh();

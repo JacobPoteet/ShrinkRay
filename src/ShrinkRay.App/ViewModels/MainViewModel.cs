@@ -9,6 +9,7 @@ using ShrinkRay.Core.Settings;
 using ShrinkRay.Core.Swap;
 using ShrinkRay.Theme;
 using ShrinkRay.Theme.Controls;
+using ShrinkRay.Theme.Mechanics;
 
 namespace ShrinkRay.App.ViewModels;
 
@@ -28,6 +29,9 @@ public sealed partial class MainViewModel : ObservableObject
     public const double MaxMbps = 8;
 
     private static readonly TimeSpan LoadPollInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>How long the Banked lamp stays lit after a file is replaced.</summary>
+    private static readonly TimeSpan BankedHold = TimeSpan.FromSeconds(6);
 
     /// <summary>Seconds of the episode encoded before the bitrate needle reads; earlier is mostly header.</summary>
     private const double MinBitrateSeconds = 5;
@@ -62,6 +66,10 @@ public sealed partial class MainViewModel : ObservableObject
     private double? _transfer;
     private double? _fps;
     private EpisodePhase _phase;
+
+    private TrackViewModel? _banked;
+    private DateTime _bankedUntil;
+    private int _bankedCount;
 
     private double _bitrate;
     private double _encoderLoad;
@@ -401,6 +409,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string EpisodeCounterName => $"Episode {PercentDigits.Trim()} percent";
 
+    /// <summary>The LED bar under the episode counter: the same 0 to 1 the percent reads.</summary>
+    public double EpisodeFraction => _transfer ?? _progress;
+
+    /// <summary>The lamp on the tape path's encoder head, lit while NVENC is working.</summary>
+    public LampState HeadLamp => IsSpinning && _phase == EpisodePhase.Encoding ? LampState.Active : LampState.Off;
+
     /// <summary>Whole hours left for the whole show; the deck prints H after them. Dashes before a show is loaded.</summary>
     public string ShowLeftHourDigits => _loaded is null ? "--" : (ShowLeftMinutes / 60).ToString(CultureInfo.InvariantCulture).PadLeft(2);
 
@@ -412,6 +426,19 @@ public sealed partial class MainViewModel : ObservableObject
         : $"About {Format.Duration(TimeLeft).ToLowerInvariant()} left for {_tracks.Count(t => t.IsQueueable || t.Kind == TrackKind.Encoding)} episodes, at {Math.Round(SpeedFps)} frames per second";
 
     public string ShowLeftName => _loaded is null ? "Show time left, none" : $"Show time left, {Format.Duration(TimeLeft).ToLowerInvariant()}";
+
+    // ---- Payoff ----
+
+    /// <summary>A file was replaced moments ago.</summary>
+    public bool IsBanked => _banked is not null;
+
+    public LampState BankedLamp => IsBanked ? LampState.Ok : LampState.Off;
+
+    /// <summary>Asks the show's saved counter to tick up from what it read before the last replace.</summary>
+    public CounterRoll? SavedRoll { get; private set; }
+
+    /// <summary>The same for the all-time counter.</summary>
+    public CounterRoll? LifetimeSavedRoll { get; private set; }
 
     // ---- Transport ----
 

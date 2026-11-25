@@ -104,6 +104,13 @@
             <Setter Property="Effect" Value="{DynamicResource SR.PhosphorTextGlow}" />
         </Style>
 
+        <!-- The light a lit readout throws on the plate behind it -->
+        <Style x:Key="Spill" TargetType="Rectangle">
+            <Setter Property="Fill" Value="{DynamicResource SR.PhosphorSpill}" />
+            <Setter Property="Margin" Value="-44,-28" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
         <Style x:Key="Pixel" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Pixel}" />
 
         <!-- One J-card line -->
@@ -133,6 +140,12 @@
                                VerticalAlignment="Center" Foreground="#5B5344" />
                     <sr:TrackedText x:Name="Status" Grid.Column="4" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Center"
                                     FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12" Tracking="0.1" Foreground="#7A7160" />
+                    <!-- A file replaced while you watch gets its saving stamped on the card -->
+                    <sr:StampMark x:Name="Stamp" Grid.Column="4" IsPressing="{Binding IsStamping}" Visibility="Collapsed"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <sr:TrackedText Text="{Binding StatusText}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13"
+                                        Tracking="0.1" Foreground="#4D6B1E" />
+                    </sr:StampMark>
                 </Grid>
             </Grid>
             <DataTemplate.Triggers>
@@ -155,6 +168,10 @@
                 <DataTrigger Binding="{Binding Kind}" Value="Failed">
                     <Setter TargetName="Stripe" Property="Fill" Value="#2A2824" />
                     <Setter TargetName="Status" Property="Foreground" Value="#2A2824" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsStamped}" Value="True">
+                    <Setter TargetName="Status" Property="Visibility" Value="Hidden" />
+                    <Setter TargetName="Stamp" Property="Visibility" Value="Visible" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -305,6 +322,13 @@
                                     <ctl:TapePath Width="640" Height="256" SourcePack="{Binding SourcePack}" OutputPack="{Binding OutputPack}" IsHitTestVisible="False" />
                                     <Ellipse Canvas.Left="245" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
                                     <Ellipse Canvas.Left="381" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
+                                    <!-- The encoder head on the tape run; its lamp lights while NVENC is working -->
+                                    <Grid Canvas.Left="282" Canvas.Top="237" Width="76" Height="19">
+                                        <Border CornerRadius="3" Background="#B4A98F" BorderBrush="#3A3833" BorderThickness="1" />
+                                        <Border Margin="1" CornerRadius="2" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
+                                        <sr:Lamp Style="{StaticResource PanelLamp}" Diameter="8" Spacing="6" Content="NVENC" Foreground="#2F2A21"
+                                                 State="{Binding HeadLamp}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
                                     <sr:CassetteLabel Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
                                                       Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}"
                                                       EpisodeTitle="{Binding LabelEpisodeTitle}" />
@@ -335,29 +359,54 @@
                                 <ColumnDefinition Width="12" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <ContentControl Style="{StaticResource SR.Plate}" Padding="22,10" ToolTip="{Binding EpisodeDetail}"
+                            <ContentControl Style="{StaticResource SR.Readout}" Padding="18,8" ToolTip="{Binding EpisodeDetail}"
                                             AutomationProperties.Name="{Binding EpisodeCounterName}">
                                 <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Episode" Margin="0,4,0,0" />
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <sr:SevenSegmentDisplay Text="{Binding PercentDigits}" DigitHeight="40" Spacing="4" Glow="True" />
-                                        <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="26" FontWeight="Bold" Tracking="0" Text="%" Margin="10,0,0,2"
-                                                        VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
-                                                        Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                                    <DockPanel DockPanel.Dock="Bottom" Margin="0,5,0,0">
+                                        <sr:TrackedText DockPanel.Dock="Left" Style="{StaticResource PlateLabel}" Text="Episode" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource SR.LedSlot}" Padding="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                            <sr:LedBar Fraction="{Binding EpisodeFraction}" Segments="28" Height="6" Gap="2" Glow="True"
+                                                       AutomationProperties.Name="Episode progress" />
+                                        </Border>
+                                    </DockPanel>
+                                    <!-- Speed and tape position, small beside the percent -->
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <StackPanel>
+                                            <sr:SevenSegmentDisplay Text="{Binding FpsDigits}" DigitHeight="20" Spacing="2" Glow="True"
+                                                                    HorizontalAlignment="Right" AutomationProperties.Name="Frames per second" />
+                                            <sr:TrackedText Style="{StaticResource PlateLabel}" Text="Frames / s" HorizontalAlignment="Right" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Margin="18,0,0,0">
+                                            <sr:SevenSegmentDisplay Text="{Binding TapeTimeDigits}" DigitHeight="20" Spacing="2" Glow="True"
+                                                                    HorizontalAlignment="Right" AutomationProperties.Name="Tape time" />
+                                            <sr:TrackedText Style="{StaticResource PlateLabel}" Text="Tape time" HorizontalAlignment="Right" Margin="0,3,0,0" />
+                                        </StackPanel>
                                     </StackPanel>
+                                    <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Rectangle Style="{StaticResource Spill}" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <sr:SevenSegmentDisplay Text="{Binding PercentDigits}" DigitHeight="40" Spacing="4" Glow="True" />
+                                            <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="26" FontWeight="Bold" Tracking="0" Text="%" Margin="10,0,0,2"
+                                                            VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                            Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                                        </StackPanel>
+                                    </Grid>
                                 </DockPanel>
                             </ContentControl>
-                            <ContentControl Grid.Column="2" Style="{StaticResource SR.Plate}" Padding="22,10" ToolTip="{Binding ShowLeftDetail}"
+                            <ContentControl Grid.Column="2" Style="{StaticResource SR.Readout}" Padding="22,8" ToolTip="{Binding ShowLeftDetail}"
                                             AutomationProperties.Name="{Binding ShowLeftName}">
                                 <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Show left" Margin="0,4,0,0" />
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <sr:SevenSegmentDisplay Text="{Binding ShowLeftHourDigits}" DigitHeight="40" Spacing="4" Glow="True" />
-                                        <sr:TrackedText Style="{StaticResource TimeUnit}" Text="H" />
-                                        <sr:SevenSegmentDisplay Text="{Binding ShowLeftMinuteDigits}" DigitHeight="40" Spacing="4" Glow="True"
-                                                                Margin="16,0,0,0" />
-                                        <sr:TrackedText Style="{StaticResource TimeUnit}" Text="M" />
-                                    </StackPanel>
+                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Show left" Margin="0,5,0,0" />
+                                    <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Rectangle Style="{StaticResource Spill}" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <sr:SevenSegmentDisplay Text="{Binding ShowLeftHourDigits}" DigitHeight="40" Spacing="4" Glow="True" />
+                                            <sr:TrackedText Style="{StaticResource TimeUnit}" Text="H" />
+                                            <sr:SevenSegmentDisplay Text="{Binding ShowLeftMinuteDigits}" DigitHeight="40" Spacing="4" Glow="True"
+                                                                    Margin="16,0,0,0" />
+                                            <sr:TrackedText Style="{StaticResource TimeUnit}" Text="M" />
+                                        </StackPanel>
+                                    </Grid>
                                 </DockPanel>
                             </ContentControl>
                         </Grid>
@@ -465,7 +514,7 @@
                 </Grid>
 
                 <!-- ============ FOOTER ============ -->
-                <ContentControl Grid.Row="4" Style="{StaticResource SR.Plate}" Padding="22,14">
+                <ContentControl Grid.Row="4" Style="{StaticResource SR.Readout}" Padding="22,14">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -476,35 +525,43 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel VerticalAlignment="Center">
-                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Saved · this show" />
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <sr:SevenSegmentDisplay Text="{Binding SavedDigits}" DigitHeight="74" Spacing="5" Glow="True"
-                                                        AutomationProperties.Name="Gigabytes saved in this show" />
-                                <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="22" Tracking="0" Text="GB" Margin="14,0,0,6"
-                                                VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
-                                                Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                            <StackPanel Orientation="Horizontal">
+                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Saved · this show" VerticalAlignment="Center" />
+                                <!-- Blinks for a few seconds each time a smaller file takes an original's place -->
+                                <sr:Lamp Style="{StaticResource PanelLamp}" Foreground="{DynamicResource SR.SilkLight}" Margin="18,0,0,0"
+                                         VerticalAlignment="Center" Content="BANKED" State="{Binding BankedLamp}" Blink="{Binding IsBanked}" />
                             </StackPanel>
+                            <Grid HorizontalAlignment="Left" Margin="0,8,0,0">
+                                <Rectangle Style="{StaticResource Spill}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <sr:SevenSegmentDisplay Text="{Binding SavedDigits}" Roll="{Binding SavedRoll}" DigitHeight="74" Spacing="5"
+                                                            Glow="True" AutomationProperties.Name="Gigabytes saved in this show" />
+                                    <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="22" Tracking="0" Text="GB" Margin="14,0,0,6"
+                                                    VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                    Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
                             <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Saved · all time" />
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <sr:SevenSegmentDisplay Text="{Binding LifetimeSavedDigits}" DigitHeight="74" Spacing="5" Glow="True"
-                                                        AutomationProperties.Name="{Binding LifetimeSavedName}" />
-                                <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="22" Tracking="0" Text="{Binding LifetimeSavedUnit}"
-                                                Margin="14,0,0,6" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
-                                                Effect="{DynamicResource SR.PhosphorTextGlow}" />
-                            </StackPanel>
+                            <Grid HorizontalAlignment="Left" Margin="0,8,0,0">
+                                <Rectangle Style="{StaticResource Spill}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <sr:SevenSegmentDisplay Text="{Binding LifetimeSavedDigits}" Roll="{Binding LifetimeSavedRoll}" DigitHeight="74"
+                                                            Spacing="5" Glow="True" AutomationProperties.Name="{Binding LifetimeSavedName}" />
+                                    <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="22" Tracking="0" Text="{Binding LifetimeSavedUnit}"
+                                                    Margin="14,0,0,6" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                    Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
 
-                        <!-- One bar: the lit part is what the show weighs after, the rest is what it gives back -->
+                        <!-- One bar: the lit LEDs are what the show weighs after, the dark ones are what it gives back -->
                         <StackPanel Grid.Column="4" VerticalAlignment="Center">
-                            <Border Height="22" CornerRadius="3" Background="#8F8670" AutomationProperties.Name="{Binding SizeCaption}">
-                                <Border CornerRadius="3" Background="{DynamicResource SR.Phosphor}" RenderTransformOrigin="0,0.5">
-                                    <Border.RenderTransform>
-                                        <ScaleTransform ScaleX="{Binding AfterFraction}" />
-                                    </Border.RenderTransform>
-                                </Border>
+                            <Border Style="{StaticResource SR.LedSlot}">
+                                <sr:LedBar Fraction="{Binding AfterFraction}" Segments="40" Height="18" Glow="True"
+                                           AutomationProperties.Name="{Binding SizeCaption}" />
                             </Border>
                             <!-- The pixel and silk fonts have no arrow glyph, so the caption's arrow is drawn -->
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0" AutomationProperties.Name="{Binding SizeCaption}">
@@ -596,7 +653,7 @@
                                         AutomationProperties.Name="Open the window half an hour earlier">
                                     <Path Data="{StaticResource StepEarlier}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
                                 </Button>
-                                <ContentControl Style="{StaticResource SR.Plate}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
+                                <ContentControl Style="{StaticResource SR.Readout}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
                                                 AutomationProperties.Name="Window opens">
                                     <sr:SevenSegmentDisplay Text="{Binding WindowStartText}" DigitHeight="18" Spacing="2" Glow="True"
                                                             AutomationProperties.Name="{Binding WindowStartText}" />
@@ -610,7 +667,7 @@
                                         AutomationProperties.Name="Close the window half an hour earlier">
                                     <Path Data="{StaticResource StepEarlier}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
                                 </Button>
-                                <ContentControl Style="{StaticResource SR.Plate}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
+                                <ContentControl Style="{StaticResource SR.Readout}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
                                                 AutomationProperties.Name="Window closes">
                                     <sr:SevenSegmentDisplay Text="{Binding WindowEndText}" DigitHeight="18" Spacing="2" Glow="True"
                                                             AutomationProperties.Name="{Binding WindowEndText}" />
