@@ -1,5 +1,6 @@
 using System.Windows;
 using ShrinkRay.App.Services;
+using ShrinkRay.App.Tray;
 using ShrinkRay.App.ViewModels;
 using ShrinkRay.App.Views;
 using ShrinkRay.Core.Settings;
@@ -14,6 +15,17 @@ namespace ShrinkRay.App;
 /// </summary>
 public partial class App : Application
 {
+    private TrayModel? _trayModel;
+    private TrayIcon? _tray;
+
+    // The tray icon goes with the app, so no ghost icon stays behind in the notification area.
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _tray?.Dispose();
+        _trayModel?.Dispose();
+        base.OnExit(e);
+    }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -41,6 +53,8 @@ public partial class App : Application
         var viewModel = new MainViewModel(services, settings, preferences, paths.DefaultScratch);
         var window = new MainWindow(viewModel);
         MainWindow = window;
+        _trayModel = new TrayModel(viewModel);
+        _tray = new TrayIcon(window, _trayModel);
         window.Show();
 
         // Recovery runs inside StartAsync before the first scan, and Encode stays off until it ends.
