@@ -137,6 +137,39 @@ public class PaletteContrastTests
     }
 
     [Theory]
+    [InlineData(Chassis.Beige)]
+    [InlineData(Chassis.Graphite)]
+    public void Printed_parts_are_readable_on_both_chassis(Chassis chassis)
+    {
+        var p = ChassisPalette.For(chassis).Paper;
+
+        Assert.True(Contrast(p.CardInk, p.Card) >= 4.5, "episode code on the card");
+        Assert.True(Contrast(p.CardInkSoft, p.Card) >= 4.5, "title on the card");
+        Assert.True(Contrast(p.CardDoneInk, p.Card) >= 4.5, "saving stamped on the card");
+        Assert.True(Contrast(p.CardFailInk, p.Card) >= 4.5, "failed status on the card");
+        Assert.True(Contrast(p.CardInkFaint, p.Card) >= 3, "column heads on the card");
+        Assert.True(Contrast(p.MeterInk, p.Meter) >= 4.5, "meter scale");
+        Assert.True(Contrast(p.Needle, p.Meter) >= 4.5, "needle");
+        Assert.True(Contrast(p.MeterRed, p.Meter) >= 3, "red zone");
+        Assert.True(Contrast(p.LabelInk, p.Label) >= 4.5, "cassette title");
+        Assert.True(Contrast(p.LabelInkSoft, p.Label) >= 4.5, "cassette side line");
+        Assert.True(Contrast(p.PartInk, p.Part) >= 4.5, "encoder head word");
+    }
+
+    /// <summary>
+    /// The large printed sheets on the graphite unit never glare beside the dark plastic. The small
+    /// cassette label is the exception: it stays cream so its ink reads.
+    /// </summary>
+    [Fact]
+    public void Graphite_card_and_meters_are_no_lighter_than_its_chassis()
+    {
+        var chassis = ChassisPalette.Graphite;
+        var p = chassis.Paper;
+
+        Assert.All(new[] { p.Card, p.Meter }, surface => Assert.True(Luminance(surface) <= Luminance(chassis.AbsHi)));
+    }
+
+    [Theory]
     [InlineData(Phosphor.Amber)]
     [InlineData(Phosphor.Green)]
     [InlineData(Phosphor.Ice)]

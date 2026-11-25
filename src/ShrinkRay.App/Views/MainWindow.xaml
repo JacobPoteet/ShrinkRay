@@ -94,43 +94,43 @@
                             <ColumnDefinition Width="58" />
                             <ColumnDefinition Width="80" />
                         </Grid.ColumnDefinitions>
-                        <Rectangle x:Name="Stripe" Fill="#B4A98F" />
+                        <Rectangle x:Name="Stripe" Fill="{DynamicResource SR.StripeQueued}" />
                         <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Code}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                   FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="14" Foreground="#2F2A21" />
+                                   FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource SR.CardInk}" />
                         <TextBlock Grid.Column="2" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                   FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Medium" FontSize="14" Foreground="#5B5344" />
+                                   FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Medium" FontSize="14" Foreground="{DynamicResource SR.CardInkSoft}" />
                         <TextBlock Grid.Column="3" Style="{StaticResource Pixel}" Text="{Binding SizeText}" HorizontalAlignment="Right"
-                                   VerticalAlignment="Center" Foreground="#5B5344" />
+                                   VerticalAlignment="Center" Foreground="{DynamicResource SR.CardInkSoft}" />
                         <sr:TrackedText x:Name="Status" Grid.Column="4" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                        FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12" Tracking="0.1" Foreground="#7A7160" />
+                                        FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12" Tracking="0.1" Foreground="{DynamicResource SR.CardInkFaint}" />
                         <!-- A file replaced while you watch gets its saving stamped on the card -->
                         <sr:StampMark x:Name="Stamp" Grid.Column="4" IsPressing="{Binding IsStamping}" Visibility="Collapsed"
                                       HorizontalAlignment="Right" VerticalAlignment="Center">
                             <sr:TrackedText Text="{Binding StatusText}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13"
-                                            Tracking="0.1" Foreground="#4D6B1E" />
+                                            Tracking="0.1" Foreground="{DynamicResource SR.CardDoneInk}" />
                         </sr:StampMark>
                     </Grid>
                 </Grid>
                 <DataTemplate.Triggers>
                     <DataTrigger Binding="{Binding Kind}" Value="Shrunk">
-                        <Setter TargetName="Stripe" Property="Fill" Value="#7FA63A" />
-                        <Setter TargetName="Status" Property="Foreground" Value="#4D6B1E" />
+                        <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.StripeDone}" />
+                        <Setter TargetName="Status" Property="Foreground" Value="{DynamicResource SR.CardDoneInk}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Encoding">
                         <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.Phosphor}" />
-                        <Setter TargetName="Status" Property="Foreground" Value="#2F2A21" />
+                        <Setter TargetName="Status" Property="Foreground" Value="{DynamicResource SR.CardInk}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Kept">
-                        <Setter TargetName="Stripe" Property="Fill" Value="#8F8670" />
-                        <Setter TargetName="Status" Property="Foreground" Value="#5B5344" />
+                        <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.StripeKept}" />
+                        <Setter TargetName="Status" Property="Foreground" Value="{DynamicResource SR.CardInkSoft}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Skipped">
-                        <Setter TargetName="Stripe" Property="Fill" Value="#6D665A" />
-                        <Setter TargetName="Status" Property="Foreground" Value="#5B5344" />
+                        <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.StripeSkipped}" />
+                        <Setter TargetName="Status" Property="Foreground" Value="{DynamicResource SR.CardInkSoft}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Kind}" Value="Failed">
-                        <Setter TargetName="Stripe" Property="Fill" Value="#2A2824" />
-                        <Setter TargetName="Status" Property="Foreground" Value="#2A2824" />
+                        <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.StripeFailed}" />
+                        <Setter TargetName="Status" Property="Foreground" Value="{DynamicResource SR.CardFailInk}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsStamped}" Value="True">
                         <Setter TargetName="Status" Property="Visibility" Value="Hidden" />
@@ -284,13 +284,13 @@
                                     <sr:TapeReel Canvas.Left="376" Canvas.Top="66" Width="168" Height="168" SecondsPerTurn="2.1"
                                                  Pack="{Binding OutputPack}" IsSpinning="{Binding IsSpinning}" AutomationProperties.Name="Output reel" />
                                     <ctl:TapePath Width="640" Height="256" SourcePack="{Binding SourcePack}" OutputPack="{Binding OutputPack}" IsHitTestVisible="False" />
-                                    <Ellipse Canvas.Left="245" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
-                                    <Ellipse Canvas.Left="381" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
+                                    <Ellipse Canvas.Left="245" Canvas.Top="237" Width="14" Height="14" Fill="{DynamicResource SR.Roller}" Stroke="#3A3833" />
+                                    <Ellipse Canvas.Left="381" Canvas.Top="237" Width="14" Height="14" Fill="{DynamicResource SR.Roller}" Stroke="#3A3833" />
                                     <!-- The encoder head on the tape run; its lamp lights while NVENC is working -->
                                     <Grid Canvas.Left="282" Canvas.Top="237" Width="76" Height="19">
-                                        <Border CornerRadius="3" Background="#B4A98F" BorderBrush="#3A3833" BorderThickness="1" />
+                                        <Border CornerRadius="3" Background="{DynamicResource SR.PartFill}" BorderBrush="#3A3833" BorderThickness="1" />
                                         <Border Margin="1" CornerRadius="2" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
-                                        <sr:Lamp Style="{StaticResource PanelLamp}" Diameter="8" Spacing="6" Content="NVENC" Foreground="#2F2A21"
+                                        <sr:Lamp Style="{StaticResource PanelLamp}" Diameter="8" Spacing="6" Content="NVENC" Foreground="{DynamicResource SR.PartInk}"
                                                  State="{Binding HeadLamp}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Grid>
                                     <sr:CassetteLabel Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
@@ -463,13 +463,13 @@
                                                 <ColumnDefinition Width="80" />
                                             </Grid.ColumnDefinitions>
                                             <sr:TrackedText Grid.Column="1" Text="Ep" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" />
+                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" />
                                             <sr:TrackedText Grid.Column="2" Text="Title" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" />
+                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" />
                                             <sr:TrackedText Grid.Column="3" Text="GB" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" HorizontalAlignment="Right" />
                                             <sr:TrackedText Grid.Column="4" Text="Status" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" HorizontalAlignment="Right" />
                                         </Grid>
                                         <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource SR.JCardRule}" />
                                         <ScrollViewer VerticalScrollBarVisibility="Hidden" Focusable="False" PanningMode="VerticalOnly">

@@ -46,7 +46,11 @@ VU needles, Dymo labels.
   in `ThemeKeys` at runtime.
 - Inks printed on the chassis come from `ChassisPalette`. `PaletteContrastTests` checks them
   against WCAG on both chassis; keep it passing when you change a color.
-- Inks on paper (J-card, VU face, cassette label) stay fixed.
+- The J-card, meter faces, cassette label and tape-run parts take their colors from the chassis's
+  `PaperPalette`. Beige is cream stock throughout. Graphite has a charcoal J-card and meter faces
+  so no large sheet glares, and keeps the cassette label cream because ink on a dark label read
+  badly. Reference those keys with DynamicResource, never a hex value, and keep
+  `PaletteContrastTests` passing on both.
 
 ## Building controls
 
