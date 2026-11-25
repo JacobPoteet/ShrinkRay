@@ -116,7 +116,7 @@ the real services. Keep logic in Core or the view model; the window's code-behin
 chrome, drag and drop, and the half-second tick only.
 
 Startup order matters: `StartAsync` runs journal recovery, then scans the library, and Encode
-stays off until recovery ends. Each run takes a snapshot of the settings, so the knob and the
+stays off until recovery ends. Each run takes a snapshot of the settings, so the Quality row and the
 service panel lock while an encode runs.
 
 ### Theme

@@ -17,7 +17,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
 ## How it works
 
 - Choose a library folder, local or on a mapped network share, or drop a show folder on the window. Monitor A lists the shows that still have H.264 episodes.
-- Load a show, set its quality on the CQ knob, and press Encode. ShrinkRay probes every file first, skips anything already in HEVC, and estimates the space you'll get back.
+- Pick a show, set its quality in Setup if the recommended CQ is not what you want, and press Encode. ShrinkRay probes every file first, skips anything already in HEVC, and estimates the space you'll get back.
 - HandBrakeCLI encodes each episode with NVENC in a local scratch folder. ShrinkRay checks duration, streams and a full decode, and replaces the original only when every check passes and the file shrinks by at least 15 percent.
 
 To see every control in the theme, run the gallery: `dotnet run --project src/ShrinkRay.Gallery`.
