@@ -70,7 +70,8 @@ public static class ThemeManager
         d[ThemeKeys.PhosphorHalo] = halo;
 
         d[ThemeKeys.PhosphorTextGlow] = Glow(p, blur: 7, opacity: p.Glow.A / 255.0);
-        d[ThemeKeys.PhosphorStrongGlow] = Glow(p, blur: 12, opacity: 0.8);
+        d[ThemeKeys.PhosphorStrongGlow] = Glow(p, blur: 10, opacity: 1);
+        d[ThemeKeys.PhosphorBloom] = Glow(p, blur: 32, opacity: 0.85);
     }
 
     private static void WriteChassis(ResourceDictionary d, ChassisPalette c)

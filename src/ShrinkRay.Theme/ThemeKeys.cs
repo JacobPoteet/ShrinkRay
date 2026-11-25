@@ -16,6 +16,7 @@ public static class ThemeKeys
     public const string PhosphorHalo = "SR.PhosphorHalo";
     public const string PhosphorTextGlow = "SR.PhosphorTextGlow";
     public const string PhosphorStrongGlow = "SR.PhosphorStrongGlow";
+    public const string PhosphorBloom = "SR.PhosphorBloom";
     public const string PhosphorRowTint = "SR.PhosphorRowTint";
 
     // Chassis
@@ -39,7 +40,7 @@ public static class ThemeKeys
     public static IReadOnlyList<string> All { get; } =
     [
         PhosphorColor, PhosphorDimColor, PhosphorGlowColor, Phosphor, PhosphorDim, PhosphorGlow,
-        PhosphorHalo, PhosphorTextGlow, PhosphorStrongGlow, PhosphorRowTint,
+        PhosphorHalo, PhosphorTextGlow, PhosphorStrongGlow, PhosphorBloom, PhosphorRowTint,
         AbsColor, AbsHiColor, AbsLoColor, InkColor, Abs, AbsHi, AbsLo, Ink, InkSoft,
         LinePrinterInk, MarkerInk, SelectInk, ChassisSurface, KeyCap, BezelFill,
     ];

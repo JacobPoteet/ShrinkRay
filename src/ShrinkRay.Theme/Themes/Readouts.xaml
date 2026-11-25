@@ -127,6 +127,7 @@
         <Style.Triggers>
             <Trigger Property="Glow" Value="True">
                 <Setter Property="GlowEffect" Value="{DynamicResource SR.PhosphorStrongGlow}" />
+                <Setter Property="BloomEffect" Value="{DynamicResource SR.PhosphorBloom}" />
             </Trigger>
         </Style.Triggers>
     </Style>

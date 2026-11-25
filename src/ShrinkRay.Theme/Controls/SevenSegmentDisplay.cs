@@ -9,7 +9,7 @@ namespace ShrinkRay.Theme.Controls;
 /// <summary>
 /// A seven-segment readout, drawn rather than set in a font. Shows digits, space, '-', 'S',
 /// 'E', ':' and '.'. Unlit segments stay faintly visible, like real glass, and the digits lean
-/// 6 degrees. Lit segments are drawn on their own layer, so the glow comes from them alone.
+/// 6 degrees. Lit segments are drawn on their own layer, so the glow and bloom come from them alone.
 /// </summary>
 public class SevenSegmentDisplay : FrameworkElement
 {
@@ -45,7 +45,13 @@ public class SevenSegmentDisplay : FrameworkElement
         nameof(GlowEffect), typeof(Effect), typeof(SevenSegmentDisplay),
         new PropertyMetadata(null, (d, e) => ((SevenSegmentDisplay)d)._lit.Glow = (Effect?)e.NewValue));
 
+    public static readonly DependencyProperty BloomEffectProperty = DependencyProperty.Register(
+        nameof(BloomEffect), typeof(Effect), typeof(SevenSegmentDisplay),
+        new PropertyMetadata(null, (d, e) => ((SevenSegmentDisplay)d)._bloom.Glow = (Effect?)e.NewValue));
+
+    // The lit segments sit inside the bloom layer, so the wide halo is cast by the tight glow as well.
     private readonly LitLayer _lit = new();
+    private readonly BloomLayer _bloom = new();
 
     static SevenSegmentDisplay()
     {
@@ -54,7 +60,11 @@ public class SevenSegmentDisplay : FrameworkElement
         SnapsToDevicePixelsProperty.OverrideMetadata(typeof(SevenSegmentDisplay), new FrameworkPropertyMetadata(true));
     }
 
-    public SevenSegmentDisplay() => AddVisualChild(_lit);
+    public SevenSegmentDisplay()
+    {
+        _bloom.Children.Add(_lit);
+        AddVisualChild(_bloom);
+    }
 
     public string Text
     {
@@ -100,11 +110,18 @@ public class SevenSegmentDisplay : FrameworkElement
         set => SetValue(GlowProperty, value);
     }
 
-    /// <summary>The effect on the lit layer. The theme sets it when <see cref="Glow"/> is on.</summary>
+    /// <summary>The tight glow around the lit segments. The theme sets it when <see cref="Glow"/> is on.</summary>
     public Effect? GlowEffect
     {
         get => (Effect?)GetValue(GlowEffectProperty);
         set => SetValue(GlowEffectProperty, value);
+    }
+
+    /// <summary>The wide halo outside that glow, also set by the theme.</summary>
+    public Effect? BloomEffect
+    {
+        get => (Effect?)GetValue(BloomEffectProperty);
+        set => SetValue(BloomEffectProperty, value);
     }
 
     protected override int VisualChildrenCount => 1;
@@ -132,11 +149,11 @@ public class SevenSegmentDisplay : FrameworkElement
     }
 
     protected override Visual GetVisualChild(int index) =>
-        index == 0 ? _lit : throw new System.ArgumentOutOfRangeException(nameof(index));
+        index == 0 ? _bloom : throw new System.ArgumentOutOfRangeException(nameof(index));
 
     protected override void OnRender(DrawingContext dc)
     {
-        // Unlit segments go on the element itself and lit ones on the layer above, which carries the glow.
+        // Unlit segments go on the element itself and lit ones on the layer above, which carries the light.
         using var lit = _lit.RenderOpen();
         var cells = SevenSegmentMath.Layout(Text);
         if (cells.Count == 0)
@@ -223,8 +240,16 @@ public class SevenSegmentDisplay : FrameworkElement
         }
     }
 
-    /// <summary>The lit segments. <see cref="Visual"/> keeps its effect setter protected, hence the subclass.</summary>
+    /// <summary>The lit segments. <see cref="Visual"/> keeps its effect setter protected, hence the subclasses.</summary>
     private sealed class LitLayer : DrawingVisual
+    {
+        public Effect? Glow
+        {
+            set => VisualEffect = value;
+        }
+    }
+
+    private sealed class BloomLayer : ContainerVisual
     {
         public Effect? Glow
         {

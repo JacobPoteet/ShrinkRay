@@ -209,7 +209,7 @@
                         <ContentControl.RenderTransform>
                             <SkewTransform AngleX="-6" />
                         </ContentControl.RenderTransform>
-                        <sr:SevenSegmentDisplay Text="041.3" DigitHeight="50" Spacing="4" Skew="0" />
+                        <sr:SevenSegmentDisplay Text="041.3" DigitHeight="50" Spacing="4" Skew="0" Glow="True" />
                     </ContentControl>
                     <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
                                Text="Seven-segment digits are drawn, not a font. Unlit segments stay faintly visible, like real glass." />
@@ -367,13 +367,13 @@
                         </Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource SR.Plate}" Padding="12,8">
                             <StackPanel>
-                                <sr:SevenSegmentDisplay x:Name="TapeTime" DigitHeight="30" Spacing="3" Text="00:00" />
+                                <sr:SevenSegmentDisplay x:Name="TapeTime" DigitHeight="30" Spacing="3" Text="00:00" Glow="True" />
                                 <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Text="Tape time" Margin="0,8,0,0" />
                             </StackPanel>
                         </ContentControl>
                         <ContentControl Grid.Column="2" Style="{StaticResource SR.Plate}" Padding="12,8">
                             <StackPanel>
-                                <sr:SevenSegmentDisplay x:Name="Percent" DigitHeight="30" Spacing="3" Text=" 0.0" />
+                                <sr:SevenSegmentDisplay x:Name="Percent" DigitHeight="30" Spacing="3" Text=" 0.0" Glow="True" />
                                 <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Text="Percent" Margin="0,8,0,0" />
                             </StackPanel>
                         </ContentControl>

@@ -598,7 +598,7 @@
                                 </Button>
                                 <ContentControl Style="{StaticResource SR.Plate}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
                                                 AutomationProperties.Name="Window opens">
-                                    <sr:SevenSegmentDisplay Text="{Binding WindowStartText}" DigitHeight="18" Spacing="2"
+                                    <sr:SevenSegmentDisplay Text="{Binding WindowStartText}" DigitHeight="18" Spacing="2" Glow="True"
                                                             AutomationProperties.Name="{Binding WindowStartText}" />
                                 </ContentControl>
                                 <Button Style="{StaticResource StepKey}" Command="{Binding WindowStartLaterCommand}"
@@ -612,7 +612,7 @@
                                 </Button>
                                 <ContentControl Style="{StaticResource SR.Plate}" Padding="10,6" Margin="6,0" VerticalAlignment="Center"
                                                 AutomationProperties.Name="Window closes">
-                                    <sr:SevenSegmentDisplay Text="{Binding WindowEndText}" DigitHeight="18" Spacing="2"
+                                    <sr:SevenSegmentDisplay Text="{Binding WindowEndText}" DigitHeight="18" Spacing="2" Glow="True"
                                                             AutomationProperties.Name="{Binding WindowEndText}" />
                                 </ContentControl>
                                 <Button Style="{StaticResource StepKey}" Command="{Binding WindowEndLaterCommand}"
