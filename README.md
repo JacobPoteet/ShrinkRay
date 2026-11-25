@@ -2,7 +2,7 @@
 
 A Windows desktop app that re-encodes a Plex TV library from H.264 to H.265 on an NVIDIA GPU. It writes each new file back under the original filename, so Plex keeps your metadata and watch history.
 
-The [project page](https://jacobpoteet.github.io/ShrinkRay/) shows the deck, the quality test behind the default setting, and the design. Its source is in `docs/`.
+The [project page](https://jacobpoteet.github.io/ShrinkRay/) shows the deck at work, the system design, the crash-safe swap, the quality test behind the default setting, and the design. Its source is in `docs/`.
 
 Status: in development. The main deck works end to end on a test library; there is no installer or release yet. Run it from source:
 

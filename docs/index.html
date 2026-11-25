@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ShrinkRay: re-encode a Plex TV library to HEVC, one show at a time</title>
-  <meta name="description" content="ShrinkRay re-encodes the H.264 shows in a Plex TV library to HEVC with HandBrakeCLI and NVENC, then swaps each new file in under its original name through a crash-safe journal.">
+  <title>ShrinkRay: batch H.264 to H.265 video compressor</title>
+  <meta name="description" content="ShrinkRay batch-compresses video from H.264 to H.265 with HandBrakeCLI and NVIDIA NVENC. It verifies every file and swaps it in under its original name through a crash-safe journal.">
   <meta property="og:title" content="ShrinkRay">
-  <meta property="og:description" content="Re-encode a Plex TV library to HEVC one show at a time. Every filename stays, and no original goes until its new file passes every check.">
+  <meta property="og:description" content="Batch video compression that checks its work. A TV library of 878 GB came back as 308 GB.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://jacobpoteet.github.io/ShrinkRay/img/app/deck-encoding-amber-beige.webp">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23262421'/%3E%3Cpath d='M7 25 12 7h3l-5 18zm5 0 5-18h3l-5 18zm5 0 5-18h3l-5 18z' fill='%23F0B43C'/%3E%3C/svg%3E">
   <link rel="preload" href="fonts/BarlowCondensed-Medium.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="preload" href="fonts/Michroma-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="fonts/scientifica.ttf" as="font" type="font/ttf" crossorigin>
   <style>
     /* The theme's own fonts, with their licenses beside them in fonts/. */
     @font-face { font-family: "Michroma"; src: url("fonts/Michroma-Regular.ttf") format("truetype"); font-display: swap; }
@@ -26,8 +26,8 @@
     /*
       Tokens copied from ShrinkRay.Theme (Tokens.xaml, ChassisPalette, PhosphorPalette).
       The page is the chassis: beige in light mode, graphite in dark mode, or whatever the
-      visitor picks in the hero. Phosphor is the only light: it colors screens and readouts only.
-      Signal red marks the delete step in the swap diagram and nothing else.
+      visitor picks. Phosphor is the only light: it glows on screens, digits and live readouts.
+      Signal red marks Encode and the delete step, and nothing else.
     */
     :root {
       --abs: #D8CFBB; --abs-hi: #E9E2D1; --abs-lo: #B4A98F;
@@ -37,12 +37,13 @@
       --code-bg: #262421;
       color-scheme: light;
 
-      --plate: #262421; --board: #2A2824; --crt: #0D0A05; --silk-light: #CFC4AB;
+      --plate: #262421; --crt: #0D0A05; --silk-light: #CFC4AB;
       --cream: #EFE7D4; --jcard-rule: #D8CEB8; --paper-ink: #3B352A; --paper-ink-soft: #5B5344; --marker: #1F3B73;
       --red-top: #E3603F; --red-bot: #B8381F; --red-side: #7A2414; --red-ink: #FFF1E4;
       --lamp-green: #A6D651; --lamp-off: #3A3226;
       --stripe1: #F0B43C; --stripe2: #E2862F; --stripe3: #CF5A2A; --stripe4: #A73A22;
       --dymo: #1B1B1B; --dymo-ink: #F1EDE4;
+      --tape: #3A281A;
 
       --ph: #FFB000; --ph-dim: #3A2806; --ph-glow: rgba(255, 176, 0, .55); --ph-tint: rgba(255, 176, 0, .28);
 
@@ -50,6 +51,7 @@
       --wordmark: "Michroma", "Eurostile", sans-serif;
       --pixel: "scientifica", ui-monospace, monospace;
       --typed: "Special Elite", "Courier New", monospace;
+      --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
       --wrap: 1180px;
       --gutter: clamp(16px, 4vw, 40px);
     }
@@ -59,7 +61,6 @@
         --ink: #E4DDCC; --ink-soft: #D8D2C4; --marker-ink: #A9BFF0;
         --groove-dark: rgba(0, 0, 0, .38); --groove-light: rgba(255, 255, 255, .07);
         --key-top: #67635C; --key-bot: #55514B; --key-side: #2E2B28; --key-ink: #E4DDCC;
-        --code-bg: #262421;
         color-scheme: dark;
       }
     }
@@ -68,7 +69,6 @@
       --ink: #E4DDCC; --ink-soft: #D8D2C4; --marker-ink: #A9BFF0;
       --groove-dark: rgba(0, 0, 0, .38); --groove-light: rgba(255, 255, 255, .07);
       --key-top: #67635C; --key-bot: #55514B; --key-side: #2E2B28; --key-ink: #E4DDCC;
-      --code-bg: #262421;
       color-scheme: dark;
     }
     :root[data-phosphor="green"] { --ph: #4DFF8F; --ph-dim: #0C3A1F; --ph-glow: rgba(77, 255, 143, .5); --ph-tint: rgba(77, 255, 143, .26); }
@@ -85,35 +85,26 @@
       color: var(--ink);
       font: 500 1.2rem/1.5 var(--silk);
       text-rendering: optimizeLegibility;
+      overflow-x: hidden;
     }
     img { max-width: 100%; height: auto; display: block; }
     a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
     a:hover { text-decoration-thickness: 2px; }
     p { margin: 0 0 .8em; max-width: 64ch; }
-    strong { font-weight: 700; }
-    code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .82em; }
+    code { font-family: var(--mono); font-size: .82em; }
     .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gutter); }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-    /* Keyboard focus: ink on the chassis, phosphor on dark plates. */
     :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
     .plate :focus-visible, .crt :focus-visible { outline-color: var(--ph); }
 
     /* Silkscreen: uppercase Barlow Condensed, tracked +18%. */
     .silk { font: 600 .8rem/1.2 var(--silk); letter-spacing: .18em; text-transform: uppercase; }
     .silk-soft { color: var(--ink-soft); }
-
-    /* Section heading: Michroma, as the kit's panel headings. */
-    .heading {
-      font: 400 clamp(1.15rem, 2.6vw, 1.6rem)/1.3 var(--wordmark);
-      letter-spacing: .22em; text-transform: uppercase; margin: 0 0 1.1rem;
-    }
-    h3 { font: 700 1.5rem/1.15 var(--silk); margin: 0 0 .5rem; }
-    .lead { font-size: 1.4rem; line-height: 1.4; max-width: 46ch; }
-
-    /* A molded seam between modules. */
+    .heading { font: 400 clamp(1.15rem, 2.6vw, 1.6rem)/1.3 var(--wordmark); letter-spacing: .22em; text-transform: uppercase; margin: 0 0 .7rem; }
+    .lead { font-size: 1.35rem; line-height: 1.4; max-width: 52ch; margin-bottom: 1.2rem; }
     .seam { height: 0; border-top: 1px solid var(--groove-dark); border-bottom: 1px solid var(--groove-light); margin: 0; }
-    section.module { padding: clamp(48px, 8vw, 96px) 0; scroll-margin-top: 64px; }
+    section.module { padding: clamp(40px, 7vw, 80px) 0; scroll-margin-top: 64px; }
 
     /* ---- Header ---- */
     .top { position: sticky; top: 0; z-index: 20; background: var(--abs); border-bottom: 1px solid var(--groove-dark); box-shadow: 0 1px 0 var(--groove-light); }
@@ -121,10 +112,8 @@
     .nav { margin-left: auto; display: flex; gap: clamp(12px, 2.4vw, 28px); align-items: center; }
     .nav a { text-decoration: none; color: var(--ink-soft); }
     .nav a:hover { color: var(--ink); text-decoration: underline; }
-    @media (max-width: 720px) { .nav a.opt { display: none; } }
+    @media (max-width: 760px) { .nav a.opt { display: none; } }
     @media (max-width: 400px) { .nav a.gh { display: none; } }
-
-    /* The nameplate badge, as on the deck. */
     .badge {
       display: inline-flex; align-items: center; gap: 12px; text-decoration: none;
       background: linear-gradient(#3A3833, #22201D); color: #EFE7D4;
@@ -139,7 +128,7 @@
     .badge small { display: block; font: 600 .55rem/1 var(--silk); letter-spacing: .24em; color: var(--silk-light); margin-top: 4px; }
     @media (max-width: 420px) { .badge small { display: none; } }
 
-    /* ---- Keys: the deck's cream piano keys ---- */
+    /* ---- Keys, lamps, plates, CRT glass ---- */
     .key {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       min-height: 44px; padding: 0 18px; border-radius: 6px; cursor: pointer;
@@ -150,91 +139,228 @@
     }
     .key:hover { text-decoration: none; }
     .key:active, .key[aria-pressed="true"], .key[aria-checked="true"] { transform: translateY(3px); box-shadow: 0 1px 0 var(--key-side), 0 2px 3px rgba(0,0,0,.2); }
+    .key.red { color: var(--red-ink); background: linear-gradient(var(--red-top), var(--red-bot)); box-shadow: 0 4px 0 var(--red-side), 0 5px 8px rgba(0,0,0,.2); }
+    .key.red:active { box-shadow: 0 1px 0 var(--red-side); }
+    .key.red .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red-ink); }
     @media (prefers-reduced-motion: reduce) { .key { transition: none; } }
     .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--lamp-off); flex: none; box-shadow: inset 0 1px 1px rgba(0,0,0,.5); }
-    [aria-pressed="true"] > .lamp, [aria-checked="true"] > .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
+    [aria-pressed="true"] > .lamp, [aria-checked="true"] > .lamp, .lamp.on { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
     .lamp.ok { background: var(--lamp-green); box-shadow: 0 0 6px rgba(166, 214, 81, .6); }
     .keyrow { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; }
-
-    /* ---- Recessed plates and CRT glass ---- */
     .plate {
       background: var(--plate); color: var(--silk-light); border-radius: 10px; position: relative;
       box-shadow: inset 0 2px 6px rgba(0,0,0,.55), 0 1px 0 var(--groove-light);
     }
     .crt {
       background: radial-gradient(120% 140% at 50% 40%, #17120A, var(--crt));
-      border-radius: 14px; color: var(--ph);
+      border-radius: 12px; color: var(--ph);
       box-shadow: inset 0 0 0 2px #000, inset 0 0 28px rgba(0,0,0,.9);
     }
     .px { font: 400 22px/22px var(--pixel); color: var(--ph); text-shadow: 0 0 6px var(--ph-glow); -webkit-font-smoothing: none; font-smooth: never; }
-    .px.b { font-weight: 700; }
     .px .dim { color: var(--ph-dim); text-shadow: none; }
-
-    /* ---- Hero ---- */
-    .hero { padding-top: clamp(32px, 6vw, 72px); padding-bottom: clamp(40px, 6vw, 64px); }
-    .hero-head { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px clamp(32px, 5vw, 72px); align-items: end; }
-    @media (max-width: 900px) { .hero-head { grid-template-columns: minmax(0, 1fr); } }
-    .hero h1 { font: 600 clamp(2.5rem, 6.4vw, 5.2rem)/.96 var(--silk); letter-spacing: -.005em; margin: 0; max-width: 14ch; }
-    .hero .lead { margin-bottom: 26px; font-size: 1.3rem; }
-    .status { margin: 18px 0 0; display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
-    .bezel { margin-top: clamp(28px, 5vw, 52px); padding: clamp(8px, 1.6vw, 18px); }
-    .bezel a { display: block; border-radius: 4px; overflow: hidden; }
-    .bezel img { width: 100%; aspect-ratio: 16 / 10; background: var(--board); }
+    .crt .silk, .plate .silk { color: var(--silk-light); }
     .screw { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #F6F1E6, #8D8470); }
     .screw::after { content: ""; position: absolute; left: 2px; right: 2px; top: 4px; height: 2px; background: #5D5647; transform: rotate(-30deg); }
-    .screw.tl { top: 4px; left: 4px; } .screw.tr { top: 4px; right: 4px; } .screw.bl { bottom: 4px; left: 4px; } .screw.br { bottom: 4px; right: 4px; }
+    .screw.tl { top: 5px; left: 5px; } .screw.tr { top: 5px; right: 5px; } .screw.bl { bottom: 5px; left: 5px; } .screw.br { bottom: 5px; right: 5px; }
     @media (max-width: 600px) { .screw { display: none; } }
-    .switches { display: flex; flex-wrap: wrap; gap: 18px 40px; margin-top: 26px; align-items: flex-end; }
-    .switches fieldset { border: 0; padding: 0; margin: 0; }
-    .switches legend { padding: 0; margin-bottom: 10px; }
-    .switches .note { color: var(--ink-soft); font-size: 1.05rem; margin: 0; max-width: 34ch; }
+    .dymo {
+      display: inline-block; background: var(--dymo); color: var(--dymo-ink); padding: 7px 12px 6px; border-radius: 3px;
+      font: 700 .9rem/1 var(--silk); letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.25);
+    }
 
-    /* ---- Why ---- */
-    .why-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 64px); align-items: start; }
-    @media (max-width: 860px) { .why-grid { grid-template-columns: minmax(0, 1fr); } }
-    .counter { padding: 22px clamp(16px, 3vw, 28px) 24px; }
-    .counter .silk { color: var(--silk-light); }
-    .seg-row { display: flex; align-items: flex-end; gap: 14px; margin: 16px 0 20px; }
-    .seg { display: inline-flex; gap: 6px; transform: skewX(-6deg); filter: drop-shadow(0 0 6px var(--ph-glow)); }
-    .seg svg { height: clamp(56px, 11vw, 92px); width: auto; }
+    /* Seven-segment digits, as on the deck's tape counter. */
+    .seg { display: inline-flex; gap: 5px; transform: skewX(-6deg); filter: drop-shadow(0 0 6px var(--ph-glow)); align-items: flex-end; }
+    .seg svg { height: var(--seg-h, 56px); width: auto; display: block; }
     .seg .on { fill: var(--ph); }
     .seg .off { fill: var(--ph-dim); }
-    .seg-unit { font: 400 clamp(1.4rem, 3vw, 2rem)/1 var(--wordmark); color: var(--ph); text-shadow: 0 0 8px var(--ph-glow); padding-bottom: 6px; }
-    .bars { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 14px; align-items: center; }
-    .bar { height: 12px; background: #3A3632; border-radius: 2px; overflow: hidden; }
-    .bar i { display: block; height: 100%; background: var(--abs-lo); }
-    .bar.after i { background: var(--ph); box-shadow: 0 0 8px var(--ph-glow); }
-    .promise { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; }
-    .promise li { display: grid; grid-template-columns: 12px 1fr; gap: 14px; align-items: start; }
-    .promise .lamp { margin-top: 8px; }
-    .promise b { display: block; font-weight: 700; }
-    .promise span { color: var(--ink-soft); }
+    .unit { font: 400 clamp(1rem, 2.4vw, 1.5rem)/1 var(--wordmark); color: var(--ph); text-shadow: 0 0 8px var(--ph-glow); padding-bottom: 4px; }
+    .seg-row { display: flex; align-items: flex-end; gap: 12px; }
+    .unit.pct { font-family: var(--pixel); font-size: 26px; padding-bottom: 2px; }
 
-    /* ---- Comparison ---- */
-    .tapes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin: 26px 0 8px; }
+    /* ---- Hero ---- */
+    .hero { padding-top: clamp(28px, 5vw, 56px); padding-bottom: clamp(36px, 6vw, 64px); }
+    .hero-head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px clamp(28px, 5vw, 72px); align-items: end; margin-bottom: clamp(24px, 4vw, 40px); }
+    @media (max-width: 900px) { .hero-head { grid-template-columns: minmax(0, 1fr); } }
+    .hero .eyebrow { margin: 0 0 10px; color: var(--ink-soft); }
+    .hero h1 { font: 600 clamp(2.4rem, 6vw, 4.8rem)/.96 var(--silk); margin: 0; max-width: 14ch; }
+    .hero .lead { margin: 0; font-size: 1.25rem; }
+
+    .stage { display: grid; grid-template-rows: minmax(0, 1fr); align-items: center; justify-items: center; transition: height 1s cubic-bezier(.4, 0, .2, 1); }
+    .stage { overflow: clip; overflow-clip-margin: 30px; }
+    .stage.static { transition: none; overflow: visible; }
+    .layer { grid-area: 1 / 1; width: 100%; transition: opacity .8s ease, transform 1s cubic-bezier(.4, 0, .2, 1), visibility 0s linear 0s; }
+    .layer.hidden-deck { opacity: 0; transform: scale(.55); visibility: hidden; pointer-events: none; transition: opacity .7s ease, transform 1s cubic-bezier(.4, 0, .2, 1), visibility 0s linear 1s; }
+    .layer.hidden-lib { opacity: 0; transform: scale(1.35); visibility: hidden; pointer-events: none; transition: none; }
+    .stage.static { display: block; }
+    .stage.static .layer { transform: none; opacity: 1; visibility: visible; pointer-events: auto; transition: none; }
+    .stage.static .library { margin-top: 18px; }
+    @media (prefers-reduced-motion: reduce) { .layer { transition: none !important; } }
+
+    .deck { padding: clamp(10px, 1.8vw, 18px); background: var(--abs-hi); border-radius: 14px; position: relative; box-shadow: inset 0 1px 0 var(--groove-light), 0 0 0 1px var(--groove-dark), 0 10px 24px rgba(0,0,0,.18); }
+    .deck-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-bottom: clamp(10px, 1.6vw, 16px); }
+    .deck-head .state { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
+    .deck-head .vents { display: flex; gap: 3px; margin-left: 8px; }
+    .deck-head .vents i { width: 3px; height: 26px; background: var(--ink-soft); opacity: .8; }
+    @media (max-width: 700px) { .deck-head .vents { display: none; } }
+    .phases { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .phases li { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); }
+    .phases li:not(:last-child)::after { content: ">"; margin-left: 9px; opacity: .6; }
+    .phases li.now { color: var(--ink); }
+    .phases li.done .lamp { background: var(--lamp-green); box-shadow: 0 0 6px rgba(166, 214, 81, .6); }
+    .phases li.now .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
+    .deck-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 16px); }
+    @media (max-width: 760px) { .deck-grid { grid-template-columns: minmax(0, 1fr); } }
+    .cassette { padding: clamp(8px, 1.6vw, 14px); }
+    .cassette svg { width: 100%; height: auto; display: block; }
+    .cassette .lbl-title { font: 400 27px var(--typed); fill: var(--marker); }
+    .cassette .lbl-ep { font: 400 15px var(--typed); fill: var(--marker); }
+    .cassette .side { font: 700 11px var(--silk); letter-spacing: .16em; fill: var(--silk-light); }
+    .cassette .side.hevc { fill: var(--stripe2); }
+    .reel { transform-box: fill-box; transform-origin: center; }
+    .spin .reel { animation: reel var(--rev, 1s) linear infinite; }
+    .still .reel { animation: none; }
+    @keyframes reel { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .reel { animation: none !important; } }
+    .info { display: grid; gap: clamp(10px, 1.6vw, 16px); align-content: stretch; grid-template-rows: auto auto 1fr; }
+    .read { padding: 12px 16px 14px; }
+    .read .seg-row { margin-top: 8px; }
+    .read .silk { display: block; }
+    .pbar { height: 12px; margin-top: 12px; background: #2A2118; border-radius: 2px; overflow: hidden; }
+    .pbar i { display: block; height: 100%; width: 0; background: var(--ph); box-shadow: 0 0 8px var(--ph-glow); }
+    .screen { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; justify-content: center; min-height: 100px; }
+    .screen .px { white-space: nowrap; }
+    .deck-foot { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; margin-top: 22px; }
+    .deck-foot .sw { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-left: auto; }
+    .deck-foot fieldset { border: 0; padding: 0; margin: 0; display: flex; align-items: center; gap: 10px; }
+    .deck-foot legend { float: left; padding: 0; margin-right: 10px; color: var(--ink-soft); }
+    .key.sm { min-height: 38px; padding: 0 12px; font-size: .74rem; }
+    @media (max-width: 700px) { .deck-foot .sw { margin-left: 0; } }
+
+    .library { padding: clamp(14px, 3vw, 28px); background: var(--abs-hi); border-radius: 14px; box-shadow: inset 0 1px 0 var(--groove-light), 0 0 0 1px var(--groove-dark), 0 10px 24px rgba(0,0,0,.18); }
+    .library .crt { padding: clamp(14px, 2.4vw, 24px); }
+    .tally { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-end; --seg-h: clamp(48px, 9vw, 84px); }
+    .tally .part { display: flex; flex-direction: column; gap: 10px; }
+    .tally .eq { font: 400 clamp(1.6rem, 4vw, 3rem)/1 var(--wordmark); color: var(--ph); text-shadow: 0 0 8px var(--ph-glow); padding-bottom: 6px; }
+    .bars { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; margin-top: 18px; }
+    .bar { height: 12px; background: #2A2118; border-radius: 2px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: #6B5F48; }
+    .bar.after i { background: var(--ph); box-shadow: 0 0 8px var(--ph-glow); }
+    .cells { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 18px; }
+    .cells i { width: 7px; height: 7px; background: var(--ph-dim); border-radius: 1px; }
+    .cells i.on { background: var(--ph); }
+    .tag-line { margin: 14px 0 0; color: var(--silk-light); }
+
+    /* ---- System design ---- */
+    .arch { display: grid; gap: 0; }
+    .tier { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: stretch; }
+    .tier.apps { justify-content: center; gap: 0; align-items: center; }
+    .tier.apps .node { flex: 0 1 210px; }
+    .bridge { width: 48px; height: 2px; background: var(--ink-soft); flex: none; }
+    @media (max-width: 560px) { .bridge { display: none; } .tier.apps { gap: 12px; } }
+    .node {
+      all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 3px; justify-content: center;
+      min-height: 52px; padding: 8px 18px; border-radius: 6px; text-align: center;
+      color: var(--key-ink); background: linear-gradient(var(--key-top), var(--key-bot));
+      box-shadow: 0 4px 0 var(--key-side), 0 5px 8px rgba(0,0,0,.18);
+      font: 700 .95rem/1.1 var(--silk); letter-spacing: .14em; text-transform: uppercase;
+      transition: transform .06s, box-shadow .06s;
+    }
+    .node small { font: 500 .78rem/1.1 var(--silk); letter-spacing: .1em; opacity: .8; }
+    .node:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+    .plate .node:focus-visible { outline-color: var(--ph); }
+    .node[aria-pressed="true"] { transform: translateY(3px); box-shadow: 0 1px 0 var(--key-side), 0 2px 3px rgba(0,0,0,.2); outline: 2px solid var(--ph); outline-offset: 2px; }
+    .node[aria-pressed="true"]::before { content: ""; align-self: center; width: 28px; height: 3px; background: var(--ph); margin-bottom: 3px; }
+    .core, .ext { padding: 14px clamp(12px, 2vw, 20px) 18px; }
+    .core .cap, .ext .cap { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .core .cap button { all: unset; cursor: pointer; color: var(--silk-light); }
+    .core .cap button:focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+    .core .cap button[aria-pressed="true"] { color: var(--ph); }
+    .core .tier { justify-content: flex-start; }
+    .core .node { flex: 1 1 130px; }
+    .ext { border: 2px dashed var(--ink-soft); background: transparent; box-shadow: none; }
+    .ext .cap { color: var(--ink-soft); }
+    .ext .tier { justify-content: flex-start; }
+    .ext .node { flex: 1 1 150px; }
+    .join { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 14px 0; }
+    .join::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--ink-soft); }
+    .join > * { position: relative; }
+    .join .node { min-height: 0; padding: 7px 12px; flex-direction: row; background: var(--dymo); color: var(--dymo-ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.25); font-size: .85rem; transition: none; }
+    .join .node[aria-pressed="true"] { transform: none; outline-offset: 2px; }
+    .join .node[aria-pressed="true"]::before { display: none; }
+    .arch-read { margin-top: 22px; padding: 16px 20px; min-height: 5.6rem; }
+    .arch-read .silk { color: var(--silk-light); display: block; margin-bottom: 8px; }
+    .arch-read .px { display: block; white-space: normal; font-size: 22px; line-height: 26px; }
+    .uses { position: relative; }
+    .tier.apps .uses { flex: 0 1 auto; }
+
+    /* ---- Swap scrubber ---- */
+    .gate { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: stretch; margin: 6px 0 14px; }
+    .check {
+      all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 6px 14px;
+      border-radius: 6px; background: var(--abs-hi); color: var(--ink); font: 700 .8rem/1.1 var(--silk); letter-spacing: .14em; text-transform: uppercase;
+      box-shadow: inset 0 1px 0 var(--groove-light), 0 3px 0 var(--abs-lo);
+    }
+    .check small { display: block; font: 600 .66rem/1 var(--silk); letter-spacing: .16em; color: var(--ink-soft); margin-top: 3px; }
+    .check:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .check[aria-pressed="true"] .lamp { background: var(--lamp-off); box-shadow: inset 0 1px 1px rgba(0,0,0,.5); }
+    .check[aria-pressed="true"] { box-shadow: inset 0 2px 4px rgba(0,0,0,.25); }
+    .gate-status { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--ink-soft); }
+    .scrub { padding: clamp(14px, 2.4vw, 24px); }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 13px 4px; align-items: start; padding: 0; list-style: none; }
+    .steps li { text-align: center; padding: 0 4px; color: var(--silk-light); display: flex; flex-direction: column; gap: 5px; align-items: center; }
+    .steps li span.n { font: 700 .66rem/1 var(--silk); letter-spacing: .16em; color: #8F8670; }
+    .steps li b { font: 700 .85rem/1.15 var(--silk); letter-spacing: .12em; text-transform: uppercase; }
+    .steps li.del b { display: inline-block; margin: -5px 0; background: linear-gradient(var(--red-top), var(--red-bot)); color: var(--red-ink); padding: 5px 8px 4px; border-radius: 3px; }
+    .steps li code { font-size: .7rem; color: #B9AF98; overflow-wrap: anywhere; }
+    @media (max-width: 600px) { .steps li code { display: none; } pre { white-space: pre-wrap; word-break: break-all; } }
+    .slider { position: relative; margin: 8px 13px 18px; }
+    .slider::before { content: ""; position: absolute; left: 0; right: 0; top: 17px; height: 4px; border-radius: 2px; background: #3A3632; }
+    .ticks { position: absolute; left: 0; right: 0; top: 11px; height: 16px; pointer-events: none; }
+    .ticks i { position: absolute; top: 0; width: 2px; height: 16px; margin-left: -1px; background: #6B6558; }
+    .slider input { position: relative; width: calc(100% + 26px); height: 36px; margin: 0 0 0 -13px; background: transparent; -webkit-appearance: none; appearance: none; cursor: ew-resize; }
+    .slider input::-webkit-slider-runnable-track { height: 36px; background: transparent; }
+    .slider input::-moz-range-track { height: 36px; background: transparent; }
+    .slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 36px; border-radius: 5px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 0; box-shadow: 0 3px 0 var(--key-side); }
+    .slider input::-moz-range-thumb { width: 26px; height: 36px; border-radius: 5px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 0; box-shadow: 0 3px 0 var(--key-side); }
+    .slider input:focus-visible { outline: 2px solid var(--ph); outline-offset: 4px; }
+    .slider input:disabled { opacity: .4; cursor: not-allowed; }
+    .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 16px); }
+    @media (max-width: 760px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+    .pane { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 190px; }
+    .pane .silk { color: var(--silk-light); }
+    .files { display: grid; gap: 4px; }
+    .file { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+    .file .px { overflow-wrap: anywhere; line-height: 24px; }
+    .file .px.old { color: var(--silk-light); text-shadow: none; }
+    .file .codec { font: 600 .8rem/1 var(--silk); letter-spacing: .14em; color: #B9AF98; }
+    .file.gone .px { text-decoration: line-through; opacity: .5; }
+    .out { display: flex; align-items: center; gap: 8px; margin-top: auto; color: var(--silk-light); }
+    .rec-text { color: #E9E2D1; font-size: 1.1rem; line-height: 1.35; margin: 0; }
+    .fine { color: var(--ink-soft); font-size: 1.05rem; margin-top: 14px; max-width: 72ch; }
+
+    /* ---- Quality ---- */
+    .tapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 18px 0 8px; }
     .tape {
-      all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column;
+      all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; height: 100%;
       background: var(--cream); color: var(--paper-ink); border-radius: 4px; overflow: hidden;
-      box-shadow: 0 2px 0 rgba(0,0,0,.12), 0 6px 14px rgba(0,0,0,.12);
-      transition: transform .08s;
+      box-shadow: 0 2px 0 rgba(0,0,0,.12), 0 6px 14px rgba(0,0,0,.12); transition: transform .08s;
     }
     .tape:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-    .tape .face { display: block; padding: 12px 14px 10px; flex: 1; }
-    .tape .title, .tape .side, .tape .why, .tape .stripe { display: block; }
-    .tape .title { font: 400 1.35rem/1.1 var(--typed); color: var(--marker); }
-    .tape .side { font: 600 .68rem/1.3 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); margin: 6px 0 8px; }
-    .tape .why { font-size: 1rem; line-height: 1.35; color: var(--paper-ink); }
-    .tape .stripe { height: 10px; background: linear-gradient(var(--stripe3) 0 40%, transparent 40% 60%, var(--stripe4) 60%); }
-    .tape .chosen { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #E2D8C2; font: 600 .7rem/1 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .tape .face { display: block; padding: 10px 14px 8px; flex: 1; }
+    .tape .title, .tape .side, .tape .stripe { display: block; }
+    .tape .title { font: 400 1.25rem/1.1 var(--typed); color: var(--marker); }
+    .tape .side { font: 600 .66rem/1.3 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); margin: 6px 0 0; }
+    .tape .stripe { height: 9px; background: linear-gradient(var(--stripe3) 0 40%, transparent 40% 60%, var(--stripe4) 60%); }
+    .tape .chosen { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: #E2D8C2; font: 600 .68rem/1 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); }
     .tape .chosen .lamp { background: #B7AC93; box-shadow: none; }
     .tape[aria-checked="true"] { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--ink), 0 10px 18px rgba(0,0,0,.18); }
     .tape[aria-checked="true"] .chosen { color: var(--paper-ink); }
     .tape[aria-checked="true"] .chosen .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
     @media (prefers-reduced-motion: reduce) { .tape { transition: none; } }
-
-    .monitor { margin-top: 28px; padding: clamp(10px, 2vw, 18px); }
+    @media (max-width: 600px) { .tapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tape .title { font-size: 1.05rem; } .tape .chosen { padding: 7px 10px; letter-spacing: .1em; } }
+    .monitor { margin-top: 18px; padding: clamp(10px, 2vw, 18px); }
     .monitor-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding: 2px 4px 12px; }
-    .monitor-head .silk { color: var(--silk-light); }
     .wipe { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #000; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
     .wipe img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; max-width: none; }
     .wipe.zoomed img { transform: scale(2); image-rendering: pixelated; }
@@ -249,129 +375,23 @@
     .wipe:has(input:focus-visible) { outline: 2px solid var(--ph); outline-offset: 3px; }
     .wipe-controls { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; padding: 16px 4px 4px; }
     .wipe-controls .group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .wipe-controls .silk { color: var(--silk-light); }
     .readouts { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 14px 16px; margin-top: 14px; }
     .readouts div { display: flex; flex-direction: column; gap: 6px; }
-    .readouts .silk { color: var(--ph); opacity: .75; text-shadow: none; }
-    .hint { color: var(--ink-soft); font-size: 1.02rem; margin-top: 12px; }
-
-    /* The results table, printed on a J-card. */
+    .readouts .silk { color: var(--ph); opacity: .75; }
     .jcard { background: var(--cream); color: var(--paper-ink); border-radius: 6px; padding: 6px 0 2px; margin-top: 18px; overflow-x: auto; box-shadow: 0 2px 0 rgba(0,0,0,.1), 0 8px 18px rgba(0,0,0,.12); }
     .jcard table { border-collapse: collapse; width: 100%; min-width: 600px; }
-    .jcard th, .jcard td { padding: 11px 14px; text-align: right; border-bottom: 1px solid var(--jcard-rule); vertical-align: top; }
+    .jcard th, .jcard td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--jcard-rule); vertical-align: top; }
     .jcard th:first-child, .jcard td:first-child { text-align: left; }
     .jcard thead th { font: 600 .72rem/1.2 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); }
-    .jcard tbody tr:last-child td { border-bottom: 0; }
-    .jcard .clip { font: 400 1.15rem/1.2 var(--typed); color: var(--marker); }
+    .jcard tbody tr:last-child td, .jcard tbody tr:last-child th { border-bottom: 0; }
+    .jcard .clip { font: 400 1.1rem/1.2 var(--typed); color: var(--marker); }
     .jcard .clip small { display: block; font: 600 .66rem/1.4 var(--silk); letter-spacing: .14em; text-transform: uppercase; color: var(--paper-ink-soft); }
     .jcard .pct { font: 700 22px/22px var(--pixel); -webkit-font-smoothing: none; }
     .jcard .sub { display: block; font-size: .95rem; color: var(--paper-ink-soft); margin-top: 4px; white-space: nowrap; }
     .jcard .pick { background: var(--ph-tint); }
     .jcard thead .pick { color: var(--paper-ink); }
-    .fine { color: var(--ink-soft); font-size: 1rem; max-width: 72ch; margin-top: 12px; }
-
-    .texture { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
-    @media (max-width: 700px) { .texture { grid-template-columns: minmax(0, 1fr); } }
-    .tile { margin: 0; }
-    .tile .view { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 6px; background: #000; box-shadow: inset 0 0 0 1px rgba(0,0,0,.3); }
-    .tile img { position: absolute; width: 1920px; height: 1080px; max-width: none; image-rendering: pixelated; }
-    .tile figcaption { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; }
-
-    .decision { display: grid; grid-template-columns: auto 1fr; gap: 18px 28px; align-items: start; margin-top: 8px; }
-    @media (max-width: 640px) { .decision { grid-template-columns: minmax(0, 1fr); } .decision .dymo { justify-self: start; } }
-    .dymo {
-      display: inline-block; background: var(--dymo); color: var(--dymo-ink); padding: 8px 14px 7px; border-radius: 3px;
-      font: 700 1.1rem/1 var(--silk); letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.25);
-    }
-    .learned { list-style: none; padding: 0; margin: 22px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px 36px; }
-    .learned li { border-top: 1px solid var(--groove-dark); box-shadow: inset 0 1px 0 var(--groove-light); padding-top: 14px; }
-    .learned b { display: block; font-weight: 700; font-size: 1.25rem; line-height: 1.25; margin-bottom: 4px; }
-    .learned span { color: var(--ink-soft); }
-
-    /* ---- Safety ---- */
-    .safety-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 56px); align-items: start; }
-    @media (max-width: 920px) { .safety-grid { grid-template-columns: minmax(0, 1fr); } }
-    .diagram { padding: clamp(12px, 2vw, 20px); }
-    .diagram svg { width: 100%; height: auto; display: block; }
-    .diagram .scroll-hint { display: none; }
-    /* On a phone the diagram keeps a readable size and scrolls sideways. */
-    @media (max-width: 600px) {
-      .diagram .scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .diagram svg { width: 600px; max-width: none; }
-      .diagram .scroll-hint { display: block; margin: 10px 4px 0; color: var(--silk-light); }
-    }
-    .diagram .hd { font: 600 11px var(--silk); letter-spacing: .16em; fill: var(--silk-light); }
-    .diagram .state { font: 400 22px var(--pixel); fill: var(--ph); }
-    .diagram .step { font: 600 15px var(--silk); fill: #EFE7D4; }
-    .diagram .detail { font: 500 13px var(--silk); fill: #B9AF98; }
-    .diagram .file { font: 500 12.5px ui-monospace, "Cascadia Mono", Consolas, monospace; fill: #D9D2C1; }
-    .diagram .file.new { fill: var(--ph); }
-    .diagram .file.gone { fill: #8F8670; text-decoration: line-through; }
-    .diagram .rule { stroke: #3A3632; stroke-width: 1; }
-    .diagram .tick { fill: var(--ph); }
-    .diagram .spine { stroke: var(--ph-dim); stroke-width: 2; }
-    .diagram .band { fill: #2F2C28; }
-    .diagram .del { fill: url(#red); }
-    .diagram .del-ink { font: 700 12px var(--silk); letter-spacing: .14em; fill: var(--red-ink); }
-    .diagram .share-line { stroke: #8F8670; stroke-dasharray: 3 4; }
-    .checks { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 10px; }
-    .checks li { display: flex; gap: 12px; align-items: baseline; }
-    .checks .lamp { transform: translateY(1px); }
-    .recovery dt { font-weight: 700; margin-top: 12px; }
-    .recovery dd { margin: 2px 0 0; color: var(--ink-soft); }
 
     /* ---- Design ---- */
-    .design-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 64px); }
-    @media (max-width: 860px) { .design-intro { grid-template-columns: minmax(0, 1fr); } }
-    .sub-h { margin: clamp(48px, 7vw, 80px) 0 18px; }
-    .annotated { position: relative; padding: clamp(8px, 1.4vw, 14px); }
-    .annotated .shot { position: relative; }
-    .pin {
-      position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%;
-      display: grid; place-items: center; background: var(--dymo); color: var(--dymo-ink);
-      font: 700 .85rem/1 var(--silk); border: 2px solid var(--dymo-ink); box-shadow: 0 2px 6px rgba(0,0,0,.45);
-    }
-    @media (max-width: 600px) { .pin { width: 20px; height: 20px; margin: -10px 0 0 -10px; font-size: .7rem; border-width: 1px; } }
-    .map { list-style: none; counter-reset: pin; padding: 0; margin: 22px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px 30px; }
-    .map li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; }
-    .map li::before { counter-increment: pin; content: counter(pin); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--dymo); color: var(--dymo-ink); font: 700 .8rem/1 var(--silk); margin-top: 2px; }
-    .map b { display: block; }
-    .map span { color: var(--ink-soft); }
-
-    .rules { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-    .rules li { background: var(--abs-hi); border-radius: 8px; padding: 18px 18px 16px; box-shadow: 0 1px 0 var(--groove-light) inset, 0 3px 0 var(--abs-lo); }
-    .rules b { display: block; font-size: 1.3rem; line-height: 1.2; margin-bottom: 6px; }
-    .rules span { color: var(--ink-soft); }
-    .rules .eg { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
-    .red-key { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 5px; background: linear-gradient(var(--red-top), var(--red-bot)); color: var(--red-ink); font: 700 .75rem/1 var(--silk); letter-spacing: .18em; box-shadow: 0 3px 0 var(--red-side); }
-    .red-key i { width: 10px; height: 10px; border-radius: 50%; background: var(--red-ink); }
-
-    .cuts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 48px); align-items: start; }
-    @media (max-width: 860px) { .cuts { grid-template-columns: minmax(0, 1fr); } }
-    .cutlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; }
-    .cutlist li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-    .cutlist .dymo { font-size: .72rem; padding: 6px 9px 5px; }
-    .cutlist b { font-size: 1.25rem; }
-    .cutlist li > span:last-child { flex-basis: 100%; color: var(--ink-soft); }
-    .shot-frame { padding: clamp(8px, 1.4vw, 12px); }
-    .shot-frame img { border-radius: 4px; }
-    .caption { color: var(--ink-soft); font-size: 1rem; margin-top: 10px; }
-
-    .specimens { display: grid; gap: 0; }
-    .specimen { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px 32px; padding: 22px 0; border-top: 1px solid var(--groove-dark); box-shadow: inset 0 1px 0 var(--groove-light); align-items: center; }
-    @media (max-width: 760px) { .specimen { grid-template-columns: minmax(0, 1fr); } }
-    .specimen .who b { display: block; font-size: 1.3rem; }
-    .specimen .who span { color: var(--ink-soft); font-size: 1rem; }
-    .specimen .what { min-width: 0; overflow-wrap: anywhere; }
-    .sp-wordmark { font: 400 clamp(1.8rem, 6vw, 3.6rem)/1.1 var(--wordmark); letter-spacing: .26em; }
-    .sp-silk { font: 600 clamp(1.1rem, 3vw, 1.6rem)/1.2 var(--silk); letter-spacing: .18em; text-transform: uppercase; }
-    .sp-crt { display: inline-block; padding: 14px 18px; max-width: 100%; overflow: hidden; white-space: nowrap; }
-    .sp-label { display: inline-block; background: var(--cream); padding: 10px 16px 0; border-radius: 3px; max-width: 100%; }
-    .sp-label span { display: block; font: 400 clamp(1.4rem, 4vw, 2rem)/1.2 var(--typed); color: var(--marker); padding-bottom: 8px; }
-    .sp-label i { display: block; height: 8px; margin: 0 -16px; background: linear-gradient(var(--stripe3) 0 40%, transparent 40% 60%, var(--stripe4) 60%); }
-    .specimen p { margin: 12px 0 0; color: var(--ink-soft); font-size: 1.05rem; }
-
     .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     @media (max-width: 640px) { .themes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     .theme-btn { all: unset; box-sizing: border-box; cursor: pointer; display: block; }
@@ -380,21 +400,17 @@
     .theme-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 6px; }
     .theme-btn[aria-pressed="true"] img { box-shadow: 0 0 0 3px var(--ink); }
     .theme-btn[aria-pressed="true"] .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
-
-    .process { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 32px; counter-reset: step; }
-    .process li { counter-increment: step; }
-    .process li::before { content: counter(step, decimal-leading-zero); display: block; font: 400 1.1rem/1 var(--wordmark); letter-spacing: .2em; margin-bottom: 10px; color: var(--ink-soft); }
-    .process b { display: block; font-size: 1.3rem; margin-bottom: 4px; }
-    .process span { color: var(--ink-soft); }
+    .shot-frame { padding: clamp(8px, 1.4vw, 12px); margin: 22px 0 0; }
+    .shot-frame img { border-radius: 4px; }
+    .caption { color: var(--ink-soft); font-size: 1rem; margin-top: 10px; }
 
     /* ---- Install ---- */
     .install-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 56px); align-items: start; }
     @media (max-width: 860px) { .install-grid { grid-template-columns: minmax(0, 1fr); } }
-    pre { margin: 14px 0 18px; padding: 16px 18px; border-radius: 8px; background: var(--code-bg); color: #E9E2D1; overflow-x: auto; font: 500 .95rem/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; box-shadow: inset 0 2px 6px rgba(0,0,0,.5); }
+    pre { margin: 0 0 18px; padding: 16px 18px; border-radius: 8px; background: var(--code-bg); color: #E9E2D1; overflow-x: auto; font: 500 .95rem/1.6 var(--mono); box-shadow: inset 0 2px 6px rgba(0,0,0,.5); }
     pre .c { color: #A89E87; }
     .needs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
     .needs li { display: flex; gap: 12px; align-items: baseline; }
-
     footer { padding: 36px 0 48px; color: var(--ink-soft); font-size: 1rem; }
     footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 32px; justify-content: space-between; }
     footer p { margin: 0; }
@@ -410,9 +426,9 @@
         <span><b>SHRINKRAY</b><small>SR-265 · HEVC transcoder unit</small></span>
       </a>
       <nav class="nav silk" aria-label="Sections">
-        <a class="opt" href="#why">Why</a>
-        <a class="opt" href="#comparison">Comparison</a>
-        <a class="opt" href="#safety">Safety</a>
+        <a class="opt" href="#system">System</a>
+        <a class="opt" href="#swap">Swap</a>
+        <a class="opt" href="#quality">Quality</a>
         <a class="opt" href="#design">Design</a>
         <a href="#install">Install</a>
         <a class="gh" href="https://github.com/JacobPoteet/ShrinkRay">GitHub</a>
@@ -423,92 +439,202 @@
   <main id="main">
     <div class="wrap hero" id="top">
       <div class="hero-head">
-        <h1>Shrink a Plex TV library to HEVC, one show at a time.</h1>
         <div>
-          <p class="lead">ShrinkRay re-encodes the H.264 shows you have already watched to H.265 on an NVIDIA card, then swaps each new file in under its original name. Plex keeps the metadata and the watch history. The original stays put until its replacement passes every check.</p>
-          <div class="keyrow">
-            <a class="key" href="#install">Install</a>
-            <a class="key" href="https://github.com/JacobPoteet/ShrinkRay">Source on GitHub</a>
+          <p class="eyebrow silk">Batch video compressor · H.264 to H.265</p>
+          <h1>Shrink a whole library overnight.</h1>
+        </div>
+        <p class="lead">ShrinkRay re-encodes video with HandBrakeCLI and NVIDIA NVENC, checks every result, and swaps it in under the original filename, so a media server keeps its metadata and watch history. TV libraries gain the most: hundreds of gigabytes come back.</p>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="layer deck-layer" id="deck-layer">
+          <div class="deck" role="img" aria-label="The ShrinkRay deck encoding one episode of Tears of Steel. A cassette turns while the phase lamps step through probe, encode, verify and swap. The episode shrinks from 1.8 gigabytes to 0.6 gigabytes.">
+            <i class="screw tl" aria-hidden="true"></i><i class="screw tr" aria-hidden="true"></i><i class="screw bl" aria-hidden="true"></i><i class="screw br" aria-hidden="true"></i>
+            <div class="deck-head" aria-hidden="true">
+              <span class="badge"><span class="stripes"><i></i><i></i><i></i><i></i></span><span><b>SHRINKRAY</b><small>SR-265 · HEVC transcoder unit</small></span></span>
+              <span class="vents"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <ol class="phases silk" id="phases">
+                <li data-i="0"><span class="lamp"></span>Probe</li>
+                <li data-i="1"><span class="lamp"></span>Encode</li>
+                <li data-i="2"><span class="lamp"></span>Verify</li>
+                <li data-i="3"><span class="lamp"></span>Swap</li>
+              </ol>
+              <span class="state silk"><span class="lamp" id="state-lamp"></span><span id="state-word">Idle</span></span>
+            </div>
+            <div class="deck-grid" aria-hidden="true">
+              <div class="plate cassette still" id="cassette">
+                <svg viewBox="0 0 560 300">
+                  <defs><linearGradient id="stripe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CF5A2A"/><stop offset=".45" stop-color="#CF5A2A"/><stop offset=".55" stop-color="#EFE7D4"/><stop offset=".6" stop-color="#A73A22"/><stop offset="1" stop-color="#A73A22"/></linearGradient></defs>
+                  <rect x="2" y="2" width="556" height="296" rx="12" fill="#1B1917"/>
+                  <rect x="40" y="14" width="480" height="64" fill="#EFE7D4"/>
+                  <rect x="40" y="68" width="480" height="10" fill="url(#stripe)"/>
+                  <text class="lbl-title" x="54" y="46" id="lbl-title">TEARS OF STEEL</text>
+                  <text class="lbl-ep" x="506" y="46" text-anchor="end">S01E04 · Celia</text>
+                  <rect x="20" y="92" width="520" height="176" rx="16" fill="#0C0B0A" stroke="#33302B" stroke-width="2"/>
+                  <path id="tape-l" d="" fill="none" stroke="#5A4630" stroke-width="2"/>
+                  <path id="tape-r" d="" fill="none" stroke="#5A4630" stroke-width="2"/>
+                  <circle cx="250" cy="258" r="6" fill="#8D8470"/><circle cx="310" cy="258" r="6" fill="#8D8470"/>
+                  <circle id="pack-l" cx="150" cy="180" r="60" fill="var(--tape)"/>
+                  <circle id="pack-r" cx="410" cy="180" r="40" fill="var(--tape)"/>
+                  <g transform="translate(150 180)"><g class="reel"><circle r="28" fill="#EFE7D4"/><circle cx="0" cy="-10" r="6" fill="#1B1917"/><circle cx="-9" cy="6" r="6" fill="#1B1917"/><circle cx="9" cy="6" r="6" fill="#1B1917"/></g></g>
+                  <g transform="translate(410 180)"><g class="reel"><circle r="28" fill="#EFE7D4"/><circle cx="0" cy="-10" r="6" fill="#1B1917"/><circle cx="-9" cy="6" r="6" fill="#1B1917"/><circle cx="9" cy="6" r="6" fill="#1B1917"/></g></g>
+                  <text class="side" x="36" y="256">H.264</text>
+                  <text class="side hevc" x="524" y="256" text-anchor="end">HEVC</text>
+                </svg>
+              </div>
+              <div class="info">
+                <div class="crt read">
+                  <span class="silk">Size</span>
+                  <div class="seg-row" style="--seg-h:54px"><span class="seg" id="seg-size" data-cells="2"></span><span class="unit">GB</span></div>
+                </div>
+                <div class="crt read">
+                  <span class="silk">Episode</span>
+                  <div class="seg-row" style="--seg-h:36px"><span class="seg" id="seg-pct" data-cells="3"></span><span class="unit pct">%</span></div>
+                  <div class="pbar"><i id="pbar"></i></div>
+                </div>
+                <div class="crt screen"><span class="px" id="line1"></span><span class="px" id="line2"></span></div>
+              </div>
+            </div>
           </div>
-          <p class="status silk"><span class="lamp ok" aria-hidden="true"></span>In development · Windows 10 and 11 · NVIDIA HEVC NVENC</p>
+        </div>
+
+        <div class="layer library hidden-lib" id="lib-layer">
+          <div class="crt" role="group" aria-label="Library total: 412 episodes, 570 gigabytes freed. 878 gigabytes before, 308 after.">
+            <span class="silk" aria-hidden="true">Library · all shows</span>
+            <div class="tally" aria-hidden="true" style="margin-top:12px">
+              <div class="part"><div class="seg-row"><span class="seg" id="seg-eps" data-cells="3"></span></div><span class="silk">Episodes</span></div>
+              <span class="eq">=</span>
+              <div class="part"><div class="seg-row"><span class="seg" id="seg-freed" data-cells="3"></span><span class="unit">GB</span></div><span class="silk">Freed</span></div>
+            </div>
+            <div class="bars" aria-hidden="true">
+              <span class="silk">Before</span><span class="bar"><i style="width:100%"></i></span><span class="px" id="gb-before">878 GB</span>
+              <span class="silk">After</span><span class="bar after"><i id="bar-after" style="width:100%"></i></span><span class="px" id="gb-after">878 GB</span>
+            </div>
+            <div class="cells" id="cells" aria-hidden="true"></div>
+          </div>
         </div>
       </div>
 
-      <div class="plate bezel">
-        <i class="screw tl" aria-hidden="true"></i><i class="screw tr" aria-hidden="true"></i><i class="screw bl" aria-hidden="true"></i><i class="screw br" aria-hidden="true"></i>
-        <a id="hero-link" href="img/app/deck-encoding-amber-beige.webp">
-          <img id="hero-deck" src="img/app/deck-encoding-amber-beige.webp" width="1440" height="900" fetchpriority="high"
-               alt="The ShrinkRay deck mid-encode. Tears of Steel is in the deck, episode S01E04 is 57 percent through at 166 frames per second, and 3 of its 12 episodes are already shrunk. The library monitor on the left lists seven shows left to shrink.">
-        </a>
-      </div>
-
-      <div class="switches">
-        <fieldset>
-          <legend class="silk">Phosphor</legend>
-          <div class="keyrow" data-switch="phosphor">
-            <button class="key" type="button" data-value="amber" aria-pressed="true"><span class="lamp" aria-hidden="true"></span>Amber</button>
-            <button class="key" type="button" data-value="green" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Green</button>
-            <button class="key" type="button" data-value="ice" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Ice</button>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend class="silk">Chassis</legend>
-          <div class="keyrow" data-switch="chassis">
-            <button class="key" type="button" data-value="beige" aria-pressed="true"><span class="lamp" aria-hidden="true"></span>Beige</button>
-            <button class="key" type="button" data-value="graphite" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Graphite</button>
-          </div>
-        </fieldset>
-        <p class="note">Each capture comes from the app itself. The switches change the deck and this page with it.</p>
+      <div class="deck-foot">
+        <button class="key red" type="button" id="again"><span class="dot" aria-hidden="true"></span>Encode again</button>
+        <div class="sw">
+          <fieldset>
+            <legend class="silk">Phosphor</legend>
+            <div class="keyrow" data-switch="phosphor">
+              <button class="key sm" type="button" data-value="amber" aria-pressed="true"><span class="lamp" aria-hidden="true"></span>Amber</button>
+              <button class="key sm" type="button" data-value="green" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Green</button>
+              <button class="key sm" type="button" data-value="ice" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Ice</button>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend class="silk">Chassis</legend>
+            <div class="keyrow" data-switch="chassis">
+              <button class="key sm" type="button" data-value="beige" aria-pressed="true"><span class="lamp" aria-hidden="true"></span>Beige</button>
+              <button class="key sm" type="button" data-value="graphite" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Graphite</button>
+            </div>
+          </fieldset>
+        </div>
       </div>
     </div>
 
     <hr class="seam">
 
-    <section class="module" id="why" aria-labelledby="why-h">
+    <section class="module" id="system" aria-labelledby="sys-h">
       <div class="wrap">
-        <h2 class="heading" id="why-h">Why it exists</h2>
-        <div class="why-grid">
-          <div>
-            <p class="lead">Jacob's Plex TV library sits on a Synology NAS, and most of it is H.264 from shows he has already watched. On his RTX 2070 SUPER, HEVC keeps those shows watchable and frees most of their space.</p>
-            <div class="plate counter" role="group" aria-label="Space reclaimed on four shows at CQ 28: about 570 gigabytes. 878 gigabytes before, about 308 after.">
-              <span class="silk" aria-hidden="true">Space reclaimed · four shows at CQ 28</span>
-              <div class="seg-row" aria-hidden="true">
-                <span class="seg" data-seg="570" data-cells="4"></span>
-                <span class="seg-unit">GB</span>
-              </div>
-              <div class="bars" aria-hidden="true">
-                <span class="silk">Before</span><span class="bar"><i style="width:100%"></i></span><span class="px">878</span>
-                <span class="silk">After</span><span class="bar after"><i style="width:35%"></i></span><span class="px">308</span>
-              </div>
+        <h2 class="heading" id="sys-h">System design</h2>
+        <p class="lead">Core is pure logic. Every process call and file operation sits behind an interface, so tests run on fakes. Select a part.</p>
+        <div class="arch" id="arch">
+          <div class="tier apps">
+            <button class="node" type="button" data-n="theme" aria-pressed="false">ShrinkRay.Theme<small>control kit</small></button>
+            <span class="bridge" aria-hidden="true"></span>
+            <button class="node" type="button" data-n="app" aria-pressed="false">ShrinkRay.App<small>MVVM deck</small></button>
+          </div>
+          <div class="join"><button class="node" type="button" data-n="services" aria-pressed="false">DeckServices</button></div>
+          <div class="plate core">
+            <div class="cap silk"><button type="button" data-n="core" aria-pressed="false">ShrinkRay.Core · the engine</button></div>
+            <div class="tier">
+              <button class="node" type="button" data-n="media" aria-pressed="false">Media<small>probe, eligibility</small></button>
+              <button class="node" type="button" data-n="encode" aria-pressed="false">Encode<small>HandBrake args</small></button>
+              <button class="node" type="button" data-n="verify" aria-pressed="false">Verification<small>pass or keep</small></button>
+              <button class="node" type="button" data-n="swap" aria-pressed="false">Swap<small>journal, recovery</small></button>
+              <button class="node" type="button" data-n="pipeline" aria-pressed="false">Pipeline<small>episode, queue</small></button>
+              <button class="node" type="button" data-n="library" aria-pressed="false">Library<small>scan, ledger</small></button>
             </div>
           </div>
-          <div>
-            <h3>It works on a live library, so it guards the delete.</h3>
-            <ul class="promise">
-              <li><span class="lamp ok" aria-hidden="true"></span><div><b>Same filename, same container.</b><span>An .mkv stays an .mkv under the name Plex already knows, so metadata and watch history carry over.</span></div></li>
-              <li><span class="lamp ok" aria-hidden="true"></span><div><b>Checked before it replaces anything.</b><span>Duration, stream counts, a full decode and at least 15% saved. Fail one and the original stays.</span></div></li>
-              <li><span class="lamp ok" aria-hidden="true"></span><div><b>Local work, then one swap.</b><span>Copies, encodes and checks happen in a local scratch folder. The share receives only a finished file.</span></div></li>
-              <li><span class="lamp ok" aria-hidden="true"></span><div><b>Old files go to the recycle bin.</b><span>The final delete lands in the NAS recycle bin, so you can still pull an original back.</span></div></li>
-            </ul>
+          <div class="join">
+            <button class="node" type="button" data-n="runner" aria-pressed="false">IProcessRunner</button>
+            <button class="node" type="button" data-n="iprobe" aria-pressed="false">IMediaProbe</button>
+            <button class="node" type="button" data-n="ifs" aria-pressed="false">IFileSystem</button>
+          </div>
+          <div class="ext">
+            <div class="cap silk"><span>External tools and the disk</span></div>
+            <div class="tier">
+              <button class="node" type="button" data-n="hb" aria-pressed="false">HandBrakeCLI<small>NVENC encode</small></button>
+              <button class="node" type="button" data-n="ffprobe" aria-pressed="false">ffprobe<small>scan, checks</small></button>
+              <button class="node" type="button" data-n="ffmpeg" aria-pressed="false">ffmpeg<small>decode check</small></button>
+              <button class="node" type="button" data-n="disk" aria-pressed="false">File system<small>library, scratch</small></button>
+            </div>
           </div>
         </div>
+        <div class="crt arch-read" aria-live="polite"><span class="silk" id="arch-name">ShrinkRay.Core</span><span class="px" id="arch-line"></span></div>
       </div>
     </section>
 
     <hr class="seam">
 
-    <section class="module" id="comparison" aria-labelledby="cmp-h">
+    <section class="module" id="swap" aria-labelledby="swap-h">
       <div class="wrap">
-        <h2 class="heading" id="cmp-h">How hard to squeeze</h2>
-        <p class="lead">NVENC's constant quality setting, CQ, decides the trade: lower numbers keep more detail and save less. A wrong default wastes space or spoils shows, so the default came from a test.</p>
-        <p>Jacob cut four 3-minute clips from mid-season episodes and encoded each at CQ 22, 25 and 28 with HandBrakeCLI 1.11.2 (<code>nvenc_h265_10bit</code>, preset slowest). Audio and subtitles were copied, so the sizes below are real file sizes. VMAF scored every third frame against the source.</p>
+        <h2 class="heading" id="swap-h">Crash-safe swap</h2>
+        <p class="lead">The journal writes each state to disk before the step runs. On startup, recovery reads the disk and settles whatever is left. Slide the crash.</p>
 
-        <h3 class="sub-h" style="margin-top:36px">The clips, and why each one</h3>
+        <div class="gate" role="group" aria-label="The five checks before the swap. Press one to make it fail.">
+          <button class="check" type="button" data-c="Duration" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Duration<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Streams" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Streams<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Full decode" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Full decode<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Captions" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Captions<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Min. savings" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Min. savings<small>PASS</small></span></button>
+          <span class="gate-status silk" aria-live="polite"><span class="lamp ok" id="gate-lamp" aria-hidden="true"></span><span id="gate-word">All pass: swap may start</span></span>
+        </div>
+
+        <div class="plate scrub">
+          <ol class="steps">
+            <li><span class="n">STEP 1</span><b>Copy to temp</b><code>name.shrinkray.tmp</code></li>
+            <li><span class="n">STEP 2</span><b>Original aside</b><code>name.shrinkray.bak</code></li>
+            <li><span class="n">STEP 3</span><b>Temp to name</b><code>name</code></li>
+            <li class="del"><span class="n">STEP 4</span><b>Delete backup</b><code>name.shrinkray.bak</code></li>
+          </ol>
+          <div class="slider">
+            <div class="ticks" aria-hidden="true"><i style="left:0"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:100%"></i></div>
+            <input type="range" id="crash" min="0" max="4" step="1" value="2" aria-label="Crash here: slide to choose when the crash happens">
+          </div>
+          <div class="panes">
+            <div class="crt pane">
+              <span class="silk" id="crash-at">Crash at</span>
+              <div class="files" id="files"></div>
+              <span class="silk" style="margin-top:auto">Journal, last entry · <span id="jlast" class="px"></span></span>
+            </div>
+            <div class="plate pane" style="box-shadow: inset 0 0 0 1px #3A3632">
+              <span class="silk">On startup, recovery</span>
+              <p class="rec-text" id="rec"></p>
+              <div class="out silk"><span class="lamp ok" id="out-lamp" aria-hidden="true"></span><span id="out-word"></span></div>
+            </div>
+          </div>
+        </div>
+        <p class="fine">CrashRecoveryTests kills the swap after every durable operation, and again during recovery.</p>
+      </div>
+    </section>
+
+    <hr class="seam">
+
+    <section class="module" id="quality" aria-labelledby="q-h">
+      <div class="wrap">
+        <h2 class="heading" id="q-h">Quality</h2>
+        <p class="lead">Four 3-minute clips from commercial TV, each encoded at CQ 22, 25 and 28 and scored with VMAF. Drag the line to compare.</p>
         <div class="tapes" id="tapes" role="radiogroup" aria-label="Test clip"></div>
 
         <div class="plate monitor">
           <div class="monitor-head">
-            <span class="silk" id="monitor-title">Monitor B · source against encode</span>
+            <span class="silk" id="monitor-title">Source against encode</span>
             <span class="silk" id="monitor-meta"></span>
           </div>
           <div class="wipe" id="wipe">
@@ -527,145 +653,10 @@
           </div>
           <div class="crt readouts" id="readouts" aria-live="polite"></div>
         </div>
-        <p class="hint">Drag across the frame, or focus it and use the arrow keys. The source sits on the left of the line and the encode on the right. Frames are 960 × 540 crops from the centre of each 1080p frame, shown 1:1.</p>
-        <noscript><p class="hint">The comparison needs JavaScript. The table below lists the same numbers.</p></noscript>
+        <noscript><p class="fine">The comparison needs JavaScript.</p></noscript>
 
-        <h3 class="sub-h">Size and quality</h3>
         <div class="jcard"><table id="results"><caption class="sr-only">File size saved and VMAF for each clip at each CQ. CQ 28 is the default.</caption><thead></thead><tbody></tbody></table></div>
-        <p class="fine">Saved is the clip's file size against the source clip, audio and subtitles included. VMAF runs from 0 to 100, and above about 93 a TV viewer can't tell the encode from the source. Low is the worst sampled frame. The highlighted column is the default.</p>
-
-        <h3 class="sub-h">At 2×, the cost is texture</h3>
-        <p>Zoomed in, CQ 28 smooths skin pores and background grain more than CQ 25. At 1:1 on a TV you have to hunt for it. No setting showed banding or blocking. These crops follow the clip picked above.</p>
-        <div class="texture" id="texture"></div>
-
-        <h3 class="sub-h">The decision</h3>
-        <div class="decision">
-          <span class="dymo">CQ 28 · default</span>
-          <div>
-            <p class="lead" style="max-width:52ch">Every clip shrank 60 to 70% at CQ 28 and kept a mean VMAF above 95. For a show you care about more, turn the quality knob on the deck; ShrinkRay saves it as a per-show override, such as CQ 25.</p>
-          </div>
-        </div>
-        <ul class="learned">
-          <li><b>Source bitrate predicts savings better than content does.</b><span>The 14 Mbps live-action clip saved the most at every setting. The 5 Mbps studio show saved the least.</span></li>
-          <li><b>CQ 22 barely pays on a modest source.</b><span>It saved 14 to 19% on the two leaner clips, right at the 15% line where ShrinkRay keeps the original. That rule earns its place.</span></li>
-          <li><b>Worst frames dip to VMAF 78 to 85 at CQ 28.</b><span>They sit on cuts and fades. If a show ever looks off, look there first.</span></li>
-          <li><b>CQ doesn't change speed.</b><span>All three settings ran at about 165 fps. A 30-minute episode takes about 4.5 minutes, and one night covers about 100 episodes.</span></li>
-          <li><b>HandBrake 1.11.2 keeps MKV font attachments.</b><span>The anime clip had 8 fonts before and 8 after, so the planned font-restore step became a fallback.</span></li>
-        </ul>
-      </div>
-    </section>
-
-    <hr class="seam">
-
-    <section class="module" id="safety" aria-labelledby="safe-h">
-      <div class="wrap">
-        <h2 class="heading" id="safe-h">How it keeps your library safe</h2>
-        <p class="lead">Each episode moves through a fixed order. A journal writes every state to disk before the step it names, and on startup, recovery reads the last entry and the disk to settle whatever a crash left.</p>
-        <div class="safety-grid" style="margin-top:28px">
-          <figure class="plate diagram" style="margin:0">
-            <div class="scroller" tabindex="0" role="group" aria-label="Swap diagram, scrolls sideways on small screens">
-            <svg viewBox="0 0 640 640" role="img" aria-labelledby="dia-t dia-d">
-              <title id="dia-t">The swap order and its journal</title>
-              <desc id="dia-d">Eight journal entries, each written before its step. CopiedToScratch: copy the episode to local scratch. Encoded: HandBrakeCLI with NVENC. FontsRestored: only if fonts went missing. Verified: duration, streams, full decode, HEVC, 15 percent saved. Nothing on the share changes during these four. UploadedTemp: copy the new file beside the original as ep.mkv.shrinkray.tmp. OriginalRenamedAside: rename the original to ep.mkv.shrinkray.bak. Swapped: rename the temp file to ep.mkv. OriginalDeleted: delete the backup into the NAS recycle bin.</desc>
-              <defs>
-                <linearGradient id="red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E3603F"/><stop offset="1" stop-color="#B8381F"/></linearGradient>
-              </defs>
-              <text class="hd" x="16" y="22">JOURNAL · WRITTEN FIRST</text>
-              <text class="hd" x="250" y="22">STEP</text>
-              <text class="hd" x="452" y="22">ON THE SHARE AFTER</text>
-              <line class="spine" x1="24" y1="44" x2="24" y2="608"/>
-              <!-- Local steps: the share does not change. -->
-              <rect class="band" x="440" y="40" width="190" height="276" rx="6"/>
-              <line class="share-line" x1="535" y1="96" x2="535" y2="270"/>
-              <text class="file" x="452" y="74">ep.mkv</text>
-              <text class="detail" x="452" y="296">untouched until here</text>
-
-              <g transform="translate(0,40)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">COPIED</text>
-                <text class="step" x="250" y="24">Copy to local scratch</text>
-                <text class="detail" x="250" y="42">nothing on the share changes</text>
-                <line class="rule" x1="40" y1="68" x2="430" y2="68"/>
-              </g>
-              <g transform="translate(0,110)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">ENCODED</text>
-                <text class="step" x="250" y="24">Encode with NVENC</text>
-                <text class="detail" x="250" y="42">HandBrakeCLI, HEVC 10-bit</text>
-                <line class="rule" x1="40" y1="68" x2="430" y2="68"/>
-              </g>
-              <g transform="translate(0,180)">
-                <circle class="tick" cx="24" cy="26" r="5" opacity=".5"/>
-                <text class="state" x="40" y="33" opacity=".6">FONTS</text>
-                <text class="step" x="250" y="24">Restore fonts</text>
-                <text class="detail" x="250" y="42">only if the encode dropped some</text>
-                <line class="rule" x1="40" y1="68" x2="430" y2="68"/>
-              </g>
-              <g transform="translate(0,250)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">VERIFIED</text>
-                <text class="step" x="250" y="24">Check the new file</text>
-                <text class="detail" x="250" y="42">fail any check: keep original</text>
-              </g>
-
-              <!-- Share steps. -->
-              <g transform="translate(0,330)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">UPLOADED</text>
-                <text class="step" x="250" y="24">Upload under a temp name</text>
-                <text class="file" x="452" y="22">ep.mkv</text>
-                <text class="file new" x="452" y="40">ep.mkv.shrinkray.tmp</text>
-                <line class="rule" x1="40" y1="68" x2="630" y2="68"/>
-              </g>
-              <g transform="translate(0,400)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">ASIDE</text>
-                <text class="step" x="250" y="24">Rename original aside</text>
-                <text class="file" x="452" y="22">ep.mkv.shrinkray.bak</text>
-                <text class="file new" x="452" y="40">ep.mkv.shrinkray.tmp</text>
-                <line class="rule" x1="40" y1="68" x2="630" y2="68"/>
-              </g>
-              <g transform="translate(0,470)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">SWAPPED</text>
-                <text class="step" x="250" y="24">Rename temp to ep.mkv</text>
-                <text class="file new" x="452" y="22">ep.mkv</text>
-                <text class="file" x="452" y="40">ep.mkv.shrinkray.bak</text>
-                <line class="rule" x1="40" y1="68" x2="630" y2="68"/>
-              </g>
-              <g transform="translate(0,540)">
-                <circle class="tick" cx="24" cy="26" r="5"/>
-                <text class="state" x="40" y="33">DELETED</text>
-                <rect class="del" x="246" y="6" width="176" height="28" rx="4"/>
-                <text class="del-ink" x="258" y="25">DELETE THE BACKUP</text>
-                <text class="detail" x="250" y="54">into the NAS recycle bin</text>
-                <text class="file new" x="452" y="22">ep.mkv</text>
-                <text class="detail" x="452" y="40">HEVC, same name</text>
-              </g>
-            </svg>
-            </div>
-            <figcaption class="silk scroll-hint">Swipe sideways to read the share column</figcaption>
-          </figure>
-          <div>
-            <h3>Verify before you trust</h3>
-            <ul class="checks">
-              <li><span class="lamp ok" aria-hidden="true"></span>Duration within a second of the original</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>The same number of video, audio and subtitle streams</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>A full decode with no errors</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>HEVC on the output</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>At least 15% smaller</li>
-            </ul>
-            <p>The first real episode failed the stream count. HandBrake had turned captions embedded in the video into an extra subtitle track, the check caught the mismatch, and the original never moved.</p>
-            <h3 style="margin-top:28px">After a crash</h3>
-            <dl class="recovery">
-              <dt>Before the upload</dt><dd>The share never changed. Recovery marks the episode and leaves the library alone.</dd>
-              <dt>Temp file uploaded</dt><dd>Recovery deletes the temp file. The original never moved.</dd>
-              <dt>Original renamed aside</dt><dd>If the new file already sits at the original name and passes its check, recovery finishes the swap. Otherwise it renames the original back.</dd>
-              <dt>Anything else</dt><dd>When the disk matches no known state, recovery reports it for review and changes nothing.</dd>
-            </dl>
-            <p style="margin-top:18px">The crash tests kill the swap after every durable step, and again during recovery. Pause suspends HandBrakeCLI mid-frame. Skip and Stop write a Cancelled entry, allowed only before the original is renamed, so a stopped episode stays queued for next time.</p>
-          </div>
-        </div>
+        <p class="fine">CQ 28 is the default: every clip shrank 60 to 70% with a mean VMAF above 95. Raise it per show on the deck.</p>
       </div>
     </section>
 
@@ -674,95 +665,13 @@
     <section class="module" id="design" aria-labelledby="des-h">
       <div class="wrap">
         <h2 class="heading" id="des-h">Design</h2>
-        <div class="design-intro">
-          <p class="lead">Cassette futurism: 1980s consumer hardware drawn as a working machine. Jacob picked it from several directions and said he would rather take it too far and pull back.</p>
-          <p>A tape deck fits the job. You load one show the way you load one cassette, the episodes become its track list, and the meters report numbers you would want during an overnight encode anyway. Each part on the panel maps to something the engine does.</p>
-        </div>
-
-        <h3 class="sub-h">The metaphor, part by part</h3>
-        <div class="plate annotated">
-          <div class="shot">
-            <img data-shot="deck-idle" src="img/app/deck-idle-amber-beige.webp" width="1440" height="900" loading="lazy"
-                 alt="The idle deck with Sintel loaded: the library monitor, the cassette, the J-card track list, the transport keys, two VU meters, the quality knob, the encode window dial and the space reclaimed counter. Numbered pins mark each part.">
-            <span class="pin" style="left:24.6%;top:35%" aria-hidden="true">1</span>
-            <span class="pin" style="left:49%;top:24%" aria-hidden="true">2</span>
-            <span class="pin" style="left:86%;top:53%" aria-hidden="true">3</span>
-            <span class="pin" style="left:30.4%;top:62.5%" aria-hidden="true">4</span>
-            <span class="pin" style="left:43.5%;top:71%" aria-hidden="true">5</span>
-            <span class="pin" style="left:62.6%;top:67%" aria-hidden="true">6</span>
-            <span class="pin" style="left:73.6%;top:65%" aria-hidden="true">7</span>
-            <span class="pin" style="left:26%;top:92%" aria-hidden="true">8</span>
-          </div>
-        </div>
-        <ol class="map">
-          <li><div><b>CRT monitor</b><span>The library, one line per show with H.264 left to shrink.</span></div></li>
-          <li><div><b>Cassette</b><span>The show in the deck. Its label gets typed the moment you load it.</span></div></li>
-          <li><div><b>J-card</b><span>The track list: every episode with its size and status.</span></div></li>
-          <li><div><b>Piano keys</b><span>The transport. Encode is the only red key.</span></div></li>
-          <li><div><b>VU meters</b><span>Output bitrate and NVENC load, both real readings.</span></div></li>
-          <li><div><b>Quality knob</b><span>CQ for the show in the deck, saved per show.</span></div></li>
-          <li><div><b>Encode window</b><span>The hours an episode may start, overnight by default.</span></div></li>
-          <li><div><b>Tape counter</b><span>Space reclaimed on this show, in gigabytes.</span></div></li>
-        </ol>
-
-        <h3 class="sub-h">House rules</h3>
-        <ul class="rules">
-          <li><b>Phosphor is the only light.</b><span>Screens, digits and live readouts glow. Chassis, keys and labels never do.</span></li>
-          <li><b>Red means encode or delete.</b><span>Signal red marks the Encode key and anything that deletes, and appears nowhere else, on this page included.</span><span class="eg" aria-hidden="true"><span class="red-key"><i></i>ENCODE</span></span></li>
-          <li><b>Every lamp pairs with a word.</b><span>A lamp never carries meaning by color alone, so each one sits next to its label.</span></li>
-          <li><b>Only real moving parts move.</b><span>Reels, needles, lamps and keys animate. Turn off animations in Windows and they hold still.</span></li>
-        </ul>
-
-        <h3 class="sub-h">What got pulled back</h3>
-        <div class="cuts">
-          <ul class="cutlist">
-            <li><span class="dymo">Cut</span><b>A shelf of finished shows</b><span>The deck handles one show at a time. A shelf of done work pulled attention away from it.</span></li>
-            <li><span class="dymo">Cut</span><b>A Lift Cover button guarding delete</b><span>Obnoxious by the tenth press. Replacing originals became a setting with a red tag that says so.</span></li>
-            <li><span class="dymo">Cut</span><b>An FPS scope</b><span>It pulled the eye from the tape deck. Frames per second stayed as a plain readout.</span></li>
-            <li><span class="dymo">Cut</span><b>A STATE column on the monitor</b><span>Shows with nothing left to do now hide, and one line at the bottom counts them.</span></li>
-          </ul>
-          <figure class="plate shot-frame" style="margin:0">
-            <img data-shot="deck-settings" src="img/app/deck-settings-amber-beige.webp" width="1440" height="900" loading="lazy"
-                 alt="The service panel open over the deck. Replace after checks pass is switched on, beside a red tag reading Deletes originals. Below it: fonts, encode window times, phosphor, chassis, and the library and scratch folders, D:\Media\TV and C:\ShrinkRay\Scratch.">
-            <figcaption class="caption">Where the Lift Cover went: one switch in the service panel, with signal red on the tag because it deletes.</figcaption>
-          </figure>
-        </div>
-
-        <h3 class="sub-h">Type</h3>
-        <div class="specimens">
-          <div class="specimen">
-            <div class="who"><b>Michroma</b><span>Wordmark, badge and headings</span></div>
-            <div class="what"><span class="sp-wordmark">SHRINKRAY</span></div>
-          </div>
-          <div class="specimen">
-            <div class="who"><b>Barlow Condensed</b><span>Silkscreen, and the text you are reading</span></div>
-            <div class="what"><span class="sp-silk">Tape magazine · track list</span><p>Silkscreen labels run uppercase at 600 or 700, tracked about +18%, as if printed on the panel.</p></div>
-          </div>
-          <div class="specimen">
-            <div class="who"><b>scientifica</b><span>Screens, readouts and printouts</span></div>
-            <div class="what"><span class="crt sp-crt"><span class="px">&gt; MEDIA/TV · 9 SHOWS_</span></span><p>A bitmap font drawn on an 11 px grid, set at exactly 22 px so each font pixel covers 2 × 2 screen pixels. Its G reads like a 6, so GB moved into the column headers.</p></div>
-          </div>
-          <div class="specimen">
-            <div class="who"><b>Special Elite</b><span>Typed tape labels</span></div>
-            <div class="what"><span class="sp-label"><span>SINTEL · S01E03</span><i></i></span><p>It replaced Permanent Marker, which read as Sharpie scrawl on a machine this tidy.</p></div>
-          </div>
-        </div>
-
-        <h3 class="sub-h">Themes</h3>
-        <p>Amber, green or ice phosphor on a beige or graphite chassis, all switching live in the app. Graphite needed its own printed inks: dark ink on dark plastic failed contrast, so the silkscreen lifts until it clears WCAG, and a unit test checks every ink on both chassis. Pick one to switch this page.</p>
+        <p class="lead">Cassette futurism, built as a working machine from one control kit. Pick a theme and the page follows.</p>
         <div class="themes" id="themes"></div>
-
-        <h3 class="sub-h">From boards to parts to the app</h3>
-        <ol class="process">
-          <li><b>Design boards</b><span>A canvas with boards for the main deck, the tray, a boot self-test, a pre-scan printout and the component kit.</span></li>
-          <li><b>A control kit</b><span>A WPF kit of reels, meters, keys, lamps and readouts, with its own gallery app to check every state.</span></li>
-          <li><b>The app</b><span>Built from those parts. Reel packs, needle angles, knob detents and segment shapes live in plain classes with unit tests.</span></li>
-        </ol>
-        <figure class="plate shot-frame" style="margin:24px 0 0">
+        <figure class="plate shot-frame">
           <img data-shot="kit" src="img/app/kit-amber-beige.webp" width="1802" height="1180" loading="lazy"
-               alt="The component gallery: panels for materials, house rules, type, controls, lamps and readouts, surface detail, instruments, reels as data, and a live deck with phosphor and chassis switches.">
+               alt="The component gallery: panels for materials, house rules, type, controls, lamps and readouts, surface detail, instruments, reels as data, and a live deck.">
         </figure>
-        <p class="caption">The component gallery, rendered from the kit. Run it with <code>dotnet run --project src/ShrinkRay.Gallery</code>.</p>
+        <p class="caption">The kit in ShrinkRay.Gallery, one window with every control.</p>
       </div>
     </section>
 
@@ -773,27 +682,19 @@
         <h2 class="heading" id="inst-h">Install</h2>
         <div class="install-grid">
           <div>
-            <h3>Today: build it from source</h3>
-            <p>ShrinkRay has no release yet. Clone the repository and run the install script. It publishes a Release build to your user profile and adds a Start menu shortcut. Run it again after you pull to pick up changes.</p>
 <pre><span class="c"># PowerShell</span>
 git clone https://github.com/JacobPoteet/ShrinkRay.git
 cd ShrinkRay
 powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
-            <p>The script refuses while ShrinkRay is running, since an encode may be mid-swap, and never touches your settings or the journal.</p>
-            <h3 style="margin-top:28px">At 1.0: a release</h3>
-            <p>Once 1.0 ships, a build will wait on the <a href="https://github.com/JacobPoteet/ShrinkRay/releases">releases page</a> and this section will link it.</p>
+            <p>Builds Release into your user profile and adds a Start menu shortcut. A packaged release arrives at 1.0.</p>
+            <div class="keyrow"><a class="key" href="https://github.com/JacobPoteet/ShrinkRay">Source on GitHub</a></div>
           </div>
-          <div>
-            <h3>You need</h3>
-            <ul class="needs">
-              <li><span class="lamp ok" aria-hidden="true"></span>Windows 10 or 11</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>An NVIDIA GPU with HEVC NVENC</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>The .NET 8 SDK or later, to build</li>
-              <li><span class="lamp ok" aria-hidden="true"></span>HandBrakeCLI and ffmpeg. A winget install of HandBrakeCLI works; ShrinkRay finds it in winget's package folder.</li>
-            </ul>
-            <h3 style="margin-top:28px">First run</h3>
-            <p>Choose a library folder, local or on a mapped share, and a local scratch folder. Load a show, check the estimate on the monitor, and press Encode.</p>
-          </div>
+          <ul class="needs">
+            <li><span class="lamp ok" aria-hidden="true"></span>Windows 10 or 11</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>An NVIDIA GPU with HEVC NVENC</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>HandBrakeCLI, ffmpeg and ffprobe</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>The .NET 8 SDK, to build</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -812,6 +713,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
     'use strict';
     var root = document.documentElement;
     var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var $ = function (id) { return document.getElementById(id); };
 
     // ---- Phosphor and chassis ----
     var store = {
@@ -830,10 +732,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       root.setAttribute('data-phosphor', state.phosphor);
       root.setAttribute('data-chassis', state.chassis);
       var pair = state.phosphor + '-' + state.chassis;
-      var hero = document.getElementById('hero-deck');
-      hero.src = 'img/app/deck-encoding-' + pair + '.webp';
-      document.getElementById('hero-link').href = hero.src;
-      // Idle, settings and kit captures exist in Amber on Beige and Green on Graphite.
+      // The kit capture exists in Amber on Beige and Green on Graphite.
       var two = state.chassis === 'graphite' ? 'green-graphite' : 'amber-beige';
       document.querySelectorAll('img[data-shot]').forEach(function (img) {
         img.src = 'img/app/' + img.getAttribute('data-shot') + '-' + two + '.webp';
@@ -846,40 +745,39 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
         b.setAttribute('aria-pressed', String(b.getAttribute('data-pair') === pair));
       });
     }
-    function setTheme(kind, value, remember) {
+    function setTheme(kind, value) {
       state[kind] = value;
-      if (remember) store.set('sr-' + kind, value);
+      store.set('sr-' + kind, value);
       applyTheme();
     }
     document.querySelectorAll('[data-switch] .key').forEach(function (b) {
-      b.addEventListener('click', function () { setTheme(b.parentNode.getAttribute('data-switch'), b.getAttribute('data-value'), true); });
+      b.addEventListener('click', function () { setTheme(b.parentNode.getAttribute('data-switch'), b.getAttribute('data-value')); });
     });
     darkQuery.addEventListener && darkQuery.addEventListener('change', function (e) {
-      if (!store.get('sr-chassis')) setTheme('chassis', e.matches ? 'graphite' : 'beige', false);
+      if (!store.get('sr-chassis')) { state.chassis = e.matches ? 'graphite' : 'beige'; applyTheme(); }
     });
-
-    var themes = document.getElementById('themes');
     PAIRS.forEach(function (p) {
       var b = document.createElement('button');
+      var label = NAMES[p[0]] + ' on ' + NAMES[p[1]];
       b.type = 'button';
       b.className = 'theme-btn';
       b.setAttribute('data-pair', p[0] + '-' + p[1]);
-      var label = NAMES[p[0]] + ' on ' + NAMES[p[1]];
+      b.setAttribute('aria-label', 'Switch the page to ' + label);
       b.innerHTML = '<img loading="lazy" width="1440" height="900" src="img/app/deck-encoding-' + p[0] + '-' + p[1] + '.webp" alt="">' +
         '<span class="silk"><span class="lamp" aria-hidden="true"></span>' + label + '</span>';
-      b.setAttribute('aria-label', 'Switch the page to ' + label);
       b.addEventListener('click', function () {
         state.phosphor = p[0]; state.chassis = p[1];
         store.set('sr-phosphor', p[0]); store.set('sr-chassis', p[1]);
         applyTheme();
       });
-      themes.appendChild(b);
+      $('themes').appendChild(b);
     });
     applyTheme();
 
     // ---- Seven-segment digits, drawn like the deck's tape counter ----
     var SEGS = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', ' ': '' };
     function digitSvg(ch) {
+      if (ch === '.') return '<svg viewBox="0 0 12 70" aria-hidden="true" style="width:.17em;width:calc(var(--seg-h) * .17)"><circle class="on" cx="6" cy="64" r="4.4"/></svg>';
       var w = 40, h = 70, t = 8, g = 1.6, L = t / 2, R = w - t / 2, T = t / 2, M = h / 2, B = h - t / 2, k = t / 2;
       function H(y, x1, x2) { return [x1, y, x1 + k, y - k, x2 - k, y - k, x2, y, x2 - k, y + k, x1 + k, y + k].join(' '); }
       function V(x, y1, y2) { return [x, y1, x + k, y1 + k, x + k, y2 - k, x, y2, x - k, y2 - k, x - k, y1 + k].join(' '); }
@@ -889,32 +787,194 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       'abcdefg'.split('').forEach(function (s) { out += '<polygon class="' + (lit.indexOf(s) >= 0 ? 'on' : 'off') + '" points="' + shape[s] + '"/>'; });
       return out + '</svg>';
     }
-    function drawSeg(el, value) {
-      var cells = +el.getAttribute('data-cells') || String(value).length;
-      var text = String(value);
-      while (text.length < cells) text = ' ' + text;
+    // Pads with blank cells on the left until the digit count equals data-cells.
+    function drawSeg(el, text) {
+      var cells = +el.getAttribute('data-cells') || 3;
+      text = String(text);
+      while (text.replace('.', '').length < cells) text = ' ' + text;
+      if (el.getAttribute('data-last') === text) return;
+      el.setAttribute('data-last', text);
       el.innerHTML = text.split('').map(digitSvg).join('');
     }
-    document.querySelectorAll('[data-seg]').forEach(function (el) {
-      var target = +el.getAttribute('data-seg');
-      if (reduceMotion || !('IntersectionObserver' in window)) { drawSeg(el, target); return; }
-      drawSeg(el, 0);
-      // A tape counter rolls; it runs up once when it comes into view.
-      var io = new IntersectionObserver(function (entries) {
-        if (!entries[0].isIntersecting) return;
-        io.disconnect();
-        var start = performance.now(), dur = 1400;
-        (function frame(now) {
-          var p = Math.min(1, (now - start) / dur);
-          drawSeg(el, Math.round(target * (1 - Math.pow(1 - p, 3))));
-          if (p < 1) requestAnimationFrame(frame);
-        })(start);
-      }, { threshold: .6 });
-      io.observe(el);
-    });
 
-    // ---- The CQ comparison. Everything comes from cq/results.json, so a new
-    // clip set only means new frames in cq/<id>/ and a new results.json. ----
+    // ---- Hero: the deck runs one episode, then the library total ----
+    var T = { probe: 1200, encode: 5800, verify: 7200, swap: 8400, hold: 9600, lib: 11800 };
+    var LINES = [
+      ['> PROBE  H.264 1080P', '  1.8 GB · 43 MIN'],
+      ['> ENCODE  HEVC 10-BIT', '  CQ 28 · 166 FPS'],
+      ['> VERIFY  5 CHECKS', '  FULL DECODE'],
+      ['> SWAP  RENAME OVER', '  ORIGINAL, SAME NAME'],
+      ['> DONE  -67%', '  1.8 GB TO 0.6 GB']
+    ];
+    var STATE_WORDS = ['Probing', 'Encoding', 'Verifying', 'Swapping', 'Done'];
+    var ease = function (x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); };
+    var cassette = $('cassette'), stage = $('stage'), deckLayer = $('deck-layer'), libLayer = $('lib-layer');
+    var packL = $('pack-l'), packR = $('pack-r');
+    var phaseEls = document.querySelectorAll('#phases li');
+    var TITLE = 'TEARS OF STEEL';
+    var cellHost = $('cells'), cellEls = [], lit = 0;
+    for (var ci = 0; ci < 412; ci++) { var c = document.createElement('i'); cellHost.appendChild(c); cellEls.push(c); }
+
+    function tapePath(cx, r, flip) {
+      // Tape leaves the pack's lower edge and runs to the post under it.
+      var px = flip ? 310 : 250, x0 = cx + (flip ? -r * .55 : r * .55), y0 = 180 + r * .83;
+      return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' L' + px + ' 252';
+    }
+    function setLibrary(q) {
+      drawSeg($('seg-eps'), String(Math.round(412 * q)));
+      drawSeg($('seg-freed'), String(Math.round(570 * q)));
+      var after = Math.round(878 - 570 * q);
+      $('gb-before').textContent = '878 GB';
+      $('gb-after').textContent = after + ' GB';
+      $('bar-after').style.width = (after / 878 * 100) + '%';
+      var n = Math.round(412 * q);
+      while (lit < n) cellEls[lit++].className = 'on';
+      while (lit > n) cellEls[--lit].className = '';
+    }
+    // The stage is as tall as the layer in view, so the page below follows the zoom out.
+    var inLib = null;
+    function fitStage(toLib) {
+      if (stage.classList.contains('static')) { stage.style.height = ''; return; }
+      inLib = toLib;
+      stage.style.height = (toLib ? libLayer : deckLayer).offsetHeight + 'px';
+    }
+    window.addEventListener('resize', function () { if (inLib !== null) fitStage(inLib); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (inLib !== null) fitStage(inLib); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { if (inLib !== null) fitStage(inLib); });
+      ro.observe(deckLayer); ro.observe(libLayer);
+    }
+    function render(t) {
+      var phase = t < T.probe ? 0 : t < T.encode ? 1 : t < T.verify ? 2 : t < T.swap ? 3 : 4;
+      var p = t < T.probe ? 0 : t < T.encode ? ease((t - T.probe) / (T.encode - T.probe)) : 1;
+      var size = 1.8 - 1.2 * p;
+      phaseEls.forEach(function (li, i) {
+        li.className = i < phase ? 'done' : i === phase ? 'now' : '';
+      });
+      var running = phase < 4;
+      $('state-lamp').className = 'lamp' + (running ? ' on' : ' ok');
+      $('state-word').textContent = STATE_WORDS[phase];
+      drawSeg($('seg-size'), size.toFixed(1));
+      drawSeg($('seg-pct'), String(Math.round(p * 100)));
+      $('pbar').style.width = (p * 100) + '%';
+      $('line1').textContent = LINES[phase][0];
+      $('line2').textContent = LINES[phase][1];
+      // Reels: the source reel unwinds as the output reel fills.
+      var rl = 34 + 28 * (size / 1.8), rr = 34 + 18 * p;
+      packL.setAttribute('r', rl.toFixed(1)); packR.setAttribute('r', rr.toFixed(1));
+      $('tape-l').setAttribute('d', tapePath(150, rl, false));
+      $('tape-r').setAttribute('d', tapePath(410, rr, true));
+      cassette.className = 'plate cassette ' + (phase === 1 || phase === 2 ? 'spin' : 'still');
+      cassette.style.setProperty('--rev', phase === 1 ? '.8s' : '2.2s');
+      var n = t < 700 ? Math.ceil(TITLE.length * t / 700) : TITLE.length;
+      $('lbl-title').textContent = TITLE.slice(0, n);
+      // Zoom out to the library total.
+      var toLib = t >= T.hold;
+      fitStage(toLib);
+      deckLayer.classList.toggle('hidden-deck', toLib && !stage.classList.contains('static'));
+      libLayer.classList.toggle('hidden-lib', !toLib && !stage.classList.contains('static'));
+      setLibrary(ease((t - T.hold - 500) / (T.lib - T.hold - 500)));
+    }
+
+    var raf = 0;
+    function play() {
+      cancelAnimationFrame(raf);
+      var start = performance.now();
+      (function frame(now) {
+        var t = now - start;
+        render(t);
+        if (t < T.lib) raf = requestAnimationFrame(frame);
+      })(start);
+    }
+    var seek = /[?&]t=(\d+)/.exec(location.search);
+    if (reduceMotion || seek) {
+      if (reduceMotion) { stage.classList.add('static'); $('again').hidden = true; }
+      if (seek && !reduceMotion) { /* frozen frame for checks */ }
+      render(reduceMotion ? T.lib : +seek[1]);
+    } else {
+      play();
+    }
+    $('again').addEventListener('click', play);
+
+    // ---- System design diagram ----
+    var NODES = {
+      app: ['ShrinkRay.App', 'The WPF deck. MainViewModel holds the state and reaches the engine only through DeckServices.'],
+      theme: ['ShrinkRay.Theme', 'The control kit: reels, keys, meters, lamps. Geometry lives in plain classes with unit tests.'],
+      services: ['DeckServices', 'The one seam between deck and engine. Tests hand it an in-memory library and a scripted runner.'],
+      core: ['ShrinkRay.Core', 'The engine. Logic stays pure, and every process call and file operation sits behind an interface.'],
+      media: ['Core / Media', 'Parses ffprobe output and applies the eligibility rules: is it H.264, and is it worth encoding.'],
+      encode: ['Core / Encode', 'Plans the HandBrakeCLI arguments and audio, and parses its progress.'],
+      verify: ['Core / Verification', 'Decides one of three outcomes for a new file: pass, keep the original, or fail with reasons.'],
+      swap: ['Core / Swap', 'The journal state machine, the executor and startup recovery. Crash tests cover each step.'],
+      pipeline: ['Core / Pipeline', 'Runs one episode from probe to swap, and a queue that runs a show’s episodes one at a time.'],
+      library: ['Core / Library', 'Scans a show, caches probes, estimates savings and keeps the ledger of space freed.'],
+      runner: ['IProcessRunner', 'Every external process starts here. Tests swap in a fake that never launches a tool.'],
+      iprobe: ['IMediaProbe', 'Reads streams, duration and captions. Tests feed it synthetic ffprobe JSON.'],
+      ifs: ['IFileSystem', 'Every copy, rename and delete in the swap goes through it, so crash tests can stop after each one.'],
+      hb: ['HandBrakeCLI + NVENC', 'Does the encode, H.264 to H.265 on the GPU, in a local scratch folder.'],
+      ffprobe: ['ffprobe', 'Scans each file and re-reads the output for the checks.'],
+      ffmpeg: ['ffmpeg', 'Runs the full-decode check and copies MKV font attachments back when an encode drops them.'],
+      disk: ['File system', 'The library is touched only by the final rename. Scratch is local.']
+    };
+    var arch = $('arch');
+    function pick(id) {
+      arch.querySelectorAll('[data-n]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-n') === id)); });
+      $('arch-name').textContent = NODES[id][0];
+      $('arch-line').textContent = NODES[id][1];
+    }
+    arch.querySelectorAll('[data-n]').forEach(function (b) {
+      var id = b.getAttribute('data-n');
+      b.addEventListener('click', function () { pick(id); });
+      b.addEventListener('focus', function () { pick(id); });
+    });
+    pick('app');
+
+    // ---- Swap scrubber ----
+    var POS = [
+      { at: 'Before the copy', jl: 'Verified', files: [['ep.mkv', 'H.264', 'old']],
+        rec: 'The share never changed. The episode goes back in the queue.', out: 'Original kept', ok: true },
+      { at: 'During the copy to temp', jl: 'UploadedTemp', files: [['ep.mkv', 'H.264', 'old'], ['ep.mkv.shrinkray.tmp', 'HEVC', 'new']],
+        rec: 'Deletes the temp file. The original never moved.', out: 'Original kept', ok: true },
+      { at: 'After the original went aside', jl: 'OriginalRenamedAside', files: [['ep.mkv.shrinkray.bak', 'H.264', 'old'], ['ep.mkv.shrinkray.tmp', 'HEVC', 'new']],
+        rec: 'Deletes the temp file and renames the backup back to ep.mkv.', out: 'Original restored', ok: true },
+      { at: 'After the temp took the name', jl: 'Swapped', files: [['ep.mkv', 'HEVC', 'new'], ['ep.mkv.shrinkray.bak', 'H.264', 'old']],
+        rec: 'Checks the new file against the backup. Pass: deletes the backup. Fail: puts the original back.', out: 'New file verified', ok: true },
+      { at: 'After the backup went', jl: 'OriginalDeleted', files: [['ep.mkv', 'HEVC', 'new']],
+        rec: 'Nothing to do. The swap had finished.', out: 'Swapped', ok: true }
+    ];
+    var crash = $('crash');
+    var failed = {};
+    function drawSwap() {
+      var nFail = Object.keys(failed).length;
+      var hold = nFail > 0;
+      var d = hold ? { at: 'No swap starts', jl: 'Failed', files: [['ep.mkv', 'H.264', 'old']],
+        rec: 'A failed check keeps the original and leaves the share untouched.', out: 'Original kept', ok: true } : POS[+crash.value];
+      crash.disabled = hold;
+      $('crash-at').textContent = 'On disk · ' + d.at;
+      $('jlast').textContent = d.jl;
+      $('files').innerHTML = d.files.map(function (f) {
+        return '<div class="file"><span class="px ' + f[2] + '">' + f[0] + '</span><span class="codec">' + f[1] + '</span></div>';
+      }).join('');
+      $('rec').textContent = d.rec;
+      $('out-word').textContent = d.out;
+      crash.setAttribute('aria-valuetext', d.at);
+      $('gate-lamp').className = 'lamp ' + (hold ? '' : 'ok');
+      $('gate-word').textContent = hold ? 'Check failed: original stays' : 'All pass: swap may start';
+    }
+    crash.addEventListener('input', drawSwap);
+    document.querySelectorAll('.check').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var name = b.getAttribute('data-c');
+        if (failed[name]) delete failed[name]; else failed[name] = true;
+        var on = !!failed[name];
+        b.setAttribute('aria-pressed', String(on));
+        b.querySelector('small').textContent = on ? 'FAIL' : 'PASS';
+        drawSwap();
+      });
+    });
+    drawSwap();
+
+    // ---- Quality: the CQ comparison. Everything comes from cq/results.json. ----
     var fmt = function (n, d) { return Number(n).toFixed(d === undefined ? 1 : d); };
     var time = function (s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
     var cmp = { clip: null, cq: 28, shot: 45, pos: 50, zoom: false };
@@ -923,16 +983,18 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
     function key(label, pressed, attrs) {
       return '<button class="key" type="button" ' + attrs + ' aria-pressed="' + pressed + '"><span class="lamp" aria-hidden="true"></span>' + label + '</button>';
     }
+    function bindKeys(selector, fn) {
+      document.querySelectorAll(selector).forEach(function (b) { b.addEventListener('click', function () { fn(b); }); });
+    }
 
     function renderTapes() {
-      var host = document.getElementById('tapes');
+      var host = $('tapes');
       host.innerHTML = clips.map(function (c, i) {
         return '<button class="tape" type="button" role="radio" data-clip="' + c.id + '" aria-checked="' + (i === 0) + '" tabindex="' + (i === 0 ? 0 : -1) + '">' +
           '<span class="face"><span class="title">' + c.label + '</span>' +
-          '<span class="side">Side A · ' + c.kind + ' · ' + fmt(c.srcMB, 0) + ' MB clip</span>' +
-          '<span class="why">' + (c.why || '') + '</span></span>' +
+          '<span class="side">' + c.kind + '</span></span>' +
           '<span class="stripe" aria-hidden="true"></span>' +
-          '<span class="chosen"><span class="lamp" aria-hidden="true"></span>On monitor B</span></button>';
+          '<span class="chosen"><span class="lamp" aria-hidden="true"></span>On the monitor</span></button>';
       }).join('');
       var tapes = Array.prototype.slice.call(host.querySelectorAll('.tape'));
       tapes.forEach(function (t, i) {
@@ -951,24 +1013,18 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
     function pickClip(id) {
       cmp.clip = clips.filter(function (c) { return c.id === id; })[0] || clips[0];
       var shots = cmp.clip.shots || [45, 120];
-      // Open on the frame the texture crops use; it is the one worth looking at.
       cmp.shot = cmp.clip.zoom && shots.indexOf(cmp.clip.zoom.shot) >= 0 ? cmp.clip.zoom.shot : shots[0];
       document.querySelectorAll('.tape').forEach(function (t) {
         var on = t.getAttribute('data-clip') === cmp.clip.id;
         t.setAttribute('aria-checked', String(on));
         t.tabIndex = on ? 0 : -1;
       });
-      document.getElementById('shot-keys').innerHTML = shots.map(function (s) { return key(time(s), s === cmp.shot, 'data-shot="' + s + '"'); }).join('');
+      $('shot-keys').innerHTML = shots.map(function (s) { return key(time(s), s === cmp.shot, 'data-shot="' + s + '"'); }).join('');
       bindKeys('#shot-keys [data-shot]', function (b) { cmp.shot = +b.getAttribute('data-shot'); drawWipe(); });
       drawWipe();
-      drawTexture();
     }
 
-    function bindKeys(selector, fn) {
-      document.querySelectorAll(selector).forEach(function (b) { b.addEventListener('click', function () { fn(b); }); });
-    }
-
-    var wipe = document.getElementById('wipe');
+    var wipe = $('wipe');
     var srcImg = wipe.querySelector('.src'), encImg = wipe.querySelector('.enc'), srcLayer = wipe.querySelector('.src-layer');
     var line = wipe.querySelector('.bar-line'), grip = wipe.querySelector('.grip'), range = wipe.querySelector('input');
 
@@ -983,13 +1039,12 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       wipe.querySelector('.tag-enc').textContent = 'CQ ' + cmp.cq;
       drawPos();
       var zp = c.zoom || { x: .5, y: .5 };
-      var origin = (zp.x * 100) + '% ' + (zp.y * 100) + '%';
-      srcImg.style.transformOrigin = encImg.style.transformOrigin = origin;
+      srcImg.style.transformOrigin = encImg.style.transformOrigin = (zp.x * 100) + '% ' + (zp.y * 100) + '%';
       wipe.classList.toggle('zoomed', cmp.zoom);
-      document.getElementById('monitor-meta').textContent = c.label + ' · ' + time(cmp.shot);
+      $('monitor-meta').textContent = c.label + ' · ' + time(cmp.shot);
       document.querySelectorAll('#cq-keys [data-cq]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.getAttribute('data-cq') === cmp.cq)); });
       document.querySelectorAll('#shot-keys [data-shot]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.getAttribute('data-shot') === cmp.shot)); });
-      document.getElementById('readouts').innerHTML = e ?
+      $('readouts').innerHTML = e ?
         '<div><span class="silk">Size</span><span class="px">' + fmt(e.mb) + ' MB <span class="dim">/</span> -' + fmt(e.pct, 0) + '%</span></div>' +
         '<div><span class="silk">VMAF mean</span><span class="px">' + fmt(e.vmafMean) + '</span></div>' +
         '<div><span class="silk">Worst frame</span><span class="px">' + fmt(e.vmafMin, 0) + '</span></div>' +
@@ -1001,41 +1056,25 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       range.setAttribute('aria-valuetext', cmp.pos + '% source');
     }
     range.addEventListener('input', function () { cmp.pos = +range.value; drawPos(); });
-    var zoomKey = document.getElementById('zoom-key');
+    var zoomKey = $('zoom-key');
     zoomKey.addEventListener('click', function () { cmp.zoom = !cmp.zoom; zoomKey.setAttribute('aria-pressed', String(cmp.zoom)); drawWipe(); });
-
-    function drawTexture() {
-      var c = cmp.clip, host = document.getElementById('texture');
-      var zp = c.zoom || { shot: (c.shots || [45])[0], x: .5, y: .5 };
-      var cells = [{ label: 'Source', file: 'src', note: fmt(c.srcMB, 0) + ' MB' }];
-      [25, 28].forEach(function (q) {
-        var e = c.encodes.filter(function (x) { return x.cq === q; })[0];
-        if (e) cells.push({ label: 'CQ ' + q, file: 'cq' + q, note: '\u2212' + fmt(e.pct, 0) + '% · VMAF ' + fmt(e.vmafMean) });
-      });
-      host.innerHTML = cells.map(function (cell) {
-        return '<figure class="tile"><div class="view"><img loading="lazy" src="cq/' + c.id + '/' + cell.file + '_' + zp.shot + '.webp" ' +
-          'style="left:calc(50% - ' + (zp.x * 1920) + 'px);top:calc(50% - ' + (zp.y * 1080) + 'px)" ' +
-          'alt="' + c.label + ', ' + cell.label + ', a 2x crop of the frame at ' + time(zp.shot) + '"></div>' +
-          '<figcaption><span class="silk">' + cell.label + '</span><span class="silk silk-soft">' + cell.note + '</span></figcaption></figure>';
-      }).join('');
-    }
 
     function renderTable() {
       var cqs = [];
       clips.forEach(function (c) { c.encodes.forEach(function (e) { if (cqs.indexOf(e.cq) < 0) cqs.push(e.cq); }); });
       cqs.sort(function (a, b) { return a - b; });
-      var pick = 28;
+      var pickCq = 28;
       document.querySelector('#results thead').innerHTML = '<tr><th scope="col">Clip</th><th scope="col">Source</th>' +
-        cqs.map(function (q) { return '<th scope="col"' + (q === pick ? ' class="pick"' : '') + '>CQ ' + q + (q === pick ? ' · default' : '') + '</th>'; }).join('') + '</tr>';
+        cqs.map(function (q) { return '<th scope="col"' + (q === pickCq ? ' class="pick"' : '') + '>CQ ' + q + (q === pickCq ? ' · default' : '') + '</th>'; }).join('') + '</tr>';
       document.querySelector('#results tbody').innerHTML = clips.map(function (c) {
         return '<tr><th scope="row" class="clip">' + c.label + '<small>' + c.kind + '</small></th><td><span class="pct">' + fmt(c.srcMB, 0) + '</span><span class="sub">MB</span></td>' +
           cqs.map(function (q) {
             var e = c.encodes.filter(function (x) { return x.cq === q; })[0];
             if (!e) return '<td>n/a</td>';
-            return '<td' + (q === pick ? ' class="pick"' : '') + '><span class="pct">-' + fmt(e.pct, 0) + '%</span><span class="sub">VMAF ' + fmt(e.vmafMean) + ' · low ' + fmt(e.vmafMin, 0) + '</span></td>';
+            return '<td' + (q === pickCq ? ' class="pick"' : '') + '><span class="pct">-' + fmt(e.pct, 0) + '%</span><span class="sub">VMAF ' + fmt(e.vmafMean) + ' · low ' + fmt(e.vmafMin, 0) + '</span></td>';
           }).join('') + '</tr>';
       }).join('');
-      document.getElementById('cq-keys').innerHTML = cqs.map(function (q) { return key('CQ ' + q, q === cmp.cq, 'data-cq="' + q + '"'); }).join('');
+      $('cq-keys').innerHTML = cqs.map(function (q) { return key('CQ ' + q, q === cmp.cq, 'data-cq="' + q + '"'); }).join('');
       bindKeys('#cq-keys [data-cq]', function (b) { cmp.cq = +b.getAttribute('data-cq'); drawWipe(); });
     }
 
@@ -1049,7 +1088,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       renderTable();
       pickClip(clips[0].id);
     }).catch(function () {
-      document.getElementById('tapes').innerHTML = '<p>The comparison data did not load. Serve this folder over HTTP (GitHub Pages does) rather than opening the file directly.</p>';
+      $('tapes').innerHTML = '<p>The comparison data did not load. Serve this folder over HTTP (GitHub Pages does) rather than opening the file directly.</p>';
     });
   })();
   </script>
