@@ -188,9 +188,14 @@ public class StopCardTests
         vm.PauseCommand.Execute(null);
         rig.Runner.Hold[first].SetResult();
         await WaitForAsync(() => vm.Tracks[0].Kind == TrackKind.Shrunk);
-        Assert.True(vm.IsPaused);
 
-        vm.StopCommand.Execute(null);
+        // The track turns Shrunk part way through the update that ends the episode. A click
+        // lands after the whole update, once the deck holds no current episode.
+        rig.OnUiThread(() =>
+        {
+            Assert.True(vm.IsPaused);
+            vm.StopCommand.Execute(null);
+        });
         await vm.CurrentRun.WaitAsync(Timeout);
 
         Assert.False(vm.IsStopCardOpen);

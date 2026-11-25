@@ -53,6 +53,9 @@ public class EncodeQueueTests
 
         public bool IsPaused { get; private set; }
 
+        /// <summary>Runs once, inside the next <see cref="Resume"/>.</summary>
+        public Action? OnNextResume { get; set; }
+
         public void Pause()
         {
             IsPaused = true;
@@ -63,6 +66,9 @@ public class EncodeQueueTests
         {
             IsPaused = false;
             Calls.Add("resume");
+            var hook = OnNextResume;
+            OnNextResume = null;
+            hook?.Invoke();
         }
     }
 
@@ -206,6 +212,25 @@ public class EncodeQueueTests
 
         Assert.False(rig.Gate.IsPaused);
         Assert.Equal(EpisodeEnd.Stopped, Assert.Single(rig.Finished).End);
+    }
+
+    [Fact]
+    public async Task Stop_while_held_between_episodes_never_starts_the_next()
+    {
+        var rig = new Rig();
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+        rig.Queue.Pause();
+        rig.Runner.Finish("a");
+
+        // A slow release of the tools: anything Stop has let go of by now has time to run.
+        rig.Gate.OnNextResume = () => SpinWait.SpinUntil(() => rig.Runner.Started.Count > 1, 500);
+        rig.Queue.Stop();
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a"], rig.Runner.Started);
+        Assert.Equal(QueueState.Idle, rig.Queue.State);
+        Assert.False(rig.Gate.IsPaused);
     }
 
     [Fact]

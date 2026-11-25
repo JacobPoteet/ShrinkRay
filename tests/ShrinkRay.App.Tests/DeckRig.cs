@@ -39,10 +39,25 @@ internal sealed class DeckRig
     public HashSet<string> MissingTools { get; } = new(StringComparer.OrdinalIgnoreCase);
     public DateTime Now { get; set; } = new(2026, 11, 24, 2, 10, 0);
 
+    /// <summary>Held while a dispatched update runs, so the fake dispatcher handles one thing at a time.</summary>
+    private readonly object _ui = new();
+
     public DeckRig()
     {
         Journal = new SwapJournal(Store);
         Runner = new ScriptedRunner(this);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="act"/> between the deck's dispatched updates, as a click on the UI
+    /// thread does. Use it to act on state the queue's thread is still updating.
+    /// </summary>
+    public void OnUiThread(Action act)
+    {
+        lock (_ui)
+        {
+            act();
+        }
     }
 
     /// <summary>Reads the journal store again, as a restart does. Entries appended to <see cref="Store"/> take effect.</summary>
@@ -98,7 +113,7 @@ internal sealed class DeckRig
             DirectoryExists = path => Disk.DirectoryExists(path) || path.Length <= 3,
             Now = () => Now,
             FolderPicker = new FakePicker(this),
-            Dispatch = action => action(),
+            Dispatch = action => OnUiThread(action),
             Delay = (_, ct) => Task.Delay(1, ct),
         };
         return new MainViewModel(services, Settings, preferences ?? new DeckPreferences(), @"C:\Default\Scratch");
