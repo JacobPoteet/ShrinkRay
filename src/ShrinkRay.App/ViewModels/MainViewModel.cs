@@ -13,7 +13,7 @@ using ShrinkRay.Theme.Controls;
 namespace ShrinkRay.App.ViewModels;
 
 /// <summary>
-/// The main deck: monitor A lists candidate shows, Load tape puts one in the deck, and Encode
+/// The main deck: monitor A lists candidate shows, double-click or Enter puts one in the deck, and Encode
 /// runs its eligible episodes through the engine one at a time.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
