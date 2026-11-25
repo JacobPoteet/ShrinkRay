@@ -49,6 +49,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private EncodeQueue? _queue;
     private ShrinkRaySettings? _runSettings;
+    private TimeLeftEstimator? _estimator;
     private int _runCq;
     private TrackViewModel? _current;
     private double _progress;
@@ -377,7 +378,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return "--:--";
             }
 
-            var minutes = (int)Math.Min(99 * 60 + 59, Math.Ceiling(TimeLeft.TotalMinutes));
+            var minutes = ShowLeftMinutes;
             return string.Create(CultureInfo.InvariantCulture, $"{minutes / 60}:{minutes % 60:00}").PadLeft(5);
         }
     }
@@ -715,24 +716,26 @@ public sealed partial class MainViewModel : ObservableObject
         _ => "SWAP",
     };
 
-    /// <summary>The frame rate the time left is figured at: the live encode rate, else the measured one.</summary>
-    private double SpeedFps => IsSpinning && _fps is > 1 ? _fps.Value : SizeEstimate.MeasuredFps;
+    /// <summary>The frame rate the time left is figured at: the run's smoothed speed, else the measured one.</summary>
+    private double SpeedFps => _estimator?.Speed ?? SizeEstimate.MeasuredFps;
 
-    /// <summary>Encode time left for every episode still to do, less what the current one has done.</summary>
-    private TimeSpan TimeLeft
+    /// <summary>Frames still to encode for every episode to do, less what the current one has done.</summary>
+    private long FramesLeft()
     {
-        get
-        {
-            var frames = _tracks.Where(t => t.IsQueueable || t.Kind == TrackKind.Encoding).Sum(t => t.Record.FrameCount ?? 0);
-            if (frames <= 0)
-            {
-                return TimeSpan.Zero;
-            }
-
-            var done = _current?.Record.FrameCount is { } f ? (long)(f * _progress) : 0;
-            return SizeEstimate.EncodeTime(Math.Max(0, frames - done), SpeedFps);
-        }
+        var frames = _tracks.Where(t => t.IsQueueable || t.Kind == TrackKind.Encoding).Sum(t => t.Record.FrameCount ?? 0);
+        var done = _current?.Record.FrameCount is { } f ? (long)(f * _progress) : 0;
+        return Math.Max(0, frames - done);
     }
+
+    /// <summary>
+    /// The time left as the counter shows it. During a run the estimator counts it down with the
+    /// clock; before one, it is the measured-speed figure. Both round the way the display does.
+    /// </summary>
+    private TimeSpan TimeLeft => TimeSpan.FromMinutes(ShowLeftMinutes);
+
+    private int ShowLeftMinutes => Math.Min(99 * 60 + 59, _estimator is { } e
+        ? e.DisplayMinutes(_s.Now())
+        : TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(FramesLeft())));
 
     private long After(TrackViewModel t) => t.Kind switch
     {

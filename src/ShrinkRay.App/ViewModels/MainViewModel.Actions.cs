@@ -353,6 +353,8 @@ public sealed partial class MainViewModel
         queue.Progress += (path, p) => _s.Dispatch(() => OnProgress(path, p));
         queue.EpisodeFinished += f => _s.Dispatch(() => OnEpisodeFinished(f));
         queue.StateChanged += _ => _s.Dispatch(RefreshTransport);
+        _estimator = new TimeLeftEstimator();
+        _estimator.Rebase(_s.Now(), FramesLeft());
         _queue = queue;
         RefreshTransport();
 
@@ -414,6 +416,7 @@ public sealed partial class MainViewModel
         }
 
         _current.SetEncoding(0, Ratio, PhaseStatus(_phase));
+        _estimator?.Rebase(_s.Now(), FramesLeft());
         if (_current.Record.Season != _selectedSeason)
         {
             ShowSeason(_current.Record.Season);
@@ -463,6 +466,7 @@ public sealed partial class MainViewModel
         }
 
         _current.SetEncoding(_transfer ?? _progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
+        _estimator?.Sample(_s.Now(), FramesLeft(), _fps);
         RefreshReadouts();
         RefreshTransport();
 
@@ -497,6 +501,7 @@ public sealed partial class MainViewModel
             _fps = null;
         }
 
+        _estimator?.Rebase(_s.Now(), FramesLeft());
         RefreshAll();
         RefreshClosing();
     }
@@ -526,6 +531,7 @@ public sealed partial class MainViewModel
     private void OnRunFinished()
     {
         _queue = null;
+        _estimator = null;
         ResetStopping();
         _current = null;
         _progress = 0;
@@ -570,6 +576,12 @@ public sealed partial class MainViewModel
     /// </summary>
     public void Tick()
     {
+        if (IsEncoding)
+        {
+            // The counter counts down with the clock, so it reads again on every tick.
+            Raise(nameof(ShowLeftDigits), nameof(ShowLeftDetail), nameof(ShowLeftName));
+        }
+
         if (_current is null || _runSettings is null || !IsSpinning)
         {
             BitrateMeterRest();
@@ -769,6 +781,7 @@ public sealed partial class MainViewModel
 
     private void RefreshTransport()
     {
+        _estimator?.SetFrozen(_queue?.State is QueueState.Paused or QueueState.WaitingForWindow, _s.Now());
         Raise(nameof(IsEncoding), nameof(IsPaused), nameof(EncodeLamp), nameof(EncodeLampBlink), nameof(IsSpinning),
             nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits));
         RefreshRunLamp();

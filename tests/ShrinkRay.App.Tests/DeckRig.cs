@@ -215,6 +215,9 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
     public void Report(double percent) =>
         _progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, percent, 170, 165, null)));
 
+    public void Report(double percent, double fps) =>
+        _progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, percent, fps, fps, null)));
+
     public void Report(EpisodePhase phase) => _progress?.Report(new EpisodeProgress(phase));
 
     public void Report(EpisodePhase phase, double fraction) => _progress?.Report(new EpisodeProgress(phase, Fraction: fraction));

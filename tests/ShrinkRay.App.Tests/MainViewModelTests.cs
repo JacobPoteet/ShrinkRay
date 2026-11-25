@@ -539,7 +539,9 @@ public class MainViewModelTests
         Assert.Equal("50%", vm.Tracks[0].StatusText);
         Assert.Equal(LampState.Active, vm.Seasons[0].Lamp);
         Assert.False(vm.CanEditQuality);
-        Assert.Equal(" 0:09", vm.ShowLeftDigits);
+
+        // The start-of-run figure holds: the fresh estimate is under 3 minutes off, so it does not move.
+        Assert.Equal(" 0:10", vm.ShowLeftDigits);
         Assert.False(vm.DropFolder(DeckRig.Root + @"\Bluey"));
 
         rig.Runner.Hold[first].SetResult();
