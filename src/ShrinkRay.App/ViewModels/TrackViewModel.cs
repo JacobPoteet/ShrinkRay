@@ -78,6 +78,29 @@ public sealed class TrackViewModel : ObservableObject
         private set => Set(ref _detail, value);
     }
 
+    /// <summary>
+    /// What the row says to a screen reader: the episode, its state and the detail the tooltip
+    /// carries, so nothing the row leaves off the screen is lost.
+    /// </summary>
+    public string AutomationName
+    {
+        get
+        {
+            var state = Kind switch
+            {
+                TrackKind.Encoding => "encoding, " + (StatusText.Length > 0 ? StatusText : "starting"),
+                TrackKind.Shrunk => "shrunk, " + StatusText,
+                TrackKind.Kept => "kept the original",
+                TrackKind.Failed => "failed",
+                TrackKind.Skipped => "skipped",
+                _ => "queued",
+            };
+            var name = Title.Length > 0 ? $"{Code}, {Title}" : Code;
+            var text = $"{name}, {SizeText} gigabytes, {state}";
+            return Detail.Length > 0 && Kind is not (TrackKind.Encoding or TrackKind.Shrunk) ? $"{text}. {Detail}" : text;
+        }
+    }
+
     public bool IsQueueable => Kind is TrackKind.Queued or TrackKind.Failed;
 
     /// <param name="reason">The journal's reason for the file's last state.</param>
@@ -102,7 +125,7 @@ public sealed class TrackViewModel : ObservableObject
                 track.SetFailed(reason ?? "The last attempt failed.", at);
                 break;
             case EpisodeStatus.Skipped:
-                track.SetSkipped(record.IsEfficientCodec ? record.VideoCodec.ToUpperInvariant() : "SKIP", record.SkipMessage);
+                track.SetSkipped(record.SkipMessage);
                 break;
             default:
                 track.SetQueued();
@@ -116,9 +139,10 @@ public sealed class TrackViewModel : ObservableObject
     {
         Kind = TrackKind.Queued;
         Progress = 0;
-        StatusText = "QUEUED";
+        StatusText = "";
         SizeText = Format.Gigabytes(OriginalBytes);
         Detail = "";
+        Raise(nameof(AutomationName));
     }
 
     /// <param name="ratio">Expected output size over source size, for the growing size figure.</param>
@@ -130,6 +154,7 @@ public sealed class TrackViewModel : ObservableObject
         StatusText = status ?? ((int)Math.Floor(Progress * 100)).ToString(CultureInfo.InvariantCulture) + "%";
         SizeText = Format.Gigabytes((long)(OriginalBytes * ratio * Progress));
         Detail = "Working on it now.";
+        Raise(nameof(AutomationName));
     }
 
     public void SetShrunk(long newBytes)
@@ -142,15 +167,19 @@ public sealed class TrackViewModel : ObservableObject
         SizeText = Format.Gigabytes(newBytes);
         Detail = "Replaced after every check passed.";
         Raise(nameof(SavedBytes));
+        Raise(nameof(AutomationName));
     }
 
     public void SetKept(double? savings, string reason)
     {
         Kind = TrackKind.Kept;
         Progress = 0;
-        StatusText = savings is { } s ? "KEPT " + Format.Percent(s) : "KEPT";
+        StatusText = "KEPT";
         SizeText = Format.Gigabytes(OriginalBytes);
-        Detail = reason;
+        Detail = savings is { } s && !reason.Contains(Format.Percent(s), StringComparison.Ordinal)
+            ? $"Saves {Format.Percent(s)}. {reason}"
+            : reason;
+        Raise(nameof(AutomationName));
     }
 
     /// <param name="at">When it failed, so the deck can name the latest failure.</param>
@@ -158,47 +187,23 @@ public sealed class TrackViewModel : ObservableObject
     {
         Kind = TrackKind.Failed;
         Progress = 0;
-        StatusText = FailedStatus(reason);
+        StatusText = "FAILED";
         SizeText = Format.Gigabytes(OriginalBytes);
         Detail = reason;
         FailedAt = at;
+        Raise(nameof(AutomationName));
     }
 
     /// <summary>When the episode failed, for a failure seen this run or read from the journal.</summary>
     public DateTimeOffset? FailedAt { get; private set; }
 
-    /// <summary>
-    /// The status cell for a failure: <c>FAIL</c> and the check that failed, such as
-    /// <c>FAIL SUBS</c>, read from the start of the first reason. The full text is the tooltip.
-    /// </summary>
-    public static string FailedStatus(string? reason)
-    {
-        var first = (reason ?? "").Split(';', 2)[0].Trim();
-        var word = ReasonWords.FirstOrDefault(w => first.StartsWith(w.Prefix, StringComparison.OrdinalIgnoreCase)).Word;
-        return word is null ? "FAILED" : "FAIL " + word;
-    }
-
-    private static readonly (string Prefix, string Word)[] ReasonWords =
-    [
-        ("Subtitle streams", "SUBS"),
-        ("Audio streams", "AUDIO"),
-        ("Video streams", "VIDEO"),
-        ("Output video codec", "VIDEO"),
-        ("Attachments", "FONTS"),
-        ("Duration", "LENGTH"),
-        ("Full decode", "DECODE"),
-        ("File size", "SIZE"),
-        ("HandBrakeCLI", "ENCODE"),
-        ("ffmpeg", "FFMPEG"),
-        ("ffprobe", "PROBE"),
-    ];
-
-    public void SetSkipped(string label, string reason)
+    public void SetSkipped(string reason)
     {
         Kind = TrackKind.Skipped;
         Progress = 0;
-        StatusText = label;
+        StatusText = "SKIPPED";
         SizeText = Format.Gigabytes(OriginalBytes);
         Detail = reason;
+        Raise(nameof(AutomationName));
     }
 }

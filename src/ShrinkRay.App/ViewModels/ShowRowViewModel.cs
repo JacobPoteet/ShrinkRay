@@ -9,6 +9,7 @@ public sealed class ShowRowViewModel : ObservableObject
     private ShowSummary _summary;
     private ShowScan _scan;
     private bool _isLoaded;
+    private string _detail = "";
 
     public ShowRowViewModel(ShowScan scan, ShowSummary summary)
     {
@@ -24,10 +25,25 @@ public sealed class ShowRowViewModel : ObservableObject
 
     public string Name => _scan.Name.ToUpperInvariant();
 
-    /// <summary>Whole gigabytes. The unit sits in the column header, since the pixel font's G reads as a 6.</summary>
+    /// <summary>Whole gigabytes. No unit: the pixel font's G reads as a 6, and the tooltip and automation name say gigabytes.</summary>
     public string SizeText => Format.WholeGigabytes(_summary.TotalBytes);
 
-    public string AutomationName => $"{_scan.Name}, {SizeText} gigabytes";
+    /// <summary>Seasons, episodes, what is left to do and the estimated saving. Shown as the row's tooltip.</summary>
+    public string Detail
+    {
+        get => _detail;
+        set
+        {
+            if (Set(ref _detail, value))
+            {
+                Raise(nameof(AutomationName));
+            }
+        }
+    }
+
+    public string AutomationName => _detail.Length > 0
+        ? $"{_scan.Name}, {SizeText} gigabytes. {_detail.Replace("\n", " ")}"
+        : $"{_scan.Name}, {SizeText} gigabytes";
 
     public bool IsLoaded
     {

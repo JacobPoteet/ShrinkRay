@@ -34,11 +34,11 @@ public sealed partial class MainViewModel
         try
         {
             var actions = await _s.Recover(SettingsStore.Normalize(_settings), CancellationToken.None);
-            RecoveryText = DescribeRecovery(actions);
+            _recoveryReviews = actions.Count(a => a.Kind == RecoveryKind.NeedsReview);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            RecoveryText = "RECOVERY FAILED. SEE THE JOURNAL";
+            _recoveryFailed = true;
             Notice = "Recovery could not finish: " + ex.Message;
         }
         finally
@@ -46,30 +46,9 @@ public sealed partial class MainViewModel
             SetRecovering(false);
         }
 
+        RefreshSystemLamps();
+
         await ScanLibraryAsync(_prefs.LastShow);
-    }
-
-    public static string DescribeRecovery(IReadOnlyList<RecoveryAction> actions)
-    {
-        if (actions.Count == 0)
-        {
-            return "RECOVERY: ALL CLEAR";
-        }
-
-        var review = actions.Count(a => a.Kind == RecoveryKind.NeedsReview);
-        var fixedCount = actions.Count - review;
-        var parts = new List<string>();
-        if (fixedCount > 0)
-        {
-            parts.Add($"{fixedCount} FIXED");
-        }
-
-        if (review > 0)
-        {
-            parts.Add($"{review} TO REVIEW");
-        }
-
-        return "RECOVERY: " + string.Join(" · ", parts);
     }
 
     private void SetRecovering(bool value)
@@ -128,8 +107,7 @@ public sealed partial class MainViewModel
                 AddScan(scan);
                 if (string.Equals(scan.Name, loadShow, StringComparison.OrdinalIgnoreCase) && !IsEncoding)
                 {
-                    SelectedShow = Shows.FirstOrDefault(r => string.Equals(r.FolderName, scan.Name, StringComparison.OrdinalIgnoreCase));
-                    LoadShow(scan);
+                    Select(scan);
                 }
             }
 
@@ -148,7 +126,17 @@ public sealed partial class MainViewModel
             }
         }
 
-        SelectedShow ??= Shows.FirstOrDefault(r => r.IsLoaded) ?? Shows.FirstOrDefault();
+        SelectedShow ??= Shows.FirstOrDefault(r => r.IsLoaded);
+    }
+
+    /// <summary>Puts a show in the deck and moves the cursor to its row. A show with no row, such as one with nothing left to do, loads anyway.</summary>
+    private void Select(ShowScan scan)
+    {
+        SelectedShow = Shows.FirstOrDefault(r => string.Equals(r.FolderName, scan.Name, StringComparison.OrdinalIgnoreCase));
+        if (!ReferenceEquals(_loaded, scan))
+        {
+            LoadShow(scan);
+        }
     }
 
     private void AddScan(ShowScan scan)
@@ -163,6 +151,7 @@ public sealed partial class MainViewModel
             if (existing is not null)
             {
                 existing.Update(scan, summary);
+                existing.Detail = DetailFor(existing);
             }
             else
             {
@@ -170,6 +159,7 @@ public sealed partial class MainViewModel
                 {
                     IsLoaded = string.Equals(scan.Name, _loaded?.Name, StringComparison.OrdinalIgnoreCase),
                 };
+                row.Detail = DetailFor(row);
                 var index = 0;
                 while (index < Shows.Count && string.Compare(Shows[index].FolderName, scan.Name, StringComparison.OrdinalIgnoreCase) < 0)
                 {
@@ -225,7 +215,7 @@ public sealed partial class MainViewModel
         }
 
         Save();
-        Raise(nameof(LibraryRoot), nameof(LibraryLabel));
+        Raise(nameof(LibraryRoot));
         var show = LibraryScanner.IsShowFolder(_s.Disk, _settings.LibraryRoot) ? Path.GetFileName(_settings.LibraryRoot.TrimEnd('\\')) : null;
         _ = ScanLibraryAsync(show ?? _loaded?.Name);
     }
@@ -253,8 +243,7 @@ public sealed partial class MainViewModel
             && _scans.TryGetValue(Path.GetFileName(folder), out var scan)
             && string.Equals(scan.Folder.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase))
         {
-            SelectedShow = Shows.FirstOrDefault(r => string.Equals(r.FolderName, scan.Name, StringComparison.OrdinalIgnoreCase));
-            LoadShow(scan);
+            Select(scan);
             return true;
         }
 
@@ -263,14 +252,6 @@ public sealed partial class MainViewModel
     }
 
     // ---- Tape ----
-
-    private void LoadTape()
-    {
-        if (_selectedShow is { } row && !IsEncoding)
-        {
-            LoadShow(row.Scan);
-        }
-    }
 
     private void LoadShow(ShowScan scan)
     {
@@ -298,51 +279,11 @@ public sealed partial class MainViewModel
 
         _cqIndex = NearestDetent(_settings.CqForShow(scan.Name));
         Raise(nameof(CqIndex), nameof(Cq));
+        RefreshCqChips();
         _prefs = _prefs with { LastShow = scan.Name };
         SavePreferences();
         Notice = "";
         RefreshAll();
-    }
-
-    private void Eject()
-    {
-        if (IsEncoding)
-        {
-            return;
-        }
-
-        _loaded = null;
-        _tracks.Clear();
-        Tracks.Clear();
-        Seasons.Clear();
-        foreach (var row in Shows)
-        {
-            row.IsLoaded = false;
-        }
-
-        _prefs = _prefs with { LastShow = null };
-        SavePreferences();
-        RefreshAll();
-    }
-
-    private void ResetCq()
-    {
-        if (_loaded is null || IsEncoding)
-        {
-            return;
-        }
-
-        // Removed outright: an override can sit on the default's detent without equalling it.
-        if (_settings.ShowCqOverrides.Remove(_loaded.Name))
-        {
-            Save();
-        }
-
-        _cqIndex = RecommendedCqIndex;
-        Raise(nameof(CqIndex), nameof(Cq));
-        RefreshDeck();
-        ResetCqCommand.Refresh();
-        Raise(nameof(CursorInfo));
     }
 
     private void SelectSeason(int season) => ShowSeason(season);
@@ -362,7 +303,7 @@ public sealed partial class MainViewModel
         }
 
         RefreshSeasonLamps();
-        Raise(nameof(SelectedSeason), nameof(JCardHeader), nameof(SeasonFooter));
+        Raise(nameof(SelectedSeason));
     }
 
     // ---- Transport ----
@@ -543,7 +484,7 @@ public sealed partial class MainViewModel
             switch (finished.End)
             {
                 case EpisodeEnd.Skipped:
-                    track.SetSkipped("SKIPPED", "Skipped from the deck. The original is untouched and the next run tries it again.");
+                    track.SetSkipped("Skipped from the deck. The original is untouched and the next run tries it again.");
                     break;
                 case EpisodeEnd.Stopped:
                     track.SetQueued();
@@ -580,7 +521,7 @@ public sealed partial class MainViewModel
                 track.SetKept(result.Verification?.Savings, result.Message);
                 break;
             case PipelineOutcome.Skipped:
-                track.SetSkipped("SKIP", result.Message);
+                track.SetSkipped(result.Message);
                 break;
             default:
                 track.SetFailed(result.Message, _s.Now());
@@ -787,37 +728,73 @@ public sealed partial class MainViewModel
         RefreshDeck();
         RefreshTransport();
         RefreshSeasonLamps();
-        RefreshFooterLamps();
         RefreshWindow();
         RaiseLifetime();
-        Raise(nameof(IsTapeLoaded), nameof(LoadedName), nameof(JCardHeader), nameof(SeasonFooter),
-            nameof(EstimateText), nameof(IsKnobEnabled));
-        EjectCommand.Refresh();
+        RefreshCqChips();
+        Raise(nameof(IsTapeLoaded), nameof(LoadedName), nameof(EstimateText), nameof(CanEditQuality));
         EncodeCommand.Refresh();
     }
 
     private void RefreshLibraryText() =>
-        Raise(nameof(ShowCountText), nameof(HiddenText), nameof(MonitorMessage), nameof(LibraryLabel), nameof(CursorInfo));
+        Raise(nameof(MonitorMessage), nameof(LibraryTooltip));
 
     private void RefreshDeck()
     {
-        Raise(nameof(LabelTitle), nameof(LabelSide), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq),
-            nameof(FooterTitle), nameof(SavedGigabytes), nameof(SavedDigits), nameof(BeforeText), nameof(AfterText),
-            nameof(AfterFraction), nameof(EpisodesDoneText), nameof(HandledFraction), nameof(SeasonFooter),
-            nameof(CqSourceText), nameof(HasCqOverride), nameof(RecommendedCqIndex), nameof(LastFailureText), nameof(LastFailureDetail));
+        Raise(nameof(LabelTitle), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq), nameof(CqCaption),
+            nameof(SavedGigabytes), nameof(SavedDigits), nameof(SizeCaption), nameof(SizeBeforeText), nameof(SizeAfterText), nameof(AfterFraction),
+            nameof(HasCqOverride), nameof(RecommendedCqIndex), nameof(LastFailureText), nameof(LastFailureDetail));
         RefreshReadouts();
     }
 
     private void RefreshReadouts() =>
-        Raise(nameof(SourceText), nameof(OutputText), nameof(SourcePack), nameof(OutputPack), nameof(IsSpinning),
-            nameof(EpisodeDigits), nameof(TapeTimeDigits), nameof(TapeTotalText), nameof(FpsDigits), nameof(PercentDigits),
-            nameof(DeckAutomationName), nameof(EpisodesDoneText), nameof(AfterText), nameof(AfterFraction), nameof(EncodeLampBlink));
+        Raise(nameof(SourceCaption), nameof(SourceDetail), nameof(OutputCaption), nameof(OutputDetail), nameof(SourcePack),
+            nameof(OutputPack), nameof(IsSpinning), nameof(EpisodeDigits), nameof(TapeTimeDigits), nameof(TapeTotalText),
+            nameof(FpsDigits), nameof(PercentDigits), nameof(EpisodeDetail), nameof(EpisodeCounterName), nameof(ShowLeftDigits),
+            nameof(ShowLeftDetail), nameof(ShowLeftName), nameof(DeckAutomationName), nameof(SizeCaption), nameof(SizeBeforeText),
+            nameof(SizeAfterText), nameof(AfterFraction),
+            nameof(EncodeLampBlink));
+
+    /// <summary>Marks the chosen and the recommended CQ on the Quality chips.</summary>
+    private void RefreshCqChips()
+    {
+        foreach (var chip in CqChips)
+        {
+            chip.Update(chip.Index == _cqIndex, chip.Index == RecommendedCqIndex);
+        }
+    }
+
+    /// <summary>Rewrites every show row's tooltip, since the CQ a row estimates at can change.</summary>
+    private void RefreshShowDetails()
+    {
+        foreach (var row in Shows)
+        {
+            row.Detail = DetailFor(row);
+        }
+    }
 
     private void RefreshTransport()
     {
         Raise(nameof(IsEncoding), nameof(IsPaused), nameof(EncodeLamp), nameof(EncodeLampBlink), nameof(IsSpinning),
-            nameof(IsKnobEnabled), nameof(CanEditSettings), nameof(FpsDigits));
+            nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits));
+        RefreshRunLamp();
+        RefreshSeasonLamps();
+        EncodeCommand.Refresh();
+        ChooseLibraryCommand.Refresh();
+        ChooseScratchCommand.Refresh();
+        RescanCommand.Refresh();
+        WindowStartEarlierCommand.Refresh();
+        WindowStartLaterCommand.Refresh();
+        WindowEndEarlierCommand.Refresh();
+        WindowEndLaterCommand.Refresh();
+    }
 
+    /// <summary>
+    /// The header's one lamp. While a run is going it says what the run is doing. Otherwise it
+    /// says Ready, or names what is wrong: a missing tool, library or scratch folder, or
+    /// recovery work that needs a look.
+    /// </summary>
+    private void RefreshRunLamp()
+    {
         var state = _queue?.State;
         if (_isRecovering)
         {
@@ -825,8 +802,7 @@ public sealed partial class MainViewModel
         }
         else if (_isClosing && _queue is not null)
         {
-            var word = IsFinishingSwap ? "Finishing swap" : "Stopping";
-            RunLamp.Show(_current is null ? word : word + " " + _current.Code, LampState.Active, blink: true);
+            RunLamp.Show(IsFinishingSwap ? "Finishing swap" : "Stopping", LampState.Active, blink: true);
         }
         else if (state == QueueState.Paused)
         {
@@ -838,26 +814,16 @@ public sealed partial class MainViewModel
         }
         else if (_queue is not null)
         {
-            RunLamp.Show(_current is null ? "Encoding" : Phase + " " + _current.Code, LampState.Red, blink: true);
+            RunLamp.Show(_current is null ? "Encoding" : Phase, LampState.Red, blink: true);
+        }
+        else if (_attention.Count > 0)
+        {
+            RunLamp.Show(_attention.Count == 1 ? _attention[0].Name : "Needs attention", LampState.Active, blink: true);
         }
         else
         {
-            RunLamp.Show(_loaded is null ? "No tape" : "Ready", _loaded is null ? LampState.Off : LampState.Ok);
+            RunLamp.Show(_loaded is null ? "No show" : "Ready", _loaded is null ? LampState.Off : LampState.Ok);
         }
-
-        LibraryLamp.Blink = _queue is not null && state == QueueState.Running;
-        RefreshSeasonLamps();
-        LoadTapeCommand.Refresh();
-        EncodeCommand.Refresh();
-        EjectCommand.Refresh();
-        ResetCqCommand.Refresh();
-        ChooseLibraryCommand.Refresh();
-        ChooseScratchCommand.Refresh();
-        RescanCommand.Refresh();
-        WindowStartEarlierCommand.Refresh();
-        WindowStartLaterCommand.Refresh();
-        WindowEndEarlierCommand.Refresh();
-        WindowEndLaterCommand.Refresh();
     }
 
     private void RefreshSeasonLamps()
@@ -871,39 +837,65 @@ public sealed partial class MainViewModel
         }
     }
 
-    private void RefreshFooterLamps()
-    {
-        if (_settings.ReplaceOriginals)
-        {
-            OriginalsLamp.Show("Replaced after checks pass", LampState.Ok);
-            RecycleLamp.Show("Old file to NAS recycle bin", LampState.Ok);
-        }
-        else
-        {
-            OriginalsLamp.Show("Originals kept", LampState.Off);
-            RecycleLamp.Show("Encodes stay in scratch", LampState.Off);
-        }
-
-        Raise(nameof(ReplaceOriginals));
-    }
-
     private void RefreshSystemLamps()
     {
+        var handBrakeOk = _s.ResolveTool(_settings.HandBrakeCliPath) is not null;
+        var ffmpegOk = _s.ResolveTool(_settings.FfprobePath) is not null && _s.ResolveTool(_settings.FfmpegPath) is not null;
+        var libraryOk = !string.IsNullOrWhiteSpace(_settings.LibraryRoot) && _s.DirectoryExists(_settings.LibraryRoot);
+        var scratch = _settings.ScratchFolder;
+        var root = string.IsNullOrWhiteSpace(scratch) ? null : Path.GetPathRoot(scratch);
+        var scratchOk = root is not null && _s.DirectoryExists(root);
+
         GpuLamp.Show(_gpuName is null ? (_gpuChecked ? "NVENC · no card" : "NVENC") : "NVENC · " + _gpuName,
             _gpuName is null ? LampState.Off : LampState.Ok);
-        HandBrakeLamp.State = _s.ResolveTool(_settings.HandBrakeCliPath) is null ? LampState.Off : LampState.Ok;
-        FfmpegLamp.State = _s.ResolveTool(_settings.FfprobePath) is null || _s.ResolveTool(_settings.FfmpegPath) is null
-            ? LampState.Off
-            : LampState.Ok;
-
-        var libraryOk = !string.IsNullOrWhiteSpace(_settings.LibraryRoot) && _s.DirectoryExists(_settings.LibraryRoot);
+        HandBrakeLamp.State = handBrakeOk ? LampState.Ok : LampState.Off;
+        FfmpegLamp.State = ffmpegOk ? LampState.Ok : LampState.Off;
         LibraryLamp.State = libraryOk ? LampState.Ok : LampState.Off;
-
-        var scratch = _settings.ScratchFolder;
-        var drive = string.IsNullOrWhiteSpace(scratch) ? "" : Path.GetPathRoot(scratch)?.TrimEnd('\\') ?? "";
+        var drive = string.IsNullOrWhiteSpace(scratch) ? "" : root?.TrimEnd('\\') ?? "";
         ScratchLamp.Label = drive.Length is > 0 and <= 3 ? "Scratch " + drive : "Scratch";
-        var root = string.IsNullOrWhiteSpace(scratch) ? null : Path.GetPathRoot(scratch);
-        ScratchLamp.State = root is not null && _s.DirectoryExists(root) ? LampState.Ok : LampState.Off;
+        ScratchLamp.State = scratchOk ? LampState.Ok : LampState.Off;
+
+        var problems = new List<(string Name, string Detail)>();
+        if (!handBrakeOk)
+        {
+            problems.Add(("HandBrakeCLI missing", "HandBrakeCLI was not found. Install it or set its path in settings.json."));
+        }
+
+        if (!ffmpegOk)
+        {
+            problems.Add(("ffmpeg missing", "ffmpeg or ffprobe was not found. Install them or set their paths in settings.json."));
+        }
+
+        if (_gpuChecked && _gpuName is null)
+        {
+            problems.Add(("No NVENC card", "No NVIDIA card with NVENC was found, so nothing can encode."));
+        }
+
+        if (!libraryOk)
+        {
+            problems.Add((string.IsNullOrWhiteSpace(_settings.LibraryRoot) ? "No library" : "Library not found",
+                "Choose the TV library in Setup."));
+        }
+
+        if (!scratchOk)
+        {
+            problems.Add((string.IsNullOrWhiteSpace(scratch) ? "No scratch folder" : "Scratch drive missing",
+                "Choose a local scratch folder in Setup."));
+        }
+
+        if (_recoveryFailed)
+        {
+            problems.Add(("Needs attention", "Recovery could not finish. See the journal."));
+        }
+
+        if (_recoveryReviews > 0)
+        {
+            problems.Add(("Needs attention", $"Recovery left {_recoveryReviews} {(_recoveryReviews == 1 ? "file" : "files")} to review. See the journal."));
+        }
+
+        _attention = problems;
+        Raise(nameof(AttentionDetail));
+        RefreshRunLamp();
     }
 
     private void RaiseLifetime() =>
