@@ -1,0 +1,66 @@
+[
+  {
+    "id": "curb",
+    "name": "Curb Your Enthusiasm S04E01",
+    "label": "Curb Your Enthusiasm",
+    "kind": "Live action, 14 Mbps",
+    "why": "A high-bitrate source with film grain and faces. It has the most to lose and the most to give back.",
+    "start": 600,
+    "srcMB": 320.2,
+    "shots": [45, 120],
+    "zoom": { "shot": 120, "x": 0.17, "y": 0.78 },
+    "encodes": [
+      { "cq": 22, "mb": 211.6, "pct": 33.9, "fps": 164.5, "secs": 35.5, "vmafMean": 98.33, "vmafMin": 82.83, "vmafHarm": 98.30 },
+      { "cq": 25, "mb": 148.3, "pct": 53.7, "fps": 165.1, "secs": 35.2, "vmafMean": 97.71, "vmafMin": 80.79, "vmafHarm": 97.68 },
+      { "cq": 28, "mb": 94.8, "pct": 70.4, "fps": 166.0, "secs": 35.1, "vmafMean": 96.47, "vmafMin": 77.97, "vmafHarm": 96.42 }
+    ]
+  },
+  {
+    "id": "aot",
+    "name": "Attack on Titan S03E08",
+    "label": "Attack on Titan",
+    "kind": "Anime, 10-bit",
+    "why": "Flat color, hard line art and styled subtitles with embedded fonts. Banding shows up here first.",
+    "start": 480,
+    "srcMB": 180.1,
+    "shots": [45, 120],
+    "zoom": { "shot": 120, "x": 0.53, "y": 0.55 },
+    "encodes": [
+      { "cq": 22, "mb": 105.4, "pct": 41.5, "fps": 161.7, "secs": 29.7, "vmafMean": 97.22, "vmafMin": 89.62, "vmafHarm": 97.15 },
+      { "cq": 25, "mb": 77.7, "pct": 56.9, "fps": 164.4, "secs": 29.1, "vmafMean": 96.50, "vmafMin": 87.64, "vmafHarm": 96.41 },
+      { "cq": 28, "mb": 60.4, "pct": 66.5, "fps": 164.7, "secs": 29.1, "vmafMean": 95.30, "vmafMin": 84.88, "vmafHarm": 95.18 }
+    ]
+  },
+  {
+    "id": "traitors",
+    "name": "The Traitors (US) S03E08",
+    "label": "The Traitors (US)",
+    "kind": "Reality TV, dark and noisy",
+    "why": "Low light and sensor noise. An encoder spends its bits on the noise or smears it away.",
+    "start": 1800,
+    "srcMB": 222.3,
+    "shots": [45, 120],
+    "zoom": { "shot": 120, "x": 0.5, "y": 0.2 },
+    "encodes": [
+      { "cq": 22, "mb": 179.2, "pct": 19.4, "fps": 163.1, "secs": 30, "vmafMean": 98.70, "vmafMin": 89.91, "vmafHarm": 98.68 },
+      { "cq": 25, "mb": 122.8, "pct": 44.8, "fps": 164.2, "secs": 29.8, "vmafMean": 98.07, "vmafMin": 90.36, "vmafHarm": 98.02 },
+      { "cq": 28, "mb": 85.8, "pct": 61.4, "fps": 164.6, "secs": 29.8, "vmafMean": 96.86, "vmafMin": 85.16, "vmafHarm": 96.78 }
+    ]
+  },
+  {
+    "id": "taskmaster",
+    "name": "Taskmaster S18E04",
+    "label": "Taskmaster",
+    "kind": "Studio show, 5 Mbps",
+    "why": "A lean source already. It shows how much is left to save when the broadcaster squeezed first.",
+    "start": 900,
+    "srcMB": 111.4,
+    "shots": [45, 120],
+    "zoom": { "shot": 45, "x": 0.27, "y": 0.16 },
+    "encodes": [
+      { "cq": 22, "mb": 95.9, "pct": 13.9, "fps": 164.6, "secs": 29.5, "vmafMean": 97.52, "vmafMin": 91.43, "vmafHarm": 97.50 },
+      { "cq": 25, "mb": 64.7, "pct": 41.9, "fps": 165.3, "secs": 29.5, "vmafMean": 96.74, "vmafMin": 89.88, "vmafHarm": 96.70 },
+      { "cq": 28, "mb": 44.6, "pct": 59.9, "fps": 165.6, "secs": 29.7, "vmafMean": 95.43, "vmafMin": 85.57, "vmafHarm": 95.38 }
+    ]
+  }
+]

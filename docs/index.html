@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShrinkRay: batch H.264 to H.265 video compressor</title>
+  <meta name="description" content="ShrinkRay batch-compresses video from H.264 to H.265 with HandBrakeCLI and NVIDIA NVENC. It verifies every file and swaps it in under its original name through a crash-safe journal.">
+  <meta property="og:title" content="ShrinkRay">
+  <meta property="og:description" content="Batch video compression that checks its work. A TV library of 878 GB came back as 308 GB.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://jacobpoteet.github.io/ShrinkRay/img/app/deck-encoding-amber-beige.webp">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23262421'/%3E%3Cpath d='M7 25 12 7h3l-5 18zm5 0 5-18h3l-5 18zm5 0 5-18h3l-5 18z' fill='%23F0B43C'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/BarlowCondensed-Medium.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="fonts/scientifica.ttf" as="font" type="font/ttf" crossorigin>
+  <style>
+    /* The theme's own fonts, with their licenses beside them in fonts/. */
+    @font-face { font-family: "Michroma"; src: url("fonts/Michroma-Regular.ttf") format("truetype"); font-display: swap; }
+    @font-face { font-family: "Barlow Condensed"; src: url("fonts/BarlowCondensed-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+    @font-face { font-family: "Barlow Condensed"; src: url("fonts/BarlowCondensed-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+    @font-face { font-family: "Barlow Condensed"; src: url("fonts/BarlowCondensed-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+    @font-face { font-family: "scientifica"; src: url("fonts/scientifica.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+    @font-face { font-family: "scientifica"; src: url("fonts/scientificaBold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+    @font-face { font-family: "Special Elite"; src: url("fonts/SpecialElite-Regular.ttf") format("truetype"); font-display: swap; }
+
+    /*
+      Tokens copied from ShrinkRay.Theme (Tokens.xaml, ChassisPalette, PhosphorPalette).
+      The page is the chassis: beige in light mode, graphite in dark mode, or whatever the
+      visitor picks. Phosphor is the only light: it glows on screens, digits and live readouts.
+      Signal red marks Encode and the delete step, and nothing else.
+    */
+    :root {
+      --abs: #D8CFBB; --abs-hi: #E9E2D1; --abs-lo: #B4A98F;
+      --ink: #3B352A; --ink-soft: #5B5344; --marker-ink: #1F3B73;
+      --groove-dark: rgba(60, 50, 35, .22); --groove-light: rgba(255, 255, 255, .55);
+      --key-top: #F1EBDD; --key-bot: #DCD3BF; --key-side: #A89E87; --key-ink: #3B352A;
+      --code-bg: #262421;
+      color-scheme: light;
+
+      --plate: #262421; --crt: #0D0A05; --silk-light: #CFC4AB;
+      --cream: #EFE7D4; --jcard-rule: #D8CEB8; --paper-ink: #3B352A; --paper-ink-soft: #5B5344; --marker: #1F3B73;
+      --red-top: #E3603F; --red-bot: #B8381F; --red-side: #7A2414; --red-ink: #FFF1E4;
+      --lamp-green: #A6D651; --lamp-off: #3A3226;
+      --stripe1: #F0B43C; --stripe2: #E2862F; --stripe3: #CF5A2A; --stripe4: #A73A22;
+      --dymo: #1B1B1B; --dymo-ink: #F1EDE4;
+      --tape: #3A281A;
+
+      --ph: #FFB000; --ph-dim: #3A2806; --ph-glow: rgba(255, 176, 0, .55); --ph-tint: rgba(255, 176, 0, .28);
+
+      --silk: "Barlow Condensed", "Arial Narrow", sans-serif;
+      --wordmark: "Michroma", "Eurostile", sans-serif;
+      --pixel: "scientifica", ui-monospace, monospace;
+      --typed: "Special Elite", "Courier New", monospace;
+      --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      --wrap: 1180px;
+      --gutter: clamp(16px, 4vw, 40px);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-chassis="beige"]) {
+        --abs: #4B4843; --abs-hi: #5E5A54; --abs-lo: #33302C;
+        --ink: #E4DDCC; --ink-soft: #D8D2C4; --marker-ink: #A9BFF0;
+        --groove-dark: rgba(0, 0, 0, .38); --groove-light: rgba(255, 255, 255, .07);
+        --key-top: #67635C; --key-bot: #55514B; --key-side: #2E2B28; --key-ink: #E4DDCC;
+        color-scheme: dark;
+      }
+    }
+    :root[data-chassis="graphite"] {
+      --abs: #4B4843; --abs-hi: #5E5A54; --abs-lo: #33302C;
+      --ink: #E4DDCC; --ink-soft: #D8D2C4; --marker-ink: #A9BFF0;
+      --groove-dark: rgba(0, 0, 0, .38); --groove-light: rgba(255, 255, 255, .07);
+      --key-top: #67635C; --key-bot: #55514B; --key-side: #2E2B28; --key-ink: #E4DDCC;
+      color-scheme: dark;
+    }
+    :root[data-phosphor="green"] { --ph: #4DFF8F; --ph-dim: #0C3A1F; --ph-glow: rgba(77, 255, 143, .5); --ph-tint: rgba(77, 255, 143, .26); }
+    :root[data-phosphor="ice"] { --ph: #86E4FF; --ph-dim: #0E3442; --ph-glow: rgba(134, 228, 255, .5); --ph-tint: rgba(134, 228, 255, .3); }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      background-color: var(--abs);
+      /* Molded ABS: a faint grain over the flat chassis color. */
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+      color: var(--ink);
+      font: 500 1.2rem/1.5 var(--silk);
+      text-rendering: optimizeLegibility;
+      overflow-x: hidden;
+    }
+    img { max-width: 100%; height: auto; display: block; }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { text-decoration-thickness: 2px; }
+    p { margin: 0 0 .8em; max-width: 64ch; }
+    code { font-family: var(--mono); font-size: .82em; }
+    .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--gutter); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+    .plate :focus-visible, .crt :focus-visible { outline-color: var(--ph); }
+
+    /* Silkscreen: uppercase Barlow Condensed, tracked +18%. */
+    .silk { font: 600 .8rem/1.2 var(--silk); letter-spacing: .18em; text-transform: uppercase; }
+    .silk-soft { color: var(--ink-soft); }
+    .heading { font: 400 clamp(1.15rem, 2.6vw, 1.6rem)/1.3 var(--wordmark); letter-spacing: .22em; text-transform: uppercase; margin: 0 0 .7rem; }
+    .lead { font-size: 1.35rem; line-height: 1.4; max-width: 52ch; margin-bottom: 1.2rem; }
+    .seam { height: 0; border-top: 1px solid var(--groove-dark); border-bottom: 1px solid var(--groove-light); margin: 0; }
+    section.module { padding: clamp(40px, 7vw, 80px) 0; scroll-margin-top: 64px; }
+
+    /* ---- Header ---- */
+    .top { position: sticky; top: 0; z-index: 20; background: var(--abs); border-bottom: 1px solid var(--groove-dark); box-shadow: 0 1px 0 var(--groove-light); }
+    .top .wrap { display: flex; align-items: center; gap: 20px; min-height: 60px; }
+    .nav { margin-left: auto; display: flex; gap: clamp(12px, 2.4vw, 28px); align-items: center; }
+    .nav a { text-decoration: none; color: var(--ink-soft); }
+    .nav a:hover { color: var(--ink); text-decoration: underline; }
+    @media (max-width: 760px) { .nav a.opt { display: none; } }
+    @media (max-width: 400px) { .nav a.gh { display: none; } }
+    .badge {
+      display: inline-flex; align-items: center; gap: 12px; text-decoration: none;
+      background: linear-gradient(#3A3833, #22201D); color: #EFE7D4;
+      padding: 7px 14px 7px 12px; border-radius: 5px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 1px 0 var(--groove-light);
+    }
+    .stripes { display: inline-flex; gap: 3px; transform: skewX(-18deg); }
+    .stripes i { display: block; width: 5px; height: 22px; border-radius: 1px; }
+    .stripes i:nth-child(1) { background: var(--stripe1); } .stripes i:nth-child(2) { background: var(--stripe2); }
+    .stripes i:nth-child(3) { background: var(--stripe3); } .stripes i:nth-child(4) { background: var(--stripe4); }
+    .badge b { font: 400 1rem/1 var(--wordmark); letter-spacing: .26em; }
+    .badge small { display: block; font: 600 .55rem/1 var(--silk); letter-spacing: .24em; color: var(--silk-light); margin-top: 4px; }
+    @media (max-width: 420px) { .badge small { display: none; } }
+
+    /* ---- Keys, lamps, plates, CRT glass ---- */
+    .key {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 44px; padding: 0 18px; border-radius: 6px; cursor: pointer;
+      font: 700 .82rem/1 var(--silk); letter-spacing: .18em; text-transform: uppercase; text-decoration: none;
+      color: var(--key-ink); background: linear-gradient(var(--key-top), var(--key-bot));
+      border: 0; box-shadow: 0 4px 0 var(--key-side), 0 5px 8px rgba(0,0,0,.18);
+      transform: translateY(0); transition: transform .06s, box-shadow .06s;
+    }
+    .key:hover { text-decoration: none; }
+    .key:active, .key[aria-pressed="true"], .key[aria-checked="true"] { transform: translateY(3px); box-shadow: 0 1px 0 var(--key-side), 0 2px 3px rgba(0,0,0,.2); }
+    .key.red { color: var(--red-ink); background: linear-gradient(var(--red-top), var(--red-bot)); box-shadow: 0 4px 0 var(--red-side), 0 5px 8px rgba(0,0,0,.2); }
+    .key.red:active { box-shadow: 0 1px 0 var(--red-side); }
+    .key.red .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red-ink); }
+    @media (prefers-reduced-motion: reduce) { .key { transition: none; } }
+    .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--lamp-off); flex: none; box-shadow: inset 0 1px 1px rgba(0,0,0,.5); }
+    [aria-pressed="true"] > .lamp, [aria-checked="true"] > .lamp, .lamp.on { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
+    .lamp.ok { background: var(--lamp-green); box-shadow: 0 0 6px rgba(166, 214, 81, .6); }
+    .keyrow { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; }
+    .plate {
+      background: var(--plate); color: var(--silk-light); border-radius: 10px; position: relative;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,.55), 0 1px 0 var(--groove-light);
+    }
+    .crt {
+      background: radial-gradient(120% 140% at 50% 40%, #17120A, var(--crt));
+      border-radius: 12px; color: var(--ph);
+      box-shadow: inset 0 0 0 2px #000, inset 0 0 28px rgba(0,0,0,.9);
+    }
+    .px { font: 400 22px/22px var(--pixel); color: var(--ph); text-shadow: 0 0 6px var(--ph-glow); -webkit-font-smoothing: none; font-smooth: never; letter-spacing: 0; text-transform: none; }
+    .px .dim { color: var(--ph-dim); text-shadow: none; }
+    .crt .silk, .plate .silk { color: var(--silk-light); }
+    .screw { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #F6F1E6, #8D8470); }
+    .screw::after { content: ""; position: absolute; left: 2px; right: 2px; top: 4px; height: 2px; background: #5D5647; transform: rotate(-30deg); }
+    .screw.tl { top: 5px; left: 5px; } .screw.tr { top: 5px; right: 5px; } .screw.bl { bottom: 5px; left: 5px; } .screw.br { bottom: 5px; right: 5px; }
+    @media (max-width: 600px) { .screw { display: none; } }
+    .dymo {
+      display: inline-block; background: var(--dymo); color: var(--dymo-ink); padding: 7px 12px 6px; border-radius: 3px;
+      font: 700 .9rem/1 var(--silk); letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.25);
+    }
+
+    /* Seven-segment digits, as on the deck's tape counter. */
+    .seg { display: inline-flex; gap: 5px; transform: skewX(-6deg); filter: drop-shadow(0 0 6px var(--ph-glow)); align-items: flex-end; }
+    .seg svg { height: var(--seg-h, 56px); width: auto; display: block; }
+    .seg .on { fill: var(--ph); }
+    .seg .off { fill: var(--ph-dim); }
+    .unit { font: 400 clamp(1rem, 2.4vw, 1.5rem)/1 var(--wordmark); color: var(--ph); text-shadow: 0 0 8px var(--ph-glow); padding-bottom: 4px; }
+    .seg-row { display: flex; align-items: flex-end; gap: 12px; }
+    .unit.pct { font-family: var(--pixel); font-size: 26px; padding-bottom: 2px; }
+
+    /* ---- Hero ---- */
+    .hero { padding-top: clamp(28px, 5vw, 56px); padding-bottom: clamp(36px, 6vw, 64px); }
+    .hero-head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px clamp(28px, 5vw, 72px); align-items: end; margin-bottom: clamp(24px, 4vw, 40px); }
+    @media (max-width: 900px) { .hero-head { grid-template-columns: minmax(0, 1fr); } }
+    .hero .eyebrow { margin: 0 0 10px; color: var(--ink-soft); }
+    .hero h1 { font: 600 clamp(2.4rem, 6vw, 4.8rem)/.96 var(--silk); margin: 0; max-width: 14ch; }
+    .hero .lead { margin: 0; font-size: 1.25rem; }
+
+    .stage { display: grid; grid-template-rows: minmax(0, 1fr); align-items: center; justify-items: center; transition: height 1s cubic-bezier(.4, 0, .2, 1); }
+    .stage { overflow: clip; overflow-clip-margin: 30px; }
+    .stage.static { transition: none; overflow: visible; }
+    .layer { grid-area: 1 / 1; width: 100%; transition: opacity .8s ease, transform 1s cubic-bezier(.4, 0, .2, 1), visibility 0s linear 0s; }
+    .layer.hidden-deck { opacity: 0; transform: scale(.55); visibility: hidden; pointer-events: none; transition: opacity .7s ease, transform 1s cubic-bezier(.4, 0, .2, 1), visibility 0s linear 1s; }
+    .layer.hidden-lib { opacity: 0; transform: scale(1.35); visibility: hidden; pointer-events: none; transition: none; }
+    .stage.static { display: block; }
+    .stage.static .layer { transform: none; opacity: 1; visibility: visible; pointer-events: auto; transition: none; }
+    .stage.static .library { margin-top: 18px; }
+    @media (prefers-reduced-motion: reduce) { .layer { transition: none !important; } }
+
+    .deck { padding: clamp(10px, 1.8vw, 18px); background: var(--abs-hi); border-radius: 14px; position: relative; box-shadow: inset 0 1px 0 var(--groove-light), 0 0 0 1px var(--groove-dark), 0 10px 24px rgba(0,0,0,.18); }
+    .deck-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-bottom: clamp(10px, 1.6vw, 16px); }
+    .deck-head .state { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
+    .deck-head .vents { display: flex; gap: 3px; margin-left: 8px; }
+    .deck-head .vents i { width: 3px; height: 26px; background: var(--ink-soft); opacity: .8; }
+    @media (max-width: 700px) { .deck-head .vents { display: none; } }
+    .phases { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .phases li { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); }
+    .phases li:not(:last-child)::after { content: ">"; margin-left: 9px; opacity: .6; }
+    .phases li.now { color: var(--ink); }
+    .phases li.done .lamp { background: var(--lamp-green); box-shadow: 0 0 6px rgba(166, 214, 81, .6); }
+    .phases li.now .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
+    .deck-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 16px); }
+    @media (max-width: 760px) { .deck-grid { grid-template-columns: minmax(0, 1fr); } }
+    .cassette { padding: clamp(8px, 1.6vw, 14px); }
+    .cassette svg { width: 100%; height: auto; display: block; }
+    .cassette .lbl-title { font: 400 27px var(--typed); fill: var(--marker); }
+    .cassette .lbl-ep { font: 400 15px var(--typed); fill: var(--marker); }
+    .cassette .side { font: 700 11px var(--silk); letter-spacing: .16em; fill: var(--silk-light); }
+    .cassette .side.hevc { fill: var(--stripe2); }
+    .reel { transform-box: fill-box; transform-origin: center; }
+    .spin .reel { animation: reel var(--rev, 1s) linear infinite; }
+    .still .reel { animation: none; }
+    @keyframes reel { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .reel { animation: none !important; } }
+    .info { display: grid; gap: clamp(10px, 1.6vw, 16px); align-content: stretch; grid-template-rows: auto auto 1fr; }
+    .read { padding: 12px 16px 14px; }
+    .read .seg-row { margin-top: 8px; }
+    .read .silk { display: block; }
+    .pbar { height: 12px; margin-top: 12px; background: #2A2118; border-radius: 2px; overflow: hidden; }
+    .pbar i { display: block; height: 100%; width: 0; background: var(--ph); box-shadow: 0 0 8px var(--ph-glow); }
+    .screen { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; justify-content: center; min-height: 100px; }
+    .screen .px { white-space: nowrap; }
+    .deck-foot { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; margin-top: 22px; }
+    .deck-foot .sw { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-left: auto; }
+    .deck-foot fieldset { border: 0; padding: 0; margin: 0; display: flex; align-items: center; gap: 10px; }
+    .deck-foot legend { float: left; padding: 0; margin-right: 10px; color: var(--ink-soft); }
+    .key.sm { min-height: 38px; padding: 0 12px; font-size: .74rem; }
+    @media (max-width: 700px) { .deck-foot .sw { margin-left: 0; } }
+
+    .library { padding: clamp(14px, 3vw, 28px); background: var(--abs-hi); border-radius: 14px; box-shadow: inset 0 1px 0 var(--groove-light), 0 0 0 1px var(--groove-dark), 0 10px 24px rgba(0,0,0,.18); }
+    .library .crt { padding: clamp(14px, 2.4vw, 24px); }
+    .tally { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-end; --seg-h: clamp(48px, 9vw, 84px); }
+    .tally .part { display: flex; flex-direction: column; gap: 10px; }
+    .tally .eq { font: 400 clamp(1.6rem, 4vw, 3rem)/1 var(--wordmark); color: var(--ph); text-shadow: 0 0 8px var(--ph-glow); padding-bottom: 6px; }
+    .bars { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; margin-top: 18px; }
+    .bar { height: 12px; background: #2A2118; border-radius: 2px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: #6B5F48; }
+    .bar.after i { background: var(--ph); box-shadow: 0 0 8px var(--ph-glow); }
+    .cells { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 18px; }
+    .cells i { width: 7px; height: 7px; background: var(--ph-dim); border-radius: 1px; }
+    .cells i.on { background: var(--ph); }
+    .tag-line { margin: 14px 0 0; color: var(--silk-light); }
+
+    /* ---- System design ---- */
+    .arch { display: grid; gap: 0; }
+    .tier { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: stretch; }
+    .tier.apps { justify-content: center; gap: 0; align-items: center; }
+    .tier.apps .node { flex: 0 1 210px; }
+    .bridge { width: 48px; height: 2px; background: var(--ink-soft); flex: none; }
+    @media (max-width: 560px) { .bridge { display: none; } .tier.apps { gap: 12px; } }
+    .node {
+      all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 3px; justify-content: center;
+      min-height: 52px; padding: 8px 18px; border-radius: 6px; text-align: center;
+      color: var(--key-ink); background: linear-gradient(var(--key-top), var(--key-bot));
+      box-shadow: 0 4px 0 var(--key-side), 0 5px 8px rgba(0,0,0,.18);
+      font: 700 .95rem/1.1 var(--silk); letter-spacing: .14em; text-transform: uppercase;
+      transition: transform .06s, box-shadow .06s;
+    }
+    .node small { font: 500 .78rem/1.1 var(--silk); letter-spacing: .1em; opacity: .8; }
+    .node:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+    .plate .node:focus-visible { outline-color: var(--ph); }
+    .node[aria-pressed="true"] { transform: translateY(3px); box-shadow: 0 1px 0 var(--key-side), 0 2px 3px rgba(0,0,0,.2); outline: 2px solid var(--ph); outline-offset: 2px; }
+    .node[aria-pressed="true"]::before { content: ""; align-self: center; width: 28px; height: 3px; background: var(--ph); margin-bottom: 3px; }
+    .core, .ext { padding: 14px clamp(12px, 2vw, 20px) 18px; }
+    .core .cap, .ext .cap { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .core .cap button { all: unset; cursor: pointer; color: var(--silk-light); }
+    .core .cap button:focus-visible { outline: 2px solid var(--ph); outline-offset: 3px; }
+    .core .cap button[aria-pressed="true"] { color: var(--ph); }
+    .core .tier { justify-content: flex-start; }
+    .core .node { flex: 1 1 130px; }
+    .ext { border: 2px dashed var(--ink-soft); background: transparent; box-shadow: none; }
+    .ext .cap { color: var(--ink-soft); }
+    .ext .tier { justify-content: flex-start; }
+    .ext .node { flex: 1 1 150px; }
+    .join { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 14px 0; }
+    .join::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px solid var(--ink-soft); }
+    .join > * { position: relative; }
+    .join .node { min-height: 0; padding: 7px 12px; flex-direction: row; background: var(--dymo); color: var(--dymo-ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.25); font-size: .85rem; transition: none; }
+    .join .node[aria-pressed="true"] { transform: none; outline-offset: 2px; }
+    .join .node[aria-pressed="true"]::before { display: none; }
+    .arch-read { margin-top: 22px; padding: 16px 20px; min-height: 5.6rem; }
+    .arch-read .silk { color: var(--silk-light); display: block; margin-bottom: 8px; }
+    .arch-read .px { display: block; white-space: normal; font-size: 22px; line-height: 26px; }
+    .uses { position: relative; }
+    .tier.apps .uses { flex: 0 1 auto; }
+
+    /* ---- Swap scrubber ---- */
+    .gate { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: stretch; margin: 6px 0 14px; }
+    .check {
+      all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 6px 14px;
+      border-radius: 6px; background: var(--abs-hi); color: var(--ink); font: 700 .8rem/1.1 var(--silk); letter-spacing: .14em; text-transform: uppercase;
+      box-shadow: inset 0 1px 0 var(--groove-light), 0 3px 0 var(--abs-lo);
+    }
+    .check small { display: block; font: 600 .66rem/1 var(--silk); letter-spacing: .16em; color: var(--ink-soft); margin-top: 3px; }
+    .check:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .check[aria-pressed="true"] .lamp { background: var(--lamp-off); box-shadow: inset 0 1px 1px rgba(0,0,0,.5); }
+    .check[aria-pressed="true"] { box-shadow: inset 0 2px 4px rgba(0,0,0,.25); }
+    .gate-status { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--ink-soft); }
+    .scrub { padding: clamp(14px, 2.4vw, 24px); }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 13px 4px; align-items: start; padding: 0; list-style: none; }
+    .steps li { text-align: center; padding: 0 4px; color: var(--silk-light); display: flex; flex-direction: column; gap: 5px; align-items: center; }
+    .steps li span.n { font: 700 .66rem/1 var(--silk); letter-spacing: .16em; color: #8F8670; }
+    .steps li b { font: 700 .85rem/1.15 var(--silk); letter-spacing: .12em; text-transform: uppercase; }
+    .steps li.del b { display: inline-block; margin: -5px 0; background: linear-gradient(var(--red-top), var(--red-bot)); color: var(--red-ink); padding: 5px 8px 4px; border-radius: 3px; }
+    .steps li code { font-size: .7rem; color: #B9AF98; overflow-wrap: anywhere; }
+    @media (max-width: 600px) { .steps li code { display: none; } pre { white-space: pre-wrap; word-break: break-all; } }
+    .slider { position: relative; margin: 8px 13px 18px; }
+    .slider::before { content: ""; position: absolute; left: 0; right: 0; top: 17px; height: 4px; border-radius: 2px; background: #3A3632; }
+    .ticks { position: absolute; left: 0; right: 0; top: 11px; height: 16px; pointer-events: none; }
+    .ticks i { position: absolute; top: 0; width: 2px; height: 16px; margin-left: -1px; background: #6B6558; }
+    .slider input { position: relative; width: calc(100% + 26px); height: 36px; margin: 0 0 0 -13px; background: transparent; -webkit-appearance: none; appearance: none; cursor: ew-resize; }
+    .slider input::-webkit-slider-runnable-track { height: 36px; background: transparent; }
+    .slider input::-moz-range-track { height: 36px; background: transparent; }
+    .slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 36px; border-radius: 5px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 0; box-shadow: 0 3px 0 var(--key-side); }
+    .slider input::-moz-range-thumb { width: 26px; height: 36px; border-radius: 5px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 0; box-shadow: 0 3px 0 var(--key-side); }
+    .slider input:focus-visible { outline: 2px solid var(--ph); outline-offset: 4px; }
+    .slider input:disabled { opacity: .4; cursor: not-allowed; }
+    .panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 16px); }
+    @media (max-width: 760px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+    .pane { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 190px; }
+    .pane .silk { color: var(--silk-light); }
+    .files { display: grid; gap: 4px; }
+    .file { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+    .file .px { overflow-wrap: anywhere; line-height: 24px; }
+    .file .px.old { color: var(--silk-light); text-shadow: none; }
+    .file .codec { font: 600 .8rem/1 var(--silk); letter-spacing: .14em; color: #B9AF98; }
+    .file.gone .px { text-decoration: line-through; opacity: .5; }
+    .out { display: flex; align-items: center; gap: 8px; margin-top: auto; color: var(--silk-light); }
+    .rec-text { color: #E9E2D1; font-size: 1.1rem; line-height: 1.35; margin: 0; }
+    .fine { color: var(--ink-soft); font-size: 1.05rem; margin-top: 14px; max-width: 72ch; }
+
+    /* ---- Quality ---- */
+    .tapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 18px 0 8px; }
+    .tape {
+      all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; height: 100%;
+      background: var(--cream); color: var(--paper-ink); border-radius: 4px; overflow: hidden;
+      box-shadow: 0 2px 0 rgba(0,0,0,.12), 0 6px 14px rgba(0,0,0,.12); transition: transform .08s;
+    }
+    .tape:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .tape .face { display: block; padding: 10px 14px 8px; flex: 1; }
+    .tape .title, .tape .side, .tape .stripe { display: block; }
+    .tape .title { font: 400 1.25rem/1.1 var(--typed); color: var(--marker); }
+    .tape .side { font: 600 .66rem/1.3 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); margin: 6px 0 0; }
+    .tape .stripe { height: 9px; background: linear-gradient(var(--stripe3) 0 40%, transparent 40% 60%, var(--stripe4) 60%); }
+    .tape .chosen { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: #E2D8C2; font: 600 .68rem/1 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .tape .chosen .lamp { background: #B7AC93; box-shadow: none; }
+    .tape[aria-checked="true"] { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--ink), 0 10px 18px rgba(0,0,0,.18); }
+    .tape[aria-checked="true"] .chosen { color: var(--paper-ink); }
+    .tape[aria-checked="true"] .chosen .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
+    @media (prefers-reduced-motion: reduce) { .tape { transition: none; } }
+    @media (max-width: 600px) { .tapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tape .title { font-size: 1.05rem; } .tape .chosen { padding: 7px 10px; letter-spacing: .1em; } }
+    .monitor { margin-top: 18px; padding: clamp(10px, 2vw, 18px); }
+    .monitor-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding: 2px 4px 12px; }
+    .wipe { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #000; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
+    .wipe img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; max-width: none; }
+    .wipe.zoomed img { transform: scale(2); image-rendering: pixelated; }
+    .wipe .src-layer { position: absolute; inset: 0; }
+    .wipe .bar-line { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ph); box-shadow: 0 0 8px var(--ph-glow); pointer-events: none; }
+    .wipe .grip { position: absolute; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: var(--plate); border: 2px solid var(--ph); box-shadow: 0 0 10px var(--ph-glow); pointer-events: none; display: grid; place-items: center; }
+    .wipe .grip svg { width: 18px; height: 18px; fill: var(--ph); }
+    .wipe .tag { position: absolute; top: 10px; padding: 5px 9px; border-radius: 3px; background: rgba(13, 10, 5, .78); color: var(--ph); pointer-events: none; }
+    .wipe img, .wipe .src-layer { pointer-events: none; }
+    .wipe .tag, .wipe .bar-line, .wipe .grip { z-index: 2; }
+    .wipe input[type="range"] { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; touch-action: pan-y; }
+    .wipe:has(input:focus-visible) { outline: 2px solid var(--ph); outline-offset: 3px; }
+    .wipe-controls { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; padding: 16px 4px 4px; }
+    .wipe-controls .group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .readouts { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 14px 16px; margin-top: 14px; }
+    .readouts div { display: flex; flex-direction: column; gap: 6px; }
+    .readouts .silk { color: var(--ph); opacity: .75; }
+    .jcard { background: var(--cream); color: var(--paper-ink); border-radius: 6px; padding: 6px 0 2px; margin-top: 18px; overflow-x: auto; box-shadow: 0 2px 0 rgba(0,0,0,.1), 0 8px 18px rgba(0,0,0,.12); }
+    .jcard table { border-collapse: collapse; width: 100%; min-width: 600px; }
+    .jcard th, .jcard td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--jcard-rule); vertical-align: top; }
+    .jcard th:first-child, .jcard td:first-child { text-align: left; }
+    .jcard thead th { font: 600 .72rem/1.2 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .jcard tbody tr:last-child td, .jcard tbody tr:last-child th { border-bottom: 0; }
+    .jcard .clip { font: 400 1.1rem/1.2 var(--typed); color: var(--marker); }
+    .jcard .clip small { display: block; font: 600 .66rem/1.4 var(--silk); letter-spacing: .14em; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .jcard .pct { font: 700 22px/22px var(--pixel); -webkit-font-smoothing: none; }
+    .jcard .sub { display: block; font-size: .95rem; color: var(--paper-ink-soft); margin-top: 4px; white-space: nowrap; }
+    .jcard .pick { background: var(--ph-tint); }
+    .jcard thead .pick { color: var(--paper-ink); }
+
+    /* ---- Design ---- */
+    .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    @media (max-width: 640px) { .themes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .theme-btn { all: unset; box-sizing: border-box; cursor: pointer; display: block; }
+    .theme-btn img { border-radius: 5px; box-shadow: 0 2px 0 var(--abs-lo), 0 4px 10px rgba(0,0,0,.18); aspect-ratio: 16 / 10; }
+    .theme-btn span { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .theme-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 6px; }
+    .theme-btn[aria-pressed="true"] img { box-shadow: 0 0 0 3px var(--ink); }
+    .theme-btn[aria-pressed="true"] .lamp { background: var(--ph); box-shadow: 0 0 6px var(--ph-glow); }
+    .shot-frame { padding: clamp(8px, 1.4vw, 12px); margin: 22px 0 0; }
+    .shot-frame img { border-radius: 4px; }
+    .caption { color: var(--ink-soft); font-size: 1rem; margin-top: 10px; }
+
+    /* ---- Install ---- */
+    .install-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 56px); align-items: start; }
+    @media (max-width: 860px) { .install-grid { grid-template-columns: minmax(0, 1fr); } }
+    pre { margin: 0 0 18px; padding: 16px 18px; border-radius: 8px; background: var(--code-bg); color: #E9E2D1; overflow-x: auto; font: 500 .95rem/1.6 var(--mono); box-shadow: inset 0 2px 6px rgba(0,0,0,.5); }
+    pre .c { color: #A89E87; }
+    .needs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .needs li { display: flex; gap: 12px; align-items: baseline; }
+    footer { padding: 36px 0 48px; color: var(--ink-soft); font-size: 1rem; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 32px; justify-content: space-between; }
+    footer p { margin: 0; }
+  </style>
+</head>
+<body>
+  <a class="sr-only" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="wrap">
+      <a class="badge" href="#top" aria-label="ShrinkRay, back to top">
+        <span class="stripes" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span><b>SHRINKRAY</b><small>SR-265 · HEVC transcoder unit</small></span>
+      </a>
+      <nav class="nav silk" aria-label="Sections">
+        <a class="opt" href="#system">System</a>
+        <a class="opt" href="#swap">Swap</a>
+        <a class="opt" href="#quality">Quality</a>
+        <a class="opt" href="#design">Design</a>
+        <a href="#install">Install</a>
+        <a class="gh" href="https://github.com/JacobPoteet/ShrinkRay">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap hero" id="top">
+      <div class="hero-head">
+        <div>
+          <p class="eyebrow silk">Batch video compressor · H.264 to H.265</p>
+          <h1>Shrink a whole library overnight.</h1>
+        </div>
+        <p class="lead">ShrinkRay re-encodes video with HandBrakeCLI and NVIDIA NVENC, checks every result, and swaps it in under the original filename, so a media server keeps its metadata and watch history. TV libraries gain the most: hundreds of gigabytes come back.</p>
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="layer deck-layer" id="deck-layer">
+          <div class="deck" role="img" aria-label="The ShrinkRay deck encoding one episode of Tears of Steel. A cassette turns while the phase lamps step through probe, encode, verify and swap. The episode shrinks from 1.8 gigabytes to 0.6 gigabytes.">
+            <i class="screw tl" aria-hidden="true"></i><i class="screw tr" aria-hidden="true"></i><i class="screw bl" aria-hidden="true"></i><i class="screw br" aria-hidden="true"></i>
+            <div class="deck-head" aria-hidden="true">
+              <span class="badge"><span class="stripes"><i></i><i></i><i></i><i></i></span><span><b>SHRINKRAY</b><small>SR-265 · HEVC transcoder unit</small></span></span>
+              <span class="vents"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <ol class="phases silk" id="phases">
+                <li data-i="0"><span class="lamp"></span>Probe</li>
+                <li data-i="1"><span class="lamp"></span>Encode</li>
+                <li data-i="2"><span class="lamp"></span>Verify</li>
+                <li data-i="3"><span class="lamp"></span>Swap</li>
+              </ol>
+              <span class="state silk"><span class="lamp" id="state-lamp"></span><span id="state-word">Idle</span></span>
+            </div>
+            <div class="deck-grid" aria-hidden="true">
+              <div class="plate cassette still" id="cassette">
+                <svg viewBox="0 0 560 300">
+                  <defs><linearGradient id="stripe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CF5A2A"/><stop offset=".45" stop-color="#CF5A2A"/><stop offset=".55" stop-color="#EFE7D4"/><stop offset=".6" stop-color="#A73A22"/><stop offset="1" stop-color="#A73A22"/></linearGradient></defs>
+                  <rect x="2" y="2" width="556" height="296" rx="12" fill="#1B1917"/>
+                  <rect x="40" y="14" width="480" height="64" fill="#EFE7D4"/>
+                  <rect x="40" y="68" width="480" height="10" fill="url(#stripe)"/>
+                  <text class="lbl-title" x="54" y="46" id="lbl-title">TEARS OF STEEL</text>
+                  <text class="lbl-ep" x="506" y="46" text-anchor="end">S01E04 · Celia</text>
+                  <rect x="20" y="92" width="520" height="176" rx="16" fill="#0C0B0A" stroke="#33302B" stroke-width="2"/>
+                  <path id="tape-l" d="" fill="none" stroke="#5A4630" stroke-width="2"/>
+                  <path id="tape-r" d="" fill="none" stroke="#5A4630" stroke-width="2"/>
+                  <circle cx="250" cy="258" r="6" fill="#8D8470"/><circle cx="310" cy="258" r="6" fill="#8D8470"/>
+                  <circle id="pack-l" cx="150" cy="180" r="60" fill="var(--tape)"/>
+                  <circle id="pack-r" cx="410" cy="180" r="40" fill="var(--tape)"/>
+                  <g transform="translate(150 180)"><g class="reel"><circle r="28" fill="#EFE7D4"/><circle cx="0" cy="-10" r="6" fill="#1B1917"/><circle cx="-9" cy="6" r="6" fill="#1B1917"/><circle cx="9" cy="6" r="6" fill="#1B1917"/></g></g>
+                  <g transform="translate(410 180)"><g class="reel"><circle r="28" fill="#EFE7D4"/><circle cx="0" cy="-10" r="6" fill="#1B1917"/><circle cx="-9" cy="6" r="6" fill="#1B1917"/><circle cx="9" cy="6" r="6" fill="#1B1917"/></g></g>
+                  <text class="side" x="36" y="256">H.264</text>
+                  <text class="side hevc" x="524" y="256" text-anchor="end">HEVC</text>
+                </svg>
+              </div>
+              <div class="info">
+                <div class="crt read">
+                  <span class="silk">Size</span>
+                  <div class="seg-row" style="--seg-h:54px"><span class="seg" id="seg-size" data-cells="2"></span><span class="unit">GB</span></div>
+                </div>
+                <div class="crt read">
+                  <span class="silk">Episode</span>
+                  <div class="seg-row" style="--seg-h:36px"><span class="seg" id="seg-pct" data-cells="3"></span><span class="unit pct">%</span></div>
+                  <div class="pbar"><i id="pbar"></i></div>
+                </div>
+                <div class="crt screen"><span class="px" id="line1"></span><span class="px" id="line2"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="layer library hidden-lib" id="lib-layer">
+          <div class="crt" role="group" aria-label="Library total: 412 episodes, 570 gigabytes freed. 878 gigabytes before, 308 after.">
+            <span class="silk" aria-hidden="true">Library · all shows</span>
+            <div class="tally" aria-hidden="true" style="margin-top:12px">
+              <div class="part"><div class="seg-row"><span class="seg" id="seg-eps" data-cells="3"></span></div><span class="silk">Episodes</span></div>
+              <span class="eq">=</span>
+              <div class="part"><div class="seg-row"><span class="seg" id="seg-freed" data-cells="3"></span><span class="unit">GB</span></div><span class="silk">Freed</span></div>
+            </div>
+            <div class="bars" aria-hidden="true">
+              <span class="silk">Before</span><span class="bar"><i style="width:100%"></i></span><span class="px" id="gb-before">878 GB</span>
+              <span class="silk">After</span><span class="bar after"><i id="bar-after" style="width:100%"></i></span><span class="px" id="gb-after">878 GB</span>
+            </div>
+            <div class="cells" id="cells" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="deck-foot">
+        <button class="key red" type="button" id="again"><span class="dot" aria-hidden="true"></span>Encode again</button>
+        <div class="sw">
+          <fieldset>
+            <legend class="silk">Phosphor</legend>
+            <div class="keyrow" data-switch="phosphor">
+              <button class="key sm" type="button" data-value="amber" aria-pressed="true"><span class="lamp" aria-hidden="true"></span>Amber</button>
+              <button class="key sm" type="button" data-value="green" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Green</button>
+              <button class="key sm" type="button" data-value="ice" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Ice</button>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend class="silk">Chassis</legend>
+            <div class="keyrow" data-switch="chassis">
+              <button class="key sm" type="button" data-value="beige" aria-pressed="true"><span class="lamp" aria-hidden="true"></span>Beige</button>
+              <button class="key sm" type="button" data-value="graphite" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Graphite</button>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+
+    <hr class="seam">
+
+    <section class="module" id="system" aria-labelledby="sys-h">
+      <div class="wrap">
+        <h2 class="heading" id="sys-h">System design</h2>
+        <p class="lead">Core is pure logic. Every process call and file operation sits behind an interface, so tests run on fakes. Select a part.</p>
+        <div class="arch" id="arch">
+          <div class="tier apps">
+            <button class="node" type="button" data-n="theme" aria-pressed="false">ShrinkRay.Theme<small>control kit</small></button>
+            <span class="bridge" aria-hidden="true"></span>
+            <button class="node" type="button" data-n="app" aria-pressed="false">ShrinkRay.App<small>MVVM deck</small></button>
+          </div>
+          <div class="join"><button class="node" type="button" data-n="services" aria-pressed="false">DeckServices</button></div>
+          <div class="plate core">
+            <div class="cap silk"><button type="button" data-n="core" aria-pressed="false">ShrinkRay.Core · the engine</button></div>
+            <div class="tier">
+              <button class="node" type="button" data-n="media" aria-pressed="false">Media<small>probe, eligibility</small></button>
+              <button class="node" type="button" data-n="encode" aria-pressed="false">Encode<small>HandBrake args</small></button>
+              <button class="node" type="button" data-n="verify" aria-pressed="false">Verification<small>pass or keep</small></button>
+              <button class="node" type="button" data-n="swap" aria-pressed="false">Swap<small>journal, recovery</small></button>
+              <button class="node" type="button" data-n="pipeline" aria-pressed="false">Pipeline<small>episode, queue</small></button>
+              <button class="node" type="button" data-n="library" aria-pressed="false">Library<small>scan, ledger</small></button>
+            </div>
+          </div>
+          <div class="join">
+            <button class="node" type="button" data-n="runner" aria-pressed="false">IProcessRunner</button>
+            <button class="node" type="button" data-n="iprobe" aria-pressed="false">IMediaProbe</button>
+            <button class="node" type="button" data-n="ifs" aria-pressed="false">IFileSystem</button>
+          </div>
+          <div class="ext">
+            <div class="cap silk"><span>External tools and the disk</span></div>
+            <div class="tier">
+              <button class="node" type="button" data-n="hb" aria-pressed="false">HandBrakeCLI<small>NVENC encode</small></button>
+              <button class="node" type="button" data-n="ffprobe" aria-pressed="false">ffprobe<small>scan, checks</small></button>
+              <button class="node" type="button" data-n="ffmpeg" aria-pressed="false">ffmpeg<small>decode check</small></button>
+              <button class="node" type="button" data-n="disk" aria-pressed="false">File system<small>library, scratch</small></button>
+            </div>
+          </div>
+        </div>
+        <div class="crt arch-read" aria-live="polite"><span class="silk" id="arch-name">ShrinkRay.Core</span><span class="px" id="arch-line"></span></div>
+      </div>
+    </section>
+
+    <hr class="seam">
+
+    <section class="module" id="swap" aria-labelledby="swap-h">
+      <div class="wrap">
+        <h2 class="heading" id="swap-h">Crash-safe swap</h2>
+        <p class="lead">The journal writes each state to disk before the step runs. On startup, recovery reads the disk and settles whatever is left. Slide the crash.</p>
+
+        <div class="gate" role="group" aria-label="The five checks before the swap. Press one to make it fail.">
+          <button class="check" type="button" data-c="Duration" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Duration<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Streams" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Streams<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Full decode" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Full decode<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Captions" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Captions<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Min. savings" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Min. savings<small>PASS</small></span></button>
+          <span class="gate-status silk" aria-live="polite"><span class="lamp ok" id="gate-lamp" aria-hidden="true"></span><span id="gate-word">All pass: swap may start</span></span>
+        </div>
+
+        <div class="plate scrub">
+          <ol class="steps">
+            <li><span class="n">STEP 1</span><b>Copy to temp</b><code>name.shrinkray.tmp</code></li>
+            <li><span class="n">STEP 2</span><b>Original aside</b><code>name.shrinkray.bak</code></li>
+            <li><span class="n">STEP 3</span><b>Temp to name</b><code>name</code></li>
+            <li class="del"><span class="n">STEP 4</span><b>Delete backup</b><code>name.shrinkray.bak</code></li>
+          </ol>
+          <div class="slider">
+            <div class="ticks" aria-hidden="true"><i style="left:0"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:100%"></i></div>
+            <input type="range" id="crash" min="0" max="4" step="1" value="2" aria-label="Crash here: slide to choose when the crash happens">
+          </div>
+          <div class="panes">
+            <div class="crt pane">
+              <span class="silk" id="crash-at">Crash at</span>
+              <div class="files" id="files"></div>
+              <span class="silk" style="margin-top:auto">Journal, last entry · <span id="jlast" class="px"></span></span>
+            </div>
+            <div class="plate pane" style="box-shadow: inset 0 0 0 1px #3A3632">
+              <span class="silk">On startup, recovery</span>
+              <p class="rec-text" id="rec"></p>
+              <div class="out silk"><span class="lamp ok" id="out-lamp" aria-hidden="true"></span><span id="out-word"></span></div>
+            </div>
+          </div>
+        </div>
+        <p class="fine">CrashRecoveryTests kills the swap after every durable operation, and again during recovery.</p>
+      </div>
+    </section>
+
+    <hr class="seam">
+
+    <section class="module" id="quality" aria-labelledby="q-h">
+      <div class="wrap">
+        <h2 class="heading" id="q-h">Quality</h2>
+        <p class="lead">Four 3-minute clips from commercial TV, each encoded at CQ 22, 25 and 28 and scored with VMAF. Drag the line to compare.</p>
+        <div class="tapes" id="tapes" role="radiogroup" aria-label="Test clip"></div>
+
+        <div class="plate monitor">
+          <div class="monitor-head">
+            <span class="silk" id="monitor-title">Source against encode</span>
+            <span class="silk" id="monitor-meta"></span>
+          </div>
+          <div class="wipe" id="wipe">
+            <img class="enc" alt="">
+            <div class="src-layer"><img class="src" alt=""></div>
+            <div class="bar-line"></div>
+            <div class="grip" aria-hidden="true"><svg viewBox="0 0 18 18"><path d="M6 3 1 9l5 6zM12 3l5 6-5 6z"/></svg></div>
+            <span class="tag silk" style="left:10px">Source</span>
+            <span class="tag silk tag-enc" style="right:10px">CQ 28</span>
+            <input type="range" min="0" max="100" step="1" value="50" aria-label="Wipe between source and encode. Lower values show more of the encode, higher values more of the source.">
+          </div>
+          <div class="wipe-controls">
+            <div class="group" role="group" aria-labelledby="cq-l"><span class="silk" id="cq-l">Quality</span><span class="keyrow" id="cq-keys"></span></div>
+            <div class="group" role="group" aria-labelledby="shot-l"><span class="silk" id="shot-l">Frame</span><span class="keyrow" id="shot-keys"></span></div>
+            <div class="group"><button class="key" type="button" id="zoom-key" aria-pressed="false"><span class="lamp" aria-hidden="true"></span>Zoom 2×</button></div>
+          </div>
+          <div class="crt readouts" id="readouts" aria-live="polite"></div>
+        </div>
+        <noscript><p class="fine">The comparison needs JavaScript.</p></noscript>
+
+        <div class="jcard"><table id="results"><caption class="sr-only">File size saved and VMAF for each clip at each CQ. CQ 28 is the default.</caption><thead></thead><tbody></tbody></table></div>
+        <p class="fine">CQ 28 is the default: every clip shrank 60 to 70% with a mean VMAF above 95. Raise it per show on the deck.</p>
+      </div>
+    </section>
+
+    <hr class="seam">
+
+    <section class="module" id="design" aria-labelledby="des-h">
+      <div class="wrap">
+        <h2 class="heading" id="des-h">Design</h2>
+        <p class="lead">Cassette futurism, built as a working machine from one control kit. Pick a theme and the page follows.</p>
+        <div class="themes" id="themes"></div>
+        <figure class="plate shot-frame">
+          <img data-shot="kit" src="img/app/kit-amber-beige.webp" width="1802" height="1180" loading="lazy"
+               alt="The component gallery: panels for materials, house rules, type, controls, lamps and readouts, surface detail, instruments, reels as data, and a live deck.">
+        </figure>
+        <p class="caption">The kit in ShrinkRay.Gallery, one window with every control.</p>
+      </div>
+    </section>
+
+    <hr class="seam">
+
+    <section class="module" id="install" aria-labelledby="inst-h">
+      <div class="wrap">
+        <h2 class="heading" id="inst-h">Install</h2>
+        <div class="install-grid">
+          <div>
+<pre><span class="c"># PowerShell</span>
+git clone https://github.com/JacobPoteet/ShrinkRay.git
+cd ShrinkRay
+powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
+            <p>Builds Release into your user profile and adds a Start menu shortcut. A packaged release arrives at 1.0.</p>
+            <div class="keyrow"><a class="key" href="https://github.com/JacobPoteet/ShrinkRay">Source on GitHub</a></div>
+          </div>
+          <ul class="needs">
+            <li><span class="lamp ok" aria-hidden="true"></span>Windows 10 or 11</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>An NVIDIA GPU with HEVC NVENC</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>HandBrakeCLI, ffmpeg and ffprobe</li>
+            <li><span class="lamp ok" aria-hidden="true"></span>The .NET 8 SDK, to build</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <hr class="seam" style="margin-bottom:28px">
+    <div class="wrap">
+      <p>ShrinkRay by Jacob Poteet · MIT license · <a href="https://github.com/JacobPoteet/ShrinkRay">GitHub</a></p>
+      <p>Fonts: Michroma, Barlow Condensed and scientifica under the <a href="fonts/BarlowCondensed-OFL.txt">SIL Open Font License</a>; Special Elite under the <a href="fonts/SpecialElite-LICENSE.txt">Apache License 2.0</a>.</p>
+    </div>
+  </footer>
+
+  <script>
+  (function () {
+    'use strict';
+    var root = document.documentElement;
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var $ = function (id) { return document.getElementById(id); };
+
+    // ---- Phosphor and chassis ----
+    var store = {
+      get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+      set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
+    };
+    var darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    var state = {
+      phosphor: store.get('sr-phosphor') || 'amber',
+      chassis: store.get('sr-chassis') || (darkQuery.matches ? 'graphite' : 'beige')
+    };
+    var PAIRS = [['amber', 'beige'], ['green', 'beige'], ['ice', 'beige'], ['amber', 'graphite'], ['green', 'graphite'], ['ice', 'graphite']];
+    var NAMES = { amber: 'Amber', green: 'Green', ice: 'Ice', beige: 'beige', graphite: 'graphite' };
+
+    function applyTheme() {
+      root.setAttribute('data-phosphor', state.phosphor);
+      root.setAttribute('data-chassis', state.chassis);
+      var pair = state.phosphor + '-' + state.chassis;
+      // The kit capture exists in Amber on Beige and Green on Graphite.
+      var two = state.chassis === 'graphite' ? 'green-graphite' : 'amber-beige';
+      document.querySelectorAll('img[data-shot]').forEach(function (img) {
+        img.src = 'img/app/' + img.getAttribute('data-shot') + '-' + two + '.webp';
+      });
+      document.querySelectorAll('[data-switch] .key').forEach(function (b) {
+        var kind = b.parentNode.getAttribute('data-switch');
+        b.setAttribute('aria-pressed', String(state[kind] === b.getAttribute('data-value')));
+      });
+      document.querySelectorAll('.theme-btn').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-pair') === pair));
+      });
+    }
+    function setTheme(kind, value) {
+      state[kind] = value;
+      store.set('sr-' + kind, value);
+      applyTheme();
+    }
+    document.querySelectorAll('[data-switch] .key').forEach(function (b) {
+      b.addEventListener('click', function () { setTheme(b.parentNode.getAttribute('data-switch'), b.getAttribute('data-value')); });
+    });
+    darkQuery.addEventListener && darkQuery.addEventListener('change', function (e) {
+      if (!store.get('sr-chassis')) { state.chassis = e.matches ? 'graphite' : 'beige'; applyTheme(); }
+    });
+    PAIRS.forEach(function (p) {
+      var b = document.createElement('button');
+      var label = NAMES[p[0]] + ' on ' + NAMES[p[1]];
+      b.type = 'button';
+      b.className = 'theme-btn';
+      b.setAttribute('data-pair', p[0] + '-' + p[1]);
+      b.setAttribute('aria-label', 'Switch the page to ' + label);
+      b.innerHTML = '<img loading="lazy" width="1440" height="900" src="img/app/deck-encoding-' + p[0] + '-' + p[1] + '.webp" alt="">' +
+        '<span class="silk"><span class="lamp" aria-hidden="true"></span>' + label + '</span>';
+      b.addEventListener('click', function () {
+        state.phosphor = p[0]; state.chassis = p[1];
+        store.set('sr-phosphor', p[0]); store.set('sr-chassis', p[1]);
+        applyTheme();
+      });
+      $('themes').appendChild(b);
+    });
+    applyTheme();
+
+    // ---- Seven-segment digits, drawn like the deck's tape counter ----
+    var SEGS = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', ' ': '' };
+    function digitSvg(ch) {
+      if (ch === '.') return '<svg viewBox="0 0 12 70" aria-hidden="true" style="width:.17em;width:calc(var(--seg-h) * .17)"><circle class="on" cx="6" cy="64" r="4.4"/></svg>';
+      var w = 40, h = 70, t = 8, g = 1.6, L = t / 2, R = w - t / 2, T = t / 2, M = h / 2, B = h - t / 2, k = t / 2;
+      function H(y, x1, x2) { return [x1, y, x1 + k, y - k, x2 - k, y - k, x2, y, x2 - k, y + k, x1 + k, y + k].join(' '); }
+      function V(x, y1, y2) { return [x, y1, x + k, y1 + k, x + k, y2 - k, x, y2, x - k, y2 - k, x - k, y1 + k].join(' '); }
+      var shape = { a: H(T, L + g, R - g), g: H(M, L + g, R - g), d: H(B, L + g, R - g), f: V(L, T + g, M - g), b: V(R, T + g, M - g), e: V(L, M + g, B - g), c: V(R, M + g, B - g) };
+      var lit = SEGS[ch] || '';
+      var out = '<svg viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true">';
+      'abcdefg'.split('').forEach(function (s) { out += '<polygon class="' + (lit.indexOf(s) >= 0 ? 'on' : 'off') + '" points="' + shape[s] + '"/>'; });
+      return out + '</svg>';
+    }
+    // Pads with blank cells on the left until the digit count equals data-cells.
+    function drawSeg(el, text) {
+      var cells = +el.getAttribute('data-cells') || 3;
+      text = String(text);
+      while (text.replace('.', '').length < cells) text = ' ' + text;
+      if (el.getAttribute('data-last') === text) return;
+      el.setAttribute('data-last', text);
+      el.innerHTML = text.split('').map(digitSvg).join('');
+    }
+
+    // ---- Hero: the deck runs one episode, then the library total ----
+    var T = { probe: 1200, encode: 5800, verify: 7200, swap: 8400, hold: 9600, lib: 11800 };
+    var LINES = [
+      ['> PROBE  H.264 1080P', '  1.8 GB · 43 MIN'],
+      ['> ENCODE  HEVC 10-BIT', '  CQ 28 · 166 FPS'],
+      ['> VERIFY  5 CHECKS', '  FULL DECODE'],
+      ['> SWAP  RENAME OVER', '  ORIGINAL, SAME NAME'],
+      ['> DONE  -67%', '  1.8 GB TO 0.6 GB']
+    ];
+    var STATE_WORDS = ['Probing', 'Encoding', 'Verifying', 'Swapping', 'Done'];
+    var ease = function (x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); };
+    var cassette = $('cassette'), stage = $('stage'), deckLayer = $('deck-layer'), libLayer = $('lib-layer');
+    var packL = $('pack-l'), packR = $('pack-r');
+    var phaseEls = document.querySelectorAll('#phases li');
+    var TITLE = 'TEARS OF STEEL';
+    var cellHost = $('cells'), cellEls = [], lit = 0;
+    for (var ci = 0; ci < 412; ci++) { var c = document.createElement('i'); cellHost.appendChild(c); cellEls.push(c); }
+
+    function tapePath(cx, r, flip) {
+      // Tape leaves the pack's lower edge and runs to the post under it.
+      var px = flip ? 310 : 250, x0 = cx + (flip ? -r * .55 : r * .55), y0 = 180 + r * .83;
+      return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' L' + px + ' 252';
+    }
+    function setLibrary(q) {
+      drawSeg($('seg-eps'), String(Math.round(412 * q)));
+      drawSeg($('seg-freed'), String(Math.round(570 * q)));
+      var after = Math.round(878 - 570 * q);
+      $('gb-before').textContent = '878 GB';
+      $('gb-after').textContent = after + ' GB';
+      $('bar-after').style.width = (after / 878 * 100) + '%';
+      var n = Math.round(412 * q);
+      while (lit < n) cellEls[lit++].className = 'on';
+      while (lit > n) cellEls[--lit].className = '';
+    }
+    // The stage is as tall as the layer in view, so the page below follows the zoom out.
+    var inLib = null;
+    function fitStage(toLib) {
+      if (stage.classList.contains('static')) { stage.style.height = ''; return; }
+      inLib = toLib;
+      stage.style.height = (toLib ? libLayer : deckLayer).offsetHeight + 'px';
+    }
+    window.addEventListener('resize', function () { if (inLib !== null) fitStage(inLib); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (inLib !== null) fitStage(inLib); });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { if (inLib !== null) fitStage(inLib); });
+      ro.observe(deckLayer); ro.observe(libLayer);
+    }
+    function render(t) {
+      var phase = t < T.probe ? 0 : t < T.encode ? 1 : t < T.verify ? 2 : t < T.swap ? 3 : 4;
+      var p = t < T.probe ? 0 : t < T.encode ? ease((t - T.probe) / (T.encode - T.probe)) : 1;
+      var size = 1.8 - 1.2 * p;
+      phaseEls.forEach(function (li, i) {
+        li.className = i < phase ? 'done' : i === phase ? 'now' : '';
+      });
+      var running = phase < 4;
+      $('state-lamp').className = 'lamp' + (running ? ' on' : ' ok');
+      $('state-word').textContent = STATE_WORDS[phase];
+      drawSeg($('seg-size'), size.toFixed(1));
+      drawSeg($('seg-pct'), String(Math.round(p * 100)));
+      $('pbar').style.width = (p * 100) + '%';
+      $('line1').textContent = LINES[phase][0];
+      $('line2').textContent = LINES[phase][1];
+      // Reels: the source reel unwinds as the output reel fills.
+      var rl = 34 + 28 * (size / 1.8), rr = 34 + 18 * p;
+      packL.setAttribute('r', rl.toFixed(1)); packR.setAttribute('r', rr.toFixed(1));
+      $('tape-l').setAttribute('d', tapePath(150, rl, false));
+      $('tape-r').setAttribute('d', tapePath(410, rr, true));
+      cassette.className = 'plate cassette ' + (phase === 1 || phase === 2 ? 'spin' : 'still');
+      cassette.style.setProperty('--rev', phase === 1 ? '.8s' : '2.2s');
+      var n = t < 700 ? Math.ceil(TITLE.length * t / 700) : TITLE.length;
+      $('lbl-title').textContent = TITLE.slice(0, n);
+      // Zoom out to the library total.
+      var toLib = t >= T.hold;
+      fitStage(toLib);
+      deckLayer.classList.toggle('hidden-deck', toLib && !stage.classList.contains('static'));
+      libLayer.classList.toggle('hidden-lib', !toLib && !stage.classList.contains('static'));
+      setLibrary(ease((t - T.hold - 500) / (T.lib - T.hold - 500)));
+    }
+
+    var raf = 0;
+    function play() {
+      cancelAnimationFrame(raf);
+      var start = performance.now();
+      (function frame(now) {
+        var t = now - start;
+        render(t);
+        if (t < T.lib) raf = requestAnimationFrame(frame);
+      })(start);
+    }
+    var seek = /[?&]t=(\d+)/.exec(location.search);
+    if (reduceMotion || seek) {
+      if (reduceMotion) { stage.classList.add('static'); $('again').hidden = true; }
+      if (seek && !reduceMotion) { /* frozen frame for checks */ }
+      render(reduceMotion ? T.lib : +seek[1]);
+    } else {
+      play();
+    }
+    $('again').addEventListener('click', play);
+
+    // ---- System design diagram ----
+    var NODES = {
+      app: ['ShrinkRay.App', 'The WPF deck. MainViewModel holds the state and reaches the engine only through DeckServices.'],
+      theme: ['ShrinkRay.Theme', 'The control kit: reels, keys, meters, lamps. Geometry lives in plain classes with unit tests.'],
+      services: ['DeckServices', 'The one seam between deck and engine. Tests hand it an in-memory library and a scripted runner.'],
+      core: ['ShrinkRay.Core', 'The engine. Logic stays pure, and every process call and file operation sits behind an interface.'],
+      media: ['Core / Media', 'Parses ffprobe output and applies the eligibility rules: is it H.264, and is it worth encoding.'],
+      encode: ['Core / Encode', 'Plans the HandBrakeCLI arguments and audio, and parses its progress.'],
+      verify: ['Core / Verification', 'Decides one of three outcomes for a new file: pass, keep the original, or fail with reasons.'],
+      swap: ['Core / Swap', 'The journal state machine, the executor and startup recovery. Crash tests cover each step.'],
+      pipeline: ['Core / Pipeline', 'Runs one episode from probe to swap, and a queue that runs a show’s episodes one at a time.'],
+      library: ['Core / Library', 'Scans a show, caches probes, estimates savings and keeps the ledger of space freed.'],
+      runner: ['IProcessRunner', 'Every external process starts here. Tests swap in a fake that never launches a tool.'],
+      iprobe: ['IMediaProbe', 'Reads streams, duration and captions. Tests feed it synthetic ffprobe JSON.'],
+      ifs: ['IFileSystem', 'Every copy, rename and delete in the swap goes through it, so crash tests can stop after each one.'],
+      hb: ['HandBrakeCLI + NVENC', 'Does the encode, H.264 to H.265 on the GPU, in a local scratch folder.'],
+      ffprobe: ['ffprobe', 'Scans each file and re-reads the output for the checks.'],
+      ffmpeg: ['ffmpeg', 'Runs the full-decode check and copies MKV font attachments back when an encode drops them.'],
+      disk: ['File system', 'The library is touched only by the final rename. Scratch is local.']
+    };
+    var arch = $('arch');
+    function pick(id) {
+      arch.querySelectorAll('[data-n]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-n') === id)); });
+      $('arch-name').textContent = NODES[id][0];
+      $('arch-line').textContent = NODES[id][1];
+    }
+    arch.querySelectorAll('[data-n]').forEach(function (b) {
+      var id = b.getAttribute('data-n');
+      b.addEventListener('click', function () { pick(id); });
+      b.addEventListener('focus', function () { pick(id); });
+    });
+    pick('app');
+
+    // ---- Swap scrubber ----
+    var POS = [
+      { at: 'Before the copy', jl: 'Verified', files: [['ep.mkv', 'H.264', 'old']],
+        rec: 'The share never changed. The episode goes back in the queue.', out: 'Original kept', ok: true },
+      { at: 'During the copy to temp', jl: 'UploadedTemp', files: [['ep.mkv', 'H.264', 'old'], ['ep.mkv.shrinkray.tmp', 'HEVC', 'new']],
+        rec: 'Deletes the temp file. The original never moved.', out: 'Original kept', ok: true },
+      { at: 'After the original went aside', jl: 'OriginalRenamedAside', files: [['ep.mkv.shrinkray.bak', 'H.264', 'old'], ['ep.mkv.shrinkray.tmp', 'HEVC', 'new']],
+        rec: 'Deletes the temp file and renames the backup back to ep.mkv.', out: 'Original restored', ok: true },
+      { at: 'After the temp took the name', jl: 'Swapped', files: [['ep.mkv', 'HEVC', 'new'], ['ep.mkv.shrinkray.bak', 'H.264', 'old']],
+        rec: 'Checks the new file against the backup. Pass: deletes the backup. Fail: puts the original back.', out: 'New file verified', ok: true },
+      { at: 'After the backup went', jl: 'OriginalDeleted', files: [['ep.mkv', 'HEVC', 'new']],
+        rec: 'Nothing to do. The swap had finished.', out: 'Swapped', ok: true }
+    ];
+    var crash = $('crash');
+    var failed = {};
+    function drawSwap() {
+      var nFail = Object.keys(failed).length;
+      var hold = nFail > 0;
+      var d = hold ? { at: 'No swap starts', jl: 'Failed', files: [['ep.mkv', 'H.264', 'old']],
+        rec: 'A failed check keeps the original and leaves the share untouched.', out: 'Original kept', ok: true } : POS[+crash.value];
+      crash.disabled = hold;
+      $('crash-at').textContent = 'On disk · ' + d.at;
+      $('jlast').textContent = d.jl;
+      $('files').innerHTML = d.files.map(function (f) {
+        return '<div class="file"><span class="px ' + f[2] + '">' + f[0] + '</span><span class="codec">' + f[1] + '</span></div>';
+      }).join('');
+      $('rec').textContent = d.rec;
+      $('out-word').textContent = d.out;
+      crash.setAttribute('aria-valuetext', d.at);
+      $('gate-lamp').className = 'lamp ' + (hold ? '' : 'ok');
+      $('gate-word').textContent = hold ? 'Check failed: original stays' : 'All pass: swap may start';
+    }
+    crash.addEventListener('input', drawSwap);
+    document.querySelectorAll('.check').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var name = b.getAttribute('data-c');
+        if (failed[name]) delete failed[name]; else failed[name] = true;
+        var on = !!failed[name];
+        b.setAttribute('aria-pressed', String(on));
+        b.querySelector('small').textContent = on ? 'FAIL' : 'PASS';
+        drawSwap();
+      });
+    });
+    drawSwap();
+
+    // ---- Quality: the CQ comparison. Everything comes from cq/results.json. ----
+    var fmt = function (n, d) { return Number(n).toFixed(d === undefined ? 1 : d); };
+    var time = function (s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+    var cmp = { clip: null, cq: 28, shot: 45, pos: 50, zoom: false };
+    var clips = [];
+
+    function key(label, pressed, attrs) {
+      return '<button class="key" type="button" ' + attrs + ' aria-pressed="' + pressed + '"><span class="lamp" aria-hidden="true"></span>' + label + '</button>';
+    }
+    function bindKeys(selector, fn) {
+      document.querySelectorAll(selector).forEach(function (b) { b.addEventListener('click', function () { fn(b); }); });
+    }
+
+    function renderTapes() {
+      var host = $('tapes');
+      host.innerHTML = clips.map(function (c, i) {
+        return '<button class="tape" type="button" role="radio" data-clip="' + c.id + '" aria-checked="' + (i === 0) + '" tabindex="' + (i === 0 ? 0 : -1) + '">' +
+          '<span class="face"><span class="title">' + c.label + '</span>' +
+          '<span class="side">' + c.kind + '</span></span>' +
+          '<span class="stripe" aria-hidden="true"></span>' +
+          '<span class="chosen"><span class="lamp" aria-hidden="true"></span>On the monitor</span></button>';
+      }).join('');
+      var tapes = Array.prototype.slice.call(host.querySelectorAll('.tape'));
+      tapes.forEach(function (t, i) {
+        t.addEventListener('click', function () { pickClip(t.getAttribute('data-clip')); });
+        t.addEventListener('keydown', function (e) {
+          var d = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
+          if (!d) return;
+          e.preventDefault();
+          var next = tapes[(i + d + tapes.length) % tapes.length];
+          next.focus();
+          pickClip(next.getAttribute('data-clip'));
+        });
+      });
+    }
+
+    function pickClip(id) {
+      cmp.clip = clips.filter(function (c) { return c.id === id; })[0] || clips[0];
+      var shots = cmp.clip.shots || [45, 120];
+      cmp.shot = cmp.clip.zoom && shots.indexOf(cmp.clip.zoom.shot) >= 0 ? cmp.clip.zoom.shot : shots[0];
+      document.querySelectorAll('.tape').forEach(function (t) {
+        var on = t.getAttribute('data-clip') === cmp.clip.id;
+        t.setAttribute('aria-checked', String(on));
+        t.tabIndex = on ? 0 : -1;
+      });
+      $('shot-keys').innerHTML = shots.map(function (s) { return key(time(s), s === cmp.shot, 'data-shot="' + s + '"'); }).join('');
+      bindKeys('#shot-keys [data-shot]', function (b) { cmp.shot = +b.getAttribute('data-shot'); drawWipe(); });
+      drawWipe();
+    }
+
+    var wipe = $('wipe');
+    var srcImg = wipe.querySelector('.src'), encImg = wipe.querySelector('.enc'), srcLayer = wipe.querySelector('.src-layer');
+    var line = wipe.querySelector('.bar-line'), grip = wipe.querySelector('.grip'), range = wipe.querySelector('input');
+
+    function drawWipe() {
+      var c = cmp.clip;
+      if (!c) return;
+      var e = c.encodes.filter(function (x) { return x.cq === cmp.cq; })[0];
+      srcImg.src = 'cq/' + c.id + '/src_' + cmp.shot + '.webp';
+      srcImg.alt = c.label + ', source frame at ' + time(cmp.shot) + ' into the clip';
+      encImg.src = 'cq/' + c.id + '/cq' + cmp.cq + '_' + cmp.shot + '.webp';
+      encImg.alt = c.label + ', CQ ' + cmp.cq + ' encode of the same frame';
+      wipe.querySelector('.tag-enc').textContent = 'CQ ' + cmp.cq;
+      drawPos();
+      var zp = c.zoom || { x: .5, y: .5 };
+      srcImg.style.transformOrigin = encImg.style.transformOrigin = (zp.x * 100) + '% ' + (zp.y * 100) + '%';
+      wipe.classList.toggle('zoomed', cmp.zoom);
+      $('monitor-meta').textContent = c.label + ' · ' + time(cmp.shot);
+      document.querySelectorAll('#cq-keys [data-cq]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.getAttribute('data-cq') === cmp.cq)); });
+      document.querySelectorAll('#shot-keys [data-shot]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.getAttribute('data-shot') === cmp.shot)); });
+      $('readouts').innerHTML = e ?
+        '<div><span class="silk">Size</span><span class="px">' + fmt(e.mb) + ' MB <span class="dim">/</span> -' + fmt(e.pct, 0) + '%</span></div>' +
+        '<div><span class="silk">VMAF mean</span><span class="px">' + fmt(e.vmafMean) + '</span></div>' +
+        '<div><span class="silk">Worst frame</span><span class="px">' + fmt(e.vmafMin, 0) + '</span></div>' +
+        '<div><span class="silk">Speed</span><span class="px">' + fmt(e.fps, 0) + ' FPS</span></div>' : '';
+    }
+    function drawPos() {
+      srcLayer.style.clipPath = 'inset(0 ' + (100 - cmp.pos) + '% 0 0)';
+      line.style.left = grip.style.left = cmp.pos + '%';
+      range.setAttribute('aria-valuetext', cmp.pos + '% source');
+    }
+    range.addEventListener('input', function () { cmp.pos = +range.value; drawPos(); });
+    var zoomKey = $('zoom-key');
+    zoomKey.addEventListener('click', function () { cmp.zoom = !cmp.zoom; zoomKey.setAttribute('aria-pressed', String(cmp.zoom)); drawWipe(); });
+
+    function renderTable() {
+      var cqs = [];
+      clips.forEach(function (c) { c.encodes.forEach(function (e) { if (cqs.indexOf(e.cq) < 0) cqs.push(e.cq); }); });
+      cqs.sort(function (a, b) { return a - b; });
+      var pickCq = 28;
+      document.querySelector('#results thead').innerHTML = '<tr><th scope="col">Clip</th><th scope="col">Source</th>' +
+        cqs.map(function (q) { return '<th scope="col"' + (q === pickCq ? ' class="pick"' : '') + '>CQ ' + q + (q === pickCq ? ' · default' : '') + '</th>'; }).join('') + '</tr>';
+      document.querySelector('#results tbody').innerHTML = clips.map(function (c) {
+        return '<tr><th scope="row" class="clip">' + c.label + '<small>' + c.kind + '</small></th><td><span class="pct">' + fmt(c.srcMB, 0) + '</span><span class="sub">MB</span></td>' +
+          cqs.map(function (q) {
+            var e = c.encodes.filter(function (x) { return x.cq === q; })[0];
+            if (!e) return '<td>n/a</td>';
+            return '<td' + (q === pickCq ? ' class="pick"' : '') + '><span class="pct">-' + fmt(e.pct, 0) + '%</span><span class="sub">VMAF ' + fmt(e.vmafMean) + ' · low ' + fmt(e.vmafMin, 0) + '</span></td>';
+          }).join('') + '</tr>';
+      }).join('');
+      $('cq-keys').innerHTML = cqs.map(function (q) { return key('CQ ' + q, q === cmp.cq, 'data-cq="' + q + '"'); }).join('');
+      bindKeys('#cq-keys [data-cq]', function (b) { cmp.cq = +b.getAttribute('data-cq'); drawWipe(); });
+    }
+
+    fetch('cq/results.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (data) {
+      clips = (Array.isArray(data) ? data : [data]).map(function (c) {
+        c.label = c.label || c.name;
+        c.kind = c.kind || '';
+        return c;
+      });
+      renderTapes();
+      renderTable();
+      pickClip(clips[0].id);
+    }).catch(function () {
+      $('tapes').innerHTML = '<p>The comparison data did not load. Serve this folder over HTTP (GitHub Pages does) rather than opening the file directly.</p>';
+    });
+  })();
+  </script>
+</body>
+</html>
