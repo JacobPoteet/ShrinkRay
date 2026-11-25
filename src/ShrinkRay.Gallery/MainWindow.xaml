@@ -235,6 +235,15 @@
                     <sr:CassetteLabel Title="BIG BUCK BUNNY" Side="Side A · 6 seasons" Margin="0,14,0,0" />
                     <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
                                Text="The cassette label is the show. Its name is typed on the moment you load it." />
+                    <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="3" Background="{DynamicResource SR.Cream}" HorizontalAlignment="Left" Width="300">
+                        <StackPanel>
+                            <sr:MarqueeText x:Name="MarqueeShort" Text="Pilot" FontFamily="{DynamicResource SR.Font.Label}" FontSize="16"
+                                            Foreground="{DynamicResource SR.Marker}" />
+                            <sr:MarqueeText x:Name="MarqueeLong" Margin="0,6,0,0" FontFamily="{DynamicResource SR.Font.Label}" FontSize="16"
+                                            Foreground="{DynamicResource SR.Marker}"
+                                            Text="Part Two, in which the Whole Crew Finally Learns Why the Tape Never Rewound" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ContentControl>
 
@@ -327,7 +336,7 @@
                     <ContentControl Style="{StaticResource SR.Plate}" Margin="0,18,0,0" Padding="10">
                         <StackPanel>
                             <sr:CassetteLabel x:Name="DeckLabel" Title="SINTEL" Side="Side A · 9 seasons" Episode="S01E03"
-                                              Padding="12,4,12,6" />
+                                              EpisodeTitle="The Long Way Round to a Title That Will Not Fit" Padding="12,4,12,6" />
                             <Border Margin="0,10,0,0" Height="150" CornerRadius="12" Background="{DynamicResource SR.DeckWindow}"
                                     BorderBrush="Black" BorderThickness="2">
                                 <Grid>

@@ -747,7 +747,7 @@ public sealed partial class MainViewModel
 
     private void RefreshDeck()
     {
-        Raise(nameof(LabelTitle), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq), nameof(CqCaption),
+        Raise(nameof(LabelTitle), nameof(LabelEpisode), nameof(LabelEpisodeTitle), nameof(EstimateText), nameof(Cq), nameof(CqCaption),
             nameof(SavedGigabytes), nameof(SavedDigits), nameof(SizeCaption), nameof(SizeBeforeText), nameof(SizeAfterText), nameof(AfterFraction),
             nameof(HasCqOverride), nameof(RecommendedCqIndex), nameof(LastFailureText), nameof(LastFailureDetail));
         RefreshReadouts();

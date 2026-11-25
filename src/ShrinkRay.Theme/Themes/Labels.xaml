@@ -19,19 +19,25 @@
                                 <Border DockPanel.Dock="Bottom" Height="7" Background="{DynamicResource SR.Stripe3}" />
                                 <Grid Margin="{TemplateBinding Padding}">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" MinWidth="12" />
+                                        <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{TemplateBinding Title}" Style="{DynamicResource SR.Text.Label}"
-                                               VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                               VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <sr:TrackedText Text="{TemplateBinding Side}" HorizontalAlignment="Right"
                                                         FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="SemiBold"
                                                         FontSize="10" Tracking="0.18"
                                                         Foreground="{DynamicResource SR.PrintInkSoft}" />
-                                        <TextBlock x:Name="EpisodeLine" Text="{TemplateBinding Episode}" HorizontalAlignment="Right"
-                                                   Style="{DynamicResource SR.Text.Label}" FontSize="14" Margin="0,1,0,0" />
+                                        <!-- The episode code stays put; only the title beside it scrolls. -->
+                                        <StackPanel x:Name="EpisodeLine" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,1,0,0">
+                                            <TextBlock Text="{TemplateBinding Episode}" Style="{DynamicResource SR.Text.Label}" FontSize="14" />
+                                            <TextBlock x:Name="EpisodeDot" Text="·" Style="{DynamicResource SR.Text.Label}" FontSize="14"
+                                                       Margin="7,0,7,0" />
+                                            <sr:MarqueeText x:Name="EpisodeTitleText" Text="{TemplateBinding EpisodeTitle}" MaxWidth="230"
+                                                            FontFamily="{DynamicResource SR.Font.Label}" FontSize="14"
+                                                            Foreground="{DynamicResource SR.Marker}" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </DockPanel>
@@ -43,6 +49,14 @@
                         </Trigger>
                         <Trigger Property="Episode" Value="{x:Null}">
                             <Setter TargetName="EpisodeLine" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="EpisodeTitle" Value="">
+                            <Setter TargetName="EpisodeDot" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="EpisodeTitleText" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="EpisodeTitle" Value="{x:Null}">
+                            <Setter TargetName="EpisodeDot" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="EpisodeTitleText" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

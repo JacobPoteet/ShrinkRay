@@ -145,7 +145,8 @@ public class MainViewModelTests
 
         Assert.True(vm.IsTapeLoaded);
         Assert.Equal("SCRUBS", vm.LabelTitle);
-        Assert.Equal("S01E01 \u00b7 Title 1", vm.LabelEpisode);
+        Assert.Equal("S01E01", vm.LabelEpisode);
+        Assert.Equal("Title 1", vm.LabelEpisodeTitle);
         Assert.Equal("H.264", vm.SourceCaption);
         Assert.Equal("HEVC", vm.OutputCaption);
         Assert.Equal("Ready", vm.RunLamp.Label);

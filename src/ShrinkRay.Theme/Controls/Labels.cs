@@ -20,6 +20,9 @@ public class CassetteLabel : Control
     public static readonly DependencyProperty EpisodeProperty = DependencyProperty.Register(
         nameof(Episode), typeof(string), typeof(CassetteLabel), new PropertyMetadata(string.Empty));
 
+    public static readonly DependencyProperty EpisodeTitleProperty = DependencyProperty.Register(
+        nameof(EpisodeTitle), typeof(string), typeof(CassetteLabel), new PropertyMetadata(string.Empty));
+
     static CassetteLabel()
     {
         DefaultStyleKeyProperty.OverrideMetadata(typeof(CassetteLabel), new FrameworkPropertyMetadata(typeof(CassetteLabel)));
@@ -40,15 +43,23 @@ public class CassetteLabel : Control
         set => SetValue(SideProperty, value);
     }
 
-    /// <summary>Optional second marker line, for example "S01E03 · My Best Friend's Mistake".</summary>
+    /// <summary>Optional second marker line: the episode code, such as "S01E03", which stays put.</summary>
     public string Episode
     {
         get => (string)GetValue(EpisodeProperty);
         set => SetValue(EpisodeProperty, value);
     }
 
+    /// <summary>The title after the code, such as "My Best Friend's Mistake". It scrolls when it is too long.</summary>
+    public string EpisodeTitle
+    {
+        get => (string)GetValue(EpisodeTitleProperty);
+        set => SetValue(EpisodeTitleProperty, value);
+    }
+
     protected override AutomationPeer OnCreateAutomationPeer() => new TextLikePeer(this, () =>
-        string.Join(", ", new[] { Title, Side, Episode }.Where(s => !string.IsNullOrWhiteSpace(s))));
+        string.Join(", ", new[] { Title, Side, string.Join(" · ", new[] { Episode, EpisodeTitle }.Where(s => !string.IsNullOrWhiteSpace(s))) }
+            .Where(s => !string.IsNullOrWhiteSpace(s))));
 }
 
 /// <summary>Which roll of embossing tape.</summary>

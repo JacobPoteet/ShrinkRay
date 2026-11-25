@@ -285,6 +285,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string LabelTitle => _loaded?.Name.ToUpperInvariant() ?? "";
 
+    /// <summary>The label's episode code, which stays put, such as <c>S01E04</c>.</summary>
     public string LabelEpisode
     {
         get
@@ -295,9 +296,12 @@ public sealed partial class MainViewModel : ObservableObject
                 return _loaded is null ? "" : "All episodes handled";
             }
 
-            return track.Title.Length > 0 ? $"{track.Code} · {track.Title}" : track.Code;
+            return track.Code;
         }
     }
+
+    /// <summary>The title beside the code. The label scrolls it when it is too long.</summary>
+    public string LabelEpisodeTitle => (_current ?? NextQueued)?.Title ?? "";
 
     /// <summary>The codec under the source reel, such as <c>H.264</c>.</summary>
     public string SourceCaption
