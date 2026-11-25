@@ -16,9 +16,21 @@ public interface IJournalStore
     IReadOnlyList<JournalEntry> ReadAll();
 }
 
-/// <summary>Stores the journal as one JSON object per line, flushed to disk on every append.</summary>
-public sealed class JsonLinesJournalStore : IJournalStore
+/// <summary>A store that can swap its whole contents for a shorter list in one atomic step.</summary>
+public interface ICompactableJournalStore : IJournalStore
 {
+    /// <summary>
+    /// Replaces every entry with <paramref name="entries"/>. A crash at any point leaves either the
+    /// old contents or the new ones, never a mix or a partial file.
+    /// </summary>
+    void ReplaceAll(IReadOnlyList<JournalEntry> entries);
+}
+
+/// <summary>Stores the journal as one JSON object per line, flushed to disk on every append.</summary>
+public sealed class JsonLinesJournalStore : ICompactableJournalStore
+{
+    private const string CompactSuffix = ".compact.tmp";
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -51,6 +63,41 @@ public sealed class JsonLinesJournalStore : IJournalStore
             using var stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.Read, 4096, FileOptions.WriteThrough);
             stream.Write(bytes);
             stream.Flush(flushToDisk: true);
+        }
+    }
+
+    /// <summary>
+    /// Writes the entries to <c>journal.jsonl.compact.tmp</c>, flushes it to disk, then swaps it over
+    /// the journal with one atomic replace. A crash before the replace leaves the old journal and
+    /// a temp file the next compaction overwrites.
+    /// </summary>
+    public void ReplaceAll(IReadOnlyList<JournalEntry> entries)
+    {
+        var text = string.Concat(entries.Select(e => JsonSerializer.Serialize(e, Options) + "\n"));
+        var bytes = Encoding.UTF8.GetBytes(text);
+        var temp = _path + CompactSuffix;
+        lock (_gate)
+        {
+            var directory = System.IO.Path.GetDirectoryName(_path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(_path))
+            {
+                File.Replace(temp, _path, destinationBackupFileName: null);
+            }
+            else
+            {
+                File.Move(temp, _path);
+            }
         }
     }
 
@@ -132,6 +179,40 @@ public sealed class SwapJournal
         lock (_gate)
         {
             return _latest.Values.ToList();
+        }
+    }
+
+    /// <summary>
+    /// Rewrites the journal with only the newest entry for each file, so it stops growing. Run it
+    /// on startup after recovery. Recovery, the queue and the track list read only a file's
+    /// latest entry, so nothing they need is lost, whether the state is terminal or not.
+    /// A journal with one line per file is left as it is.
+    /// </summary>
+    /// <returns>How many lines were dropped.</returns>
+    public int Compact()
+    {
+        lock (_gate)
+        {
+            if (_store is not ICompactableJournalStore store)
+            {
+                return 0;
+            }
+
+            var all = store.ReadAll();
+            var lastIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < all.Count; i++)
+            {
+                lastIndex[all[i].Path] = i;
+            }
+
+            var kept = all.Where((entry, i) => lastIndex[entry.Path] == i).ToList();
+            if (kept.Count == all.Count)
+            {
+                return 0;
+            }
+
+            store.ReplaceAll(kept);
+            return all.Count - kept.Count;
         }
     }
 
