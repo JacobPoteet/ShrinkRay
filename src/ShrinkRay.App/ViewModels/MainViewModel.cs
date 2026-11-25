@@ -522,6 +522,26 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Footer ----
 
+    /// <summary>Bytes saved across every show ShrinkRay has shrunk, from the ledger.</summary>
+    public long LifetimeSavedBytes => _s.Ledger.TotalSaved();
+
+    /// <summary>Gigabytes to 999.9 GB, then terabytes, so five digits always hold it.</summary>
+    public string LifetimeSavedUnit => Format.ToGigabytes(LifetimeSavedBytes) >= 999.95 ? "TB" : "GB";
+
+    public string LifetimeSavedDigits
+    {
+        get
+        {
+            var gb = Format.ToGigabytes(LifetimeSavedBytes);
+            var text = LifetimeSavedUnit == "TB"
+                ? Math.Min(99.99, gb / 1000).ToString("0.00", CultureInfo.InvariantCulture)
+                : gb.ToString("0.0", CultureInfo.InvariantCulture);
+            return text.PadLeft(5);
+        }
+    }
+
+    public string LifetimeSavedName => $"{LifetimeSavedDigits.Trim()} {(LifetimeSavedUnit == "TB" ? "terabytes" : "gigabytes")} saved all time";
+
     public string FooterTitle => _loaded is null ? "Space reclaimed" : "Space reclaimed · " + _loaded.Name;
 
     public double SavedGigabytes => Format.ToGigabytes(_tracks.Sum(t => t.SavedBytes));

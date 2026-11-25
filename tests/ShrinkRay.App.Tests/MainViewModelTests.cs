@@ -331,6 +331,56 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Lifetime_counter_starts_from_the_ledger_and_grows_as_episodes_finish()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        // Community is already in the ledger at 1 GB saved.
+        Assert.Equal(DeckRig.Gigabyte, vm.LifetimeSavedBytes);
+        Assert.Equal("  1.0", vm.LifetimeSavedDigits);
+        Assert.Equal("GB", vm.LifetimeSavedUnit);
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        // Scrubs gives back 2.6 GB on top.
+        Assert.Equal("  3.6", vm.LifetimeSavedDigits);
+        Assert.Equal(3_560_000_000, vm.LifetimeSavedBytes);
+        Assert.Contains(nameof(MainViewModel.LifetimeSavedDigits), changed);
+    }
+
+    [Fact]
+    public async Task Lifetime_counter_does_not_move_when_an_episode_keeps_its_original()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+        var kept = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Results[kept] = new PipelineResult(PipelineOutcome.KeptOriginal, "Saves 9%");
+        var before = vm.LifetimeSavedBytes;
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        // The other two episodes save 0.64 GB and 1.28 GB; the kept one adds nothing.
+        Assert.Equal(before + 1_920_000_000, vm.LifetimeSavedBytes);
+    }
+
+    [Fact]
+    public async Task Lifetime_counter_switches_to_terabytes_past_a_thousand_gigabytes()
+    {
+        var rig = Library();
+        rig.Ledger.Record(new LedgerEntry(DeckRig.Episode("Gone", 1, 1), 5_000 * DeckRig.Gigabyte, 3_660 * DeckRig.Gigabyte, 24, DateTimeOffset.UnixEpoch));
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal("TB", vm.LifetimeSavedUnit);
+        Assert.Equal(" 1.34", vm.LifetimeSavedDigits);
+        Assert.Contains("terabytes", vm.LifetimeSavedName);
+    }
+
+    [Fact]
     public async Task Encode_hands_the_runner_a_snapshot_of_the_settings()
     {
         var rig = Library();

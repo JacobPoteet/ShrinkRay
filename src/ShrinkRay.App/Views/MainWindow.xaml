@@ -480,10 +480,12 @@
                         </Grid>
                     </Grid>
 
-                    <!-- Right: J-card -->
+                    <!-- Right: J-card and lifetime counter -->
                     <Grid Grid.Column="4">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
+                            <RowDefinition Height="14" />
+                            <RowDefinition Height="112" />
                         </Grid.RowDefinitions>
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
@@ -538,6 +540,18 @@
                             </DockPanel>
                         </ContentControl>
 
+                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Plate}" Padding="22,12">
+                            <DockPanel>
+                                <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Saved, all time" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <sr:SevenSegmentDisplay Text="{Binding LifetimeSavedDigits}" DigitHeight="48" Spacing="4" Glow="True"
+                                                            AutomationProperties.Name="{Binding LifetimeSavedName}" />
+                                    <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="18" Tracking="0" Text="{Binding LifetimeSavedUnit}"
+                                                    Margin="12,0,0,2" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                    Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </ContentControl>
                     </Grid>
                 </Grid>
 

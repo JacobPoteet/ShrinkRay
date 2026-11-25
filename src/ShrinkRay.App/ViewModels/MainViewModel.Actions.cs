@@ -574,6 +574,7 @@ public sealed partial class MainViewModel
                 var newBytes = _s.FileSize(track.Path) ?? (long)(track.OriginalBytes * Ratio);
                 _s.Ledger.Record(new LedgerEntry(track.Path, track.OriginalBytes, newBytes, _runCq, DateTimeOffset.Now));
                 track.SetShrunk(newBytes);
+                RaiseLifetime();
                 break;
             case PipelineOutcome.KeptOriginal:
                 track.SetKept(result.Verification?.Savings, result.Message);
@@ -788,6 +789,7 @@ public sealed partial class MainViewModel
         RefreshSeasonLamps();
         RefreshFooterLamps();
         RefreshWindow();
+        RaiseLifetime();
         Raise(nameof(IsTapeLoaded), nameof(LoadedName), nameof(JCardHeader), nameof(SeasonFooter),
             nameof(EstimateText), nameof(IsKnobEnabled));
         EjectCommand.Refresh();
@@ -903,6 +905,9 @@ public sealed partial class MainViewModel
         var root = string.IsNullOrWhiteSpace(scratch) ? null : Path.GetPathRoot(scratch);
         ScratchLamp.State = root is not null && _s.DirectoryExists(root) ? LampState.Ok : LampState.Off;
     }
+
+    private void RaiseLifetime() =>
+        Raise(nameof(LifetimeSavedBytes), nameof(LifetimeSavedDigits), nameof(LifetimeSavedUnit), nameof(LifetimeSavedName));
 
     private void RefreshWindow() =>
         Raise(nameof(WindowText), nameof(EncodeWindowEnabled), nameof(WindowStartText), nameof(WindowEndText));

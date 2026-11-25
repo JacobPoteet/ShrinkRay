@@ -72,6 +72,18 @@ public sealed class ShrinkLedger
         }
     }
 
+    /// <summary>
+    /// The bytes given back across every file ShrinkRay has ever replaced: the sum of each
+    /// entry's saving, counting a file once, at its latest entry.
+    /// </summary>
+    public long TotalSaved()
+    {
+        lock (_gate)
+        {
+            return _latest.Values.Sum(e => e.SavedBytes);
+        }
+    }
+
     public void Record(LedgerEntry entry)
     {
         lock (_gate)
