@@ -15,6 +15,9 @@ public class CrashRecoveryTests
     // A cancelled upload journals UploadedTemp, then its rollback journals Cancelled.
     private const int CancelOperations = 2;
 
+    // The journal entry and the copy: a crash within these leaves the original never renamed.
+    private const int UploadOperations = 2;
+
     // The sixth operation renames the temp file into place. From then on the new file wins.
     private const int RenameIntoPlace = 6;
 
@@ -74,10 +77,11 @@ public class CrashRecoveryTests
         }
         else
         {
-            // A crash before the first share step leaves the file at Verified, a local step,
-            // which recovery cancels. Any later crash before the rename is a failed swap.
+            // A crash before the first share step leaves the file at Verified, a local step, and a
+            // crash during the upload leaves it at UploadedTemp with the original never renamed.
+            // Recovery cancels both. Any later crash before the rename is a failed swap.
             Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
-            Assert.Equal(crashAfter == 0 ? SwapState.Cancelled : SwapState.Failed, h.State);
+            Assert.Equal(crashAfter <= UploadOperations ? SwapState.Cancelled : SwapState.Failed, h.State);
         }
     }
 
@@ -100,9 +104,10 @@ public class CrashRecoveryTests
             Assert.Equal(1, h.Check.Calls);
         }
 
-        // A crash before the first operation leaves the file at Verified, which recovery cancels.
+        // A crash before the first operation leaves the file at Verified, and one during the
+        // upload leaves it at UploadedTemp. Recovery cancels both.
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
-        Assert.Equal(crashAfter == 0 ? SwapState.Cancelled : SwapState.Failed, h.State);
+        Assert.Equal(crashAfter <= UploadOperations ? SwapState.Cancelled : SwapState.Failed, h.State);
     }
 
     [Theory]
@@ -173,9 +178,9 @@ public class CrashRecoveryTests
         Assert.DoesNotContain(actions, a => a.Kind == RecoveryKind.NeedsReview);
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
 
-        // Only a rollback that finished counts as cancelled; one a crash cut short is a failure.
-        // A crash before the first operation leaves the file at Verified, which recovery cancels.
-        Assert.Equal(crashAfter is 0 or >= CancelOperations ? SwapState.Cancelled : SwapState.Failed, h.State);
+        // A rollback that finished is cancelled. One a crash cut short leaves UploadedTemp with the
+        // original in place, which recovery cancels too.
+        Assert.Equal(SwapState.Cancelled, h.State);
         h.Restart();
         Assert.Empty(await h.RecoverAsync());
     }

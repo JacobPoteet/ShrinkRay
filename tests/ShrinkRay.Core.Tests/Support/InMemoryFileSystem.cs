@@ -159,7 +159,7 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
     }
 }
 
-public sealed class InMemoryJournalStore(CrashSwitch? crash = null) : IJournalStore
+public sealed class InMemoryJournalStore(CrashSwitch? crash = null) : ICompactableJournalStore
 {
     private readonly List<JournalEntry> _entries = [];
     private readonly CrashSwitch _crash = crash ?? new CrashSwitch();
@@ -173,6 +173,15 @@ public sealed class InMemoryJournalStore(CrashSwitch? crash = null) : IJournalSt
     }
 
     public IReadOnlyList<JournalEntry> ReadAll() => _entries.ToList();
+
+    /// <summary>Two durable operations: the new file is written beside the journal, then swapped over it.</summary>
+    public void ReplaceAll(IReadOnlyList<JournalEntry> entries)
+    {
+        _crash.Tick("journal compact write");
+        _crash.Tick("journal compact replace");
+        _entries.Clear();
+        _entries.AddRange(entries);
+    }
 
     public IEnumerable<SwapState> StatesFor(string path) =>
         _entries.Where(e => string.Equals(e.Path, path, StringComparison.OrdinalIgnoreCase)).Select(e => e.State);

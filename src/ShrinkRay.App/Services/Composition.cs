@@ -82,6 +82,7 @@ public static class Composition
             {
                 var actions = await new SwapRecovery(fs, journal, check).RecoverAsync(folders, ct);
                 EpisodePipeline.RemoveSettledWork(fs, journal, s.ScratchFolder);
+                journal.Compact();
                 return actions;
             },
             ct);

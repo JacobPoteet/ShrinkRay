@@ -71,8 +71,12 @@ public sealed class SwapRecovery
             handled.Add(entry.Path);
 
             // A file left at a local step never reached the share. ShrinkRay stopped under it, so
-            // it is cancelled like a Stop rather than failed. Share steps still settle as Failed.
-            var settleAs = entry.State.IsLocalStep() ? SwapState.Cancelled : SwapState.Failed;
+            // it is cancelled like a Stop rather than failed. A crash during the upload
+            // (UploadedTemp) is the same when the original is found untouched; ResolveAsync
+            // settles it as Failed otherwise. Later share steps always settle as Failed.
+            var settleAs = entry.State.IsLocalStep() || entry.State == SwapState.UploadedTemp
+                ? SwapState.Cancelled
+                : SwapState.Failed;
             var action = await ResolveAsync(entry.Path, settleAs, cancellationToken);
             if (action.Kind != RecoveryKind.NoAction)
             {
@@ -129,7 +133,7 @@ public sealed class SwapRecovery
     /// <param name="settleAs">
     /// Where a file that is put back to its original ends: <see cref="SwapState.Failed"/> after a
     /// crash or an error, <see cref="SwapState.Cancelled"/> when Skip or Stop cut the upload short
-    /// or a crash cut a local step short.
+    /// or a crash cut a local step or the upload short.
     /// Failed whenever the journal does not allow <paramref name="settleAs"/> from the current
     /// state, and always when a swapped-in file fails its check.
     /// </param>
@@ -164,7 +168,10 @@ public sealed class SwapRecovery
             // Temp first. A crash between the two steps then leaves backup-only, handled here.
             DeleteIfPresent(temp, hasTemp);
             _fs.MoveFile(backup, path);
-            return RolledBack(path, Settle(current, settleAs), $"Interrupted at {current}. The original was renamed back.");
+            // A backup means the original was renamed aside, which UploadedTemp never does, so
+            // it is not the untouched original that Cancelled promises.
+            var settled = current == SwapState.UploadedTemp ? SwapState.Failed : Settle(current, settleAs);
+            return RolledBack(path, settled, $"Interrupted at {current}. The original was renamed back.");
         }
 
         if (hasBackup)
