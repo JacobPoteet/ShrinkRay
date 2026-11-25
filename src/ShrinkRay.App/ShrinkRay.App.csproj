@@ -7,7 +7,22 @@
     <RootNamespace>ShrinkRay.App</RootNamespace>
     <AssemblyName>ShrinkRay</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Icon\ShrinkRay.ico</ApplicationIcon>
+    <!-- WinForms only for NotifyIcon; the tray is the one place that uses it. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- The manifest sets per-monitor DPI for WPF. The WinForms analyzer would have it set in code. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WinForms and WPF share type names (Application, Color, Point), so keep the implicit usings out. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Icon\*.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ShrinkRay.Core\ShrinkRay.Core.csproj" />

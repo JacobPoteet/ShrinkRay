@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <g id="body">
+    <rect x="10" y="44" width="236" height="168" rx="14" fill="#3A342A"/>
+    <rect x="15" y="49" width="226" height="158" rx="10" fill="#D8CFBB"/>
+    <rect x="15" y="49" width="226" height="6" rx="3" fill="#E6DECB"/>
+    <rect x="45" y="66" width="166" height="48" rx="3" fill="#EFE8D6"/>
+    <rect x="45" y="76" width="166" height="11" fill="#E8932F"/>
+    <rect x="45" y="91" width="166" height="11" fill="#C8452B"/>
+    <circle cx="30" cy="66" r="6" fill="#3A342A"/>
+    <circle cx="226" cy="66" r="6" fill="#3A342A"/>
+    <circle cx="30" cy="190" r="6" fill="#3A342A"/>
+    <circle cx="226" cy="190" r="6" fill="#3A342A"/>
+    <path d="M78 212 L96 184 L160 184 L178 212 Z" fill="#B9AF99"/>
+    <circle cx="108" cy="198" r="3" fill="#3A342A"/>
+    <circle cx="148" cy="198" r="3" fill="#3A342A"/>
+  </g>
+  <rect id="window" x="58" y="124" width="140" height="56" rx="10" fill="#26221C"/>
+  <circle class="reel" cx="96" cy="152" r="23" fill="#E9E2D0"/>
+  <circle class="reel" cx="160" cy="152" r="23" fill="#E9E2D0"/>
+  <circle class="hub" cx="96" cy="152" r="9" fill="#26221C"/>
+  <circle class="hub" cx="160" cy="152" r="9" fill="#26221C"/>
+</svg>
