@@ -45,8 +45,9 @@ if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 dotnet publish $project -c Release -o $staging --nologo -p:SourceRevisionId=$commit
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-# /MIR removes files a newer build no longer ships. Robocopy exit codes below 8 mean success.
-robocopy $staging $target /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+# /MIR removes files a newer build no longer ships. /XF spares the uninstaller a release
+# installer left here. Robocopy exit codes below 8 mean success.
+robocopy $staging $target /MIR /XF "unins*" /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) {
     Write-Error "Copying into $target failed (robocopy exit $LASTEXITCODE)."
     exit 1
