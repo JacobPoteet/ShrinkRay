@@ -34,6 +34,9 @@ internal sealed class DeckRig
     public DeckPreferences? SavedPreferences { get; private set; }
     public IReadOnlyList<RecoveryAction> RecoveryActions { get; set; } = [];
     public string? PickedFolder { get; set; }
+
+    /// <summary>Tool names that resolve to nothing, as when an exe is not installed.</summary>
+    public HashSet<string> MissingTools { get; } = new(StringComparer.OrdinalIgnoreCase);
     public DateTime Now { get; set; } = new(2026, 11, 24, 2, 10, 0);
 
     public DeckRig()
@@ -90,7 +93,7 @@ internal sealed class DeckRig
             SaveSettings = _ => SettingsSaves++,
             SavePreferences = p => SavedPreferences = p,
             ApplyTheme = (p, c) => Themes.Add((p, c)),
-            ResolveTool = name => name,
+            ResolveTool = name => MissingTools.Contains(name) ? null : name,
             FileSize = path => Sizes.TryGetValue(path, out var size) ? size : Disk.Stamp(path)?.Size,
             DirectoryExists = path => Disk.DirectoryExists(path) || path.Length <= 3,
             Now = () => Now,

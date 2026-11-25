@@ -66,7 +66,9 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _isRecovering;
     private bool _isScanning;
     private string _scanStatus = "";
-    private string _recoveryText = "";
+    private int _recoveryReviews;
+    private bool _recoveryFailed;
+    private List<(string Name, string Detail)> _attention = [];
     private string _notice = "";
     private bool _isSettingsOpen;
     private string? _gpuName;
@@ -81,13 +83,10 @@ public sealed partial class MainViewModel : ObservableObject
         _defaultScratch = defaultScratch;
         _scanner = new LibraryScanner(services.Disk, services.Probe, services.Cache);
 
-        LoadTapeCommand = new RelayCommand(LoadTape, () => _selectedShow is not null && !IsEncoding);
         EncodeCommand = new RelayCommand(Encode, () => (_loaded is not null && !_isRecovering) || IsEncoding);
         PauseCommand = new RelayCommand(TogglePause);
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
-        EjectCommand = new RelayCommand(Eject, () => _loaded is not null && !IsEncoding);
-        ResetCqCommand = new RelayCommand(ResetCq, () => HasCqOverride && !IsEncoding);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
@@ -101,12 +100,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
         _cqIndex = NearestDetent(_settings.Cq);
+        for (var i = 0; i < CqDetents.Count; i++)
+        {
+            CqChips.Add(new CqChipViewModel(i, CqDetents[i], i == RecommendedCqIndex, index => CqIndex = index));
+        }
+
         RefreshAll();
     }
 
     // ---- Commands ----
-
-    public RelayCommand LoadTapeCommand { get; }
 
     public RelayCommand EncodeCommand { get; }
 
@@ -115,11 +117,6 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand StopCommand { get; }
 
     public RelayCommand SkipCommand { get; }
-
-    public RelayCommand EjectCommand { get; }
-
-    /// <summary>Clears the loaded show's CQ override, turning the knob back to the default.</summary>
-    public RelayCommand ResetCqCommand { get; }
 
     public RelayCommand ChooseLibraryCommand { get; }
 
@@ -144,6 +141,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Header ----
 
+    // The per-tool lamps no longer sit in the header: the run lamp names a problem when there is
+    // one, and the service panel's System row lists every tool.
     public LampViewModel GpuLamp { get; } = new("NVENC");
 
     public LampViewModel HandBrakeLamp { get; } = new("HandBrakeCLI");
@@ -156,54 +155,40 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<LampViewModel> SystemLamps { get; }
 
-    /// <summary>What the deck is doing, as a lamp and a word.</summary>
+    /// <summary>What the deck is doing, as a lamp and a word: Ready, Encoding, Paused or Needs attention.</summary>
     public LampViewModel RunLamp { get; } = new("Idle");
+
+    /// <summary>What is wrong when the run lamp says so, one line per problem. Empty when nothing is.</summary>
+    public string AttentionDetail => string.Join("\n", _attention.Select(a => a.Detail));
 
     // ---- Monitor A ----
 
     public ObservableCollection<ShowRowViewModel> Shows { get; } = [];
 
+    /// <summary>
+    /// The show under the cursor. Picking another one while the deck is idle loads it. During an
+    /// encode the deck keeps its show, and the cursor goes back to it.
+    /// </summary>
     public ShowRowViewModel? SelectedShow
     {
         get => _selectedShow;
         set
         {
-            if (Set(ref _selectedShow, value))
+            if (IsEncoding && value is not null && !value.IsLoaded)
             {
-                Raise(nameof(CursorInfo));
-                LoadTapeCommand.Refresh();
+                _s.Dispatch(() => Raise());
+                return;
+            }
+
+            if (Set(ref _selectedShow, value) && value is { IsLoaded: false } && !IsEncoding)
+            {
+                LoadShow(value.Scan);
             }
         }
     }
 
-    /// <summary>
-    /// The last two folders of the library root, such as <c>PLEX/TV</c>. Drive letters and a
-    /// share's host name are left off.
-    /// </summary>
-    public string LibraryLabel
-    {
-        get
-        {
-            var root = _settings.LibraryRoot;
-            if (string.IsNullOrWhiteSpace(root))
-            {
-                return "NO LIBRARY";
-            }
-
-            var parts = root.Replace('/', '\\').Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
-            if (root.StartsWith(@"\\", StringComparison.Ordinal) && parts.Count > 0)
-            {
-                parts.RemoveAt(0);
-            }
-
-            parts.RemoveAll(p => p.EndsWith(':'));
-            return parts.Count == 0 ? root.ToUpperInvariant() : string.Join("/", parts.TakeLast(2)).ToUpperInvariant();
-        }
-    }
-
-    public string ShowCountText => _isScanning && Shows.Count == 0 ? "" : $"{Shows.Count} TO SHRINK";
-
-    public string HiddenText
+    /// <summary>The library's tooltip: its folder, and how many shows are hidden because there is nothing to do.</summary>
+    public string LibraryTooltip
     {
         get
         {
@@ -213,24 +198,34 @@ public sealed partial class MainViewModel : ObservableObject
             var parts = new List<string>();
             if (shrunk > 0)
             {
-                parts.Add($"{shrunk} SHRUNK");
+                parts.Add($"{shrunk} already shrunk");
             }
 
             if (hevc > 0)
             {
-                parts.Add($"{hevc} HEVC");
+                parts.Add($"{hevc} already HEVC");
             }
 
             if (other > 0)
             {
-                parts.Add($"{other} DONE");
+                parts.Add($"{other} done");
             }
 
-            return parts.Count == 0 ? "" : "HIDDEN: " + string.Join(" · ", parts);
+            var lines = new List<string>
+            {
+                string.IsNullOrWhiteSpace(_settings.LibraryRoot) ? "No library chosen" : _settings.LibraryRoot,
+                $"{Shows.Count} to shrink",
+            };
+            if (parts.Count > 0)
+            {
+                lines.Add("Hidden: " + string.Join(", ", parts));
+            }
+
+            return string.Join("\n", lines);
         }
     }
 
-    /// <summary>A line on the monitor for empty states, scans and recovery.</summary>
+    /// <summary>A line on the monitor for empty states and scans, shown only when there is something to say.</summary>
     public string MonitorMessage
     {
         get
@@ -242,7 +237,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             if (string.IsNullOrWhiteSpace(_settings.LibraryRoot))
             {
-                return "NO LIBRARY. PRESS CHOOSE";
+                return "NO LIBRARY. OPEN SETUP";
             }
 
             if (!_s.DirectoryExists(_settings.LibraryRoot))
@@ -268,30 +263,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The same failure in full, for the line's tooltip.</summary>
     public string LastFailureDetail => LastFailed is { } t ? $"{t.Code}: {t.Detail}" : "";
 
-    public string RecoveryText
+    /// <summary>Three lines about a show, for its row's tooltip.</summary>
+    private string DetailFor(ShowRowViewModel row)
     {
-        get => _recoveryText;
-        private set => Set(ref _recoveryText, value);
-    }
-
-    /// <summary>Three lines about the show under the cursor. Sizes are in GB, as the column header says.</summary>
-    public string CursorInfo
-    {
-        get
-        {
-            if (_selectedShow is not { } row)
-            {
-                return "";
-            }
-
-            var s = row.Summary;
-            var cq = _settings.CqForShow(row.FolderName);
-            var eta = SizeEstimate.EncodeTime(s.QueueableFrames);
-            var seasons = s.SeasonCount == 1 ? "1 SEASON" : $"{s.SeasonCount} SEASONS";
-            return $"{seasons} · {s.EpisodeCount} EPS\n"
-                + $"{s.CodecLabel} · {s.QueueableCount} TO DO · {Format.Duration(eta)}\n"
-                + $"SAVE ~{Format.WholeGigabytes(s.ProjectedSavings(cq))} OF {Format.WholeGigabytes(s.TotalBytes)} @ CQ{cq}";
-        }
+        var s = row.Summary;
+        var cq = _settings.CqForShow(row.FolderName);
+        var eta = SizeEstimate.EncodeTime(s.QueueableFrames);
+        var seasons = s.SeasonCount == 1 ? "1 season" : $"{s.SeasonCount} seasons";
+        return $"{seasons}, {s.EpisodeCount} episodes\n"
+            + $"{s.CodecLabel}, {s.QueueableCount} to do, {Format.Duration(eta).ToLowerInvariant()}\n"
+            + $"Saves about {Format.WholeGigabytes(s.ProjectedSavings(cq))} of {Format.WholeGigabytes(s.TotalBytes)} GB at CQ {cq}";
     }
 
     // ---- Deck ----
@@ -301,21 +282,6 @@ public sealed partial class MainViewModel : ObservableObject
     public string LoadedName => _loaded?.Name ?? "";
 
     public string LabelTitle => _loaded?.Name.ToUpperInvariant() ?? "";
-
-    public string LabelSide
-    {
-        get
-        {
-            if (_loaded is null)
-            {
-                return "";
-            }
-
-            var seasons = _tracks.Select(t => t.Record.Season).Where(s => s > 0).Distinct().Count();
-            var total = _tracks.Sum(t => t.OriginalBytes);
-            return $"Side A · {seasons} {(seasons == 1 ? "season" : "seasons")} · {_tracks.Count} episodes · {Format.WholeGigabytes(total)} GB";
-        }
-    }
 
     public string LabelEpisode
     {
@@ -331,24 +297,38 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    public string SourceText
+    /// <summary>The codec under the source reel, such as <c>H.264</c>.</summary>
+    public string SourceCaption
+    {
+        get
+        {
+            var track = _current ?? NextQueued;
+            return track is null ? "" : ShowSummary.CodecName(track.Record.VideoCodec);
+        }
+    }
+
+    /// <summary>What the source reel's tooltip adds: how much of the file is left to read.</summary>
+    public string SourceDetail
     {
         get
         {
             var track = _current ?? NextQueued;
             if (track is null)
             {
-                return "Source";
+                return "";
             }
 
             var left = _current is null ? track.OriginalBytes : (long)(track.OriginalBytes * (1 - _progress));
-            return $"Source · {ShowSummary.CodecName(track.Record.VideoCodec)} · {Format.Gigabytes(left)} GB {(_current is null ? "" : "left")}".TrimEnd();
+            return $"Source, {Format.Gigabytes(left)} GB{(_current is null ? "" : " left")}";
         }
     }
 
-    public string OutputText => _current is null
-        ? "Output · HEVC 10-bit"
-        : $"Output · HEVC 10-bit · {Format.Gigabytes((long)(_current.OriginalBytes * Ratio * _progress))} GB";
+    /// <summary>The codec under the output reel.</summary>
+    public string OutputCaption => _loaded is null ? "" : "HEVC";
+
+    public string OutputDetail => _current is null
+        ? "Output, HEVC 10-bit"
+        : $"Output, HEVC 10-bit, {Format.Gigabytes((long)(_current.OriginalBytes * Ratio * _progress))} GB so far";
 
     /// <summary>Source reel fill, 0 to 1: full before an encode, empty at the end.</summary>
     public double SourcePack => _current is not null ? 1 - _progress : NextQueued is not null ? 1 : 0;
@@ -379,6 +359,34 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string PercentDigits => Math.Min(99.9, (_transfer ?? _progress) * 100).ToString("0.0", CultureInfo.InvariantCulture).PadLeft(4);
 
+    /// <summary>The episode counter's tooltip: which episode, and the speed and tape time the counter left off.</summary>
+    public string EpisodeDetail => _current is null
+        ? "Percent of the current episode"
+        : $"{EpisodeDigits}, {FpsDigits.Trim()} frames per second, {TapeTimeDigits.Trim()} {TapeTotalText}";
+
+    public string EpisodeCounterName => $"Episode {PercentDigits.Trim()} percent";
+
+    /// <summary>Time left for the whole show, as <c>h:mm</c>. Dashes before a show is loaded.</summary>
+    public string ShowLeftDigits
+    {
+        get
+        {
+            if (_loaded is null)
+            {
+                return "--:--";
+            }
+
+            var minutes = (int)Math.Min(99 * 60 + 59, Math.Ceiling(TimeLeft.TotalMinutes));
+            return string.Create(CultureInfo.InvariantCulture, $"{minutes / 60}:{minutes % 60:00}").PadLeft(5);
+        }
+    }
+
+    public string ShowLeftDetail => _loaded is null
+        ? "Time left for the whole show"
+        : $"About {Format.Duration(TimeLeft).ToLowerInvariant()} left for {_tracks.Count(t => t.IsQueueable || t.Kind == TrackKind.Encoding)} episodes, at {Math.Round(SpeedFps)} frames per second";
+
+    public string ShowLeftName => _loaded is null ? "Show time left, none" : $"Show time left, {Format.Duration(TimeLeft).ToLowerInvariant()}";
+
     // ---- Transport ----
 
     public bool IsEncoding => _queue is not null;
@@ -403,9 +411,10 @@ public sealed partial class MainViewModel : ObservableObject
         private set => Set(ref _encoderLoad, value);
     }
 
-    public IList<string> CqLabels { get; } = CqDetents.Select(c => c.ToString(CultureInfo.InvariantCulture)).ToList();
+    /// <summary>The Quality row's choices in the service panel, one per detent.</summary>
+    public ObservableCollection<CqChipViewModel> CqChips { get; } = [];
 
-    /// <summary>The knob. Turning it saves a CQ override for the show in the deck.</summary>
+    /// <summary>The chosen detent. Picking one saves a CQ override for the show in the deck.</summary>
     public int CqIndex
     {
         get => _cqIndex;
@@ -433,29 +442,32 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             RefreshDeck();
-            ResetCqCommand.Refresh();
-            Raise(nameof(CursorInfo));
+            RefreshCqChips();
+            RefreshShowDetails();
         }
     }
 
     public int Cq => CqDetents[_cqIndex];
 
-    public bool IsKnobEnabled => _loaded is not null && !IsEncoding;
+    /// <summary>True while a show is in the deck and nothing runs, so the Quality row can change.</summary>
+    public bool CanEditQuality => _loaded is not null && !IsEncoding;
 
     /// <summary>
-    /// The detent the knob marks as recommended: the deck's default CQ, which shows without an
-    /// override use and Reset returns to. Out of the box that is <see cref="ShrinkRaySettings.DefaultCq"/>.
+    /// The detent marked as recommended: the deck's default CQ, which shows without an override
+    /// use. Choosing it clears the show's override. Out of the box that is
+    /// <see cref="ShrinkRaySettings.DefaultCq"/>.
     /// </summary>
     public int RecommendedCqIndex => NearestDetent(_settings.Cq);
 
     /// <summary>True when the show in the deck has its own CQ rather than the default.</summary>
     public bool HasCqOverride => _loaded is not null && _settings.ShowCqOverrides.ContainsKey(_loaded.Name);
 
-    /// <summary>The readout under the knob: the CQ the show encodes at, and whether it is the show's own or the default.</summary>
-    public string CqSourceText => string.Create(CultureInfo.InvariantCulture,
-        $"CQ {_settings.CqForShow(_loaded?.Name)} · {(HasCqOverride ? "Show" : "Default")}");
-
     public string EstimateText => $"Est −{Format.Percent(SizeEstimate.SavingsFor(Cq))} per ep";
+
+    /// <summary>The line under the Quality chips: which show they set, and what that saves.</summary>
+    public string CqCaption => _loaded is null
+        ? "Pick a show to set its quality"
+        : $"{_loaded.Name} · {EstimateText}";
 
     // ---- J-card ----
 
@@ -464,34 +476,6 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<TrackViewModel> Tracks { get; } = [];
 
     public int SelectedSeason => _selectedSeason;
-
-    public string JCardHeader
-    {
-        get
-        {
-            if (_loaded is null)
-            {
-                return "";
-            }
-
-            var count = _tracks.Count(t => t.Record.Season == _selectedSeason);
-            return $"{SeasonName(_selectedSeason)} · {count} {(count == 1 ? "episode" : "episodes")}";
-        }
-    }
-
-    public string SeasonFooter
-    {
-        get
-        {
-            if (_loaded is null)
-            {
-                return "Load a tape to see its track list";
-            }
-
-            var season = _tracks.Where(t => t.Record.Season == _selectedSeason).ToList();
-            return $"{SeasonName(_selectedSeason)} · {Format.Gigabytes(season.Sum(t => t.OriginalBytes))} GB now · ~{Format.Gigabytes(season.Sum(After))} GB after";
-        }
-    }
 
     // ---- Encode window ----
 
@@ -542,16 +526,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string LifetimeSavedName => $"{LifetimeSavedDigits.Trim()} {(LifetimeSavedUnit == "TB" ? "terabytes" : "gigabytes")} saved all time";
 
-    public string FooterTitle => _loaded is null ? "Space reclaimed" : "Space reclaimed · " + _loaded.Name;
-
     public double SavedGigabytes => Format.ToGigabytes(_tracks.Sum(t => t.SavedBytes));
 
     public string SavedDigits => Math.Min(999.9, SavedGigabytes).ToString("0.0", CultureInfo.InvariantCulture).PadLeft(5);
 
-    public string BeforeText => Format.WholeGigabytes(_tracks.Sum(t => t.OriginalBytes));
-
-    public string AfterText => Format.WholeGigabytes(_tracks.Sum(After));
-
+    /// <summary>The before and after bar's fill: the size after over the size before.</summary>
     public double AfterFraction
     {
         get
@@ -561,36 +540,31 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    public string EpisodesDoneText
+    /// <summary>The bar's caption before the arrow: what the show weighs now, such as <c>22 GB</c>.</summary>
+    public string SizeBeforeText => _loaded is null || _tracks.Count == 0 ? "" : Format.WholeGigabytes(_tracks.Sum(t => t.OriginalBytes)) + " GB";
+
+    /// <summary>
+    /// The caption after the arrow, such as <c>~7.8 GB · 3 OF 12 SHRUNK</c>. The tilde marks the
+    /// size as an estimate while episodes remain.
+    /// </summary>
+    public string SizeAfterText
     {
         get
         {
-            if (_loaded is null)
+            if (_loaded is null || _tracks.Count == 0)
             {
                 return "";
             }
 
+            var after = Format.WholeGigabytes(_tracks.Sum(After));
+            var estimate = _tracks.Any(t => t.IsQueueable || t.Kind == TrackKind.Encoding) ? "~" : "";
             var shrunk = _tracks.Count(t => t.Kind == TrackKind.Shrunk);
-            var text = $"{shrunk} of {_tracks.Count} episodes shrunk";
-            var frames = _tracks.Where(t => t.IsQueueable || t.Kind == TrackKind.Encoding).Sum(t => t.Record.FrameCount ?? 0);
-            if (frames > 0)
-            {
-                var done = _current?.Record.FrameCount is { } f ? (long)(f * _progress) : 0;
-                var fps = IsSpinning && _fps is > 1 ? _fps.Value : SizeEstimate.MeasuredFps;
-                text += " · " + Format.Duration(SizeEstimate.EncodeTime(frames - done, fps)) + " left";
-            }
-
-            return text;
+            return $"{estimate}{after} GB · {shrunk} OF {_tracks.Count} SHRUNK";
         }
     }
 
-    /// <summary>Episodes handled (shrunk, kept or skipped) over all episodes, for the LED bar.</summary>
-    public double HandledFraction => _tracks.Count == 0 ? 0
-        : (double)_tracks.Count(t => t.Kind is TrackKind.Shrunk or TrackKind.Kept or TrackKind.Skipped) / _tracks.Count;
-
-    public LampViewModel OriginalsLamp { get; } = new("Replaced after checks pass", LampState.Ok);
-
-    public LampViewModel RecycleLamp { get; } = new("Old file to NAS recycle bin", LampState.Ok);
+    /// <summary>The whole caption, <c>22 GB → ~7.8 GB · 3 OF 12 SHRUNK</c>, for screen readers.</summary>
+    public string SizeCaption => SizeBeforeText.Length == 0 ? "" : $"{SizeBeforeText} → {SizeAfterText}";
 
     // ---- Settings panel ----
 
@@ -629,7 +603,6 @@ public sealed partial class MainViewModel : ObservableObject
 
             _settings.ReplaceOriginals = value;
             Save();
-            RefreshFooterLamps();
             Raise();
         }
     }
@@ -741,7 +714,24 @@ public sealed partial class MainViewModel : ObservableObject
         _ => "SWAP",
     };
 
-    private static string SeasonName(int season) => season == 0 ? "Specials" : "Season " + season;
+    /// <summary>The frame rate the time left is figured at: the live encode rate, else the measured one.</summary>
+    private double SpeedFps => IsSpinning && _fps is > 1 ? _fps.Value : SizeEstimate.MeasuredFps;
+
+    /// <summary>Encode time left for every episode still to do, less what the current one has done.</summary>
+    private TimeSpan TimeLeft
+    {
+        get
+        {
+            var frames = _tracks.Where(t => t.IsQueueable || t.Kind == TrackKind.Encoding).Sum(t => t.Record.FrameCount ?? 0);
+            if (frames <= 0)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var done = _current?.Record.FrameCount is { } f ? (long)(f * _progress) : 0;
+            return SizeEstimate.EncodeTime(Math.Max(0, frames - done), SpeedFps);
+        }
+    }
 
     private long After(TrackViewModel t) => t.Kind switch
     {

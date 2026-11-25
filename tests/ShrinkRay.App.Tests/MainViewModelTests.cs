@@ -38,7 +38,8 @@ public class MainViewModelTests
 
         Assert.Equal("recover", rig.Log.First());
         Assert.NotEmpty(rig.Disk.Listed);
-        Assert.Equal("RECOVERY: ALL CLEAR", vm.RecoveryText);
+        Assert.Equal("", vm.AttentionDetail);
+        Assert.Equal("No show", vm.RunLamp.Label);
     }
 
     [Fact]
@@ -67,7 +68,10 @@ public class MainViewModelTests
         gate.SetResult([new RecoveryAction(@"X:\TV\a.mkv", RecoveryKind.RolledBack, "x"), new RecoveryAction(@"X:\TV\b.mkv", RecoveryKind.NeedsReview, "y")]);
         await start.WaitAsync(Timeout);
 
-        Assert.Equal("RECOVERY: 1 FIXED \u00b7 1 TO REVIEW", vm.RecoveryText);
+        // Recovery that needs a look shows through the header lamp; the fixed file needs no word.
+        Assert.Equal("Needs attention", vm.RunLamp.Label);
+        Assert.Contains("1 file to review", vm.AttentionDetail);
+        Assert.DoesNotContain("fixed", vm.AttentionDetail, StringComparison.OrdinalIgnoreCase);
         Assert.True(vm.EncodeCommand.CanExecute(null));
     }
 
@@ -79,25 +83,25 @@ public class MainViewModelTests
         await vm.StartAsync();
 
         Assert.Equal(["BLUEY", "SCRUBS"], vm.Shows.Select(s => s.Name));
-        Assert.Equal("2 TO SHRINK", vm.ShowCountText);
-        Assert.Equal("HIDDEN: 1 SHRUNK \u00b7 1 HEVC", vm.HiddenText);
-        Assert.Equal("TV", vm.LibraryLabel);
+        Assert.Equal(["X:\\TV", "2 to shrink", "Hidden: 1 already shrunk, 1 already HEVC"], vm.LibraryTooltip.Split('\n'));
+        Assert.Equal("", vm.MonitorMessage);
         Assert.Equal("0.5", vm.Shows[0].SizeText);
     }
 
     [Fact]
-    public async Task Cursor_info_sums_the_show_without_printing_gb_in_the_pixel_font()
+    public async Task A_show_row_keeps_its_detail_for_the_tooltip_and_leaves_gb_off_the_pixel_font()
     {
         var vm = Library().Create();
         await vm.StartAsync();
 
-        vm.SelectedShow = vm.Shows.Single(s => s.FolderName == "Scrubs");
+        var row = vm.Shows.Single(s => s.FolderName == "Scrubs");
 
-        var lines = vm.CursorInfo.Split('\n');
-        Assert.Equal("2 SEASONS \u00b7 3 EPS", lines[0]);
-        Assert.StartsWith("H.264 \u00b7 3 TO DO", lines[1]);
-        Assert.Equal("SAVE ~2.6 OF 4.0 @ CQ28", lines[2]);
-        Assert.DoesNotContain("GB", vm.CursorInfo);
+        var lines = row.Detail.Split('\n');
+        Assert.Equal("2 seasons, 3 episodes", lines[0]);
+        Assert.StartsWith("H.264, 3 to do", lines[1]);
+        Assert.Equal("Saves about 2.6 of 4.0 GB at CQ 28", lines[2]);
+        Assert.DoesNotContain("GB", row.SizeText);
+        Assert.StartsWith("Scrubs, 4.0 gigabytes. 2 seasons", row.AutomationName);
     }
 
     [Fact]
@@ -110,8 +114,9 @@ public class MainViewModelTests
         await vm.StartAsync();
 
         Assert.Empty(vm.Shows);
-        Assert.Equal("NO LIBRARY. PRESS CHOOSE", vm.MonitorMessage);
+        Assert.Equal("NO LIBRARY. OPEN SETUP", vm.MonitorMessage);
         Assert.Equal(LampState.Off, vm.LibraryLamp.State);
+        Assert.Equal("No library", vm.RunLamp.Label);
     }
 
     [Fact]
@@ -137,16 +142,17 @@ public class MainViewModelTests
         Assert.False(vm.IsTapeLoaded);
 
         vm.SelectedShow = vm.Shows.Single(s => s.FolderName == "Scrubs");
-        vm.LoadTapeCommand.Execute(null);
 
         Assert.True(vm.IsTapeLoaded);
         Assert.Equal("SCRUBS", vm.LabelTitle);
-        Assert.Equal("Side A \u00b7 2 seasons \u00b7 3 episodes \u00b7 4.0 GB", vm.LabelSide);
         Assert.Equal("S01E01 \u00b7 Title 1", vm.LabelEpisode);
+        Assert.Equal("H.264", vm.SourceCaption);
+        Assert.Equal("HEVC", vm.OutputCaption);
+        Assert.Equal("Ready", vm.RunLamp.Label);
         Assert.Equal(["S1", "S2"], vm.Seasons.Select(s => s.Label));
         Assert.True(vm.Seasons[0].IsSelected);
         Assert.Equal(["S01E01", "S01E02"], vm.Tracks.Select(t => t.Code));
-        Assert.All(vm.Tracks, t => Assert.Equal("QUEUED", t.StatusText));
+        Assert.All(vm.Tracks, t => Assert.Equal("", t.StatusText));
         Assert.Equal("1.00", vm.Tracks[0].SizeText);
         Assert.Equal("*", vm.Shows.Single(s => s.FolderName == "Scrubs").Mark);
         Assert.Equal("Scrubs", rig.SavedPreferences?.LastShow);
@@ -163,22 +169,38 @@ public class MainViewModelTests
         Assert.Equal(2, vm.SelectedSeason);
         Assert.Equal(["S02E01"], vm.Tracks.Select(t => t.Code));
         Assert.False(vm.Seasons[0].IsSelected);
-        Assert.Equal("Season 2 \u00b7 1 episode", vm.JCardHeader);
     }
 
     [Fact]
-    public async Task Eject_empties_the_deck()
+    public async Task Picking_another_show_while_idle_loads_it()
     {
         var rig = Library();
         var vm = await rig.StartedWith("Scrubs");
 
-        vm.EjectCommand.Execute(null);
+        vm.SelectedShow = vm.Shows.Single(s => s.FolderName == "Bluey");
 
-        Assert.False(vm.IsTapeLoaded);
-        Assert.Empty(vm.Tracks);
-        Assert.Empty(vm.Seasons);
-        Assert.Null(rig.SavedPreferences?.LastShow);
-        Assert.Equal("No tape", vm.RunLamp.Label);
+        Assert.Equal("Bluey", vm.LoadedName);
+        Assert.Equal(["S01E01"], vm.Tracks.Select(t => t.Code));
+        Assert.Equal("Bluey", rig.SavedPreferences?.LastShow);
+        Assert.False(vm.Shows.Single(s => s.FolderName == "Scrubs").IsLoaded);
+    }
+
+    [Fact]
+    public async Task Picking_another_show_during_an_encode_leaves_the_deck_alone()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        vm.SelectedShow = vm.Shows.Single(s => s.FolderName == "Bluey");
+
+        Assert.Equal("Scrubs", vm.LoadedName);
+        Assert.Equal("Scrubs", vm.SelectedShow?.FolderName);
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
     }
 
     [Fact]
@@ -213,32 +235,35 @@ public class MainViewModelTests
 
         var track = vm.Tracks.Single(t => t.Path == stopped);
         Assert.Equal(TrackKind.Queued, track.Kind);
-        Assert.Equal("QUEUED", track.StatusText);
+        Assert.Equal("", track.StatusText);
         Assert.True(track.IsQueueable);
     }
 
-    // ---- Knob ----
+    // ---- Quality ----
 
     [Fact]
-    public async Task Turning_the_knob_saves_a_cq_override_for_the_loaded_show()
+    public async Task Choosing_a_quality_saves_a_cq_override_for_the_loaded_show()
     {
         var rig = Library();
         var vm = await rig.StartedWith("Scrubs");
         Assert.Equal(28, vm.Cq);
         var saves = rig.SettingsSaves;
 
-        vm.CqIndex = MainViewModel.CqDetents.ToList().IndexOf(24);
+        vm.CqChips[MainViewModel.CqDetents.ToList().IndexOf(24)].IsSelected = true;
 
         Assert.Equal(24, rig.Settings.ShowCqOverrides["scrubs"]);
         Assert.True(rig.SettingsSaves > saves);
         Assert.Equal("Est \u221242% per ep", vm.EstimateText);
+        Assert.Equal("Scrubs \u00b7 Est \u221242% per ep", vm.CqCaption);
+        Assert.Equal([false, false, true, false, false, false], vm.CqChips.Select(c => c.IsSelected));
+        Assert.Contains("CQ 24", vm.Shows.Single(s => s.FolderName == "Scrubs").Detail);
 
         vm.CqIndex = MainViewModel.CqDetents.ToList().IndexOf(28);
         Assert.False(rig.Settings.ShowCqOverrides.ContainsKey("Scrubs"));
     }
 
     [Fact]
-    public async Task Loading_a_show_turns_the_knob_to_its_override()
+    public async Task Loading_a_show_selects_its_override_on_the_quality_chips()
     {
         var rig = Library();
         rig.Settings.ShowCqOverrides["Scrubs"] = 25;
@@ -246,65 +271,66 @@ public class MainViewModelTests
         var vm = await rig.StartedWith("Scrubs");
 
         Assert.Equal(26, vm.Cq);
+        Assert.True(vm.CqChips[MainViewModel.CqDetents.ToList().IndexOf(26)].IsSelected);
     }
 
     [Fact]
-    public async Task The_knob_marks_the_default_cq_and_the_readout_says_where_the_cq_comes_from()
+    public async Task The_recommended_quality_is_marked_on_its_chip()
     {
         var rig = Library();
         var vm = await rig.StartedWith("Scrubs");
+        var recommended = MainViewModel.CqDetents.ToList().IndexOf(ShrinkRay.Core.Settings.ShrinkRaySettings.DefaultCq);
 
-        Assert.Equal(MainViewModel.CqDetents.ToList().IndexOf(ShrinkRay.Core.Settings.ShrinkRaySettings.DefaultCq), vm.RecommendedCqIndex);
-        Assert.Equal("CQ 28 · Default", vm.CqSourceText);
-        Assert.False(vm.ResetCqCommand.CanExecute(null));
+        Assert.Equal(recommended, vm.RecommendedCqIndex);
+        Assert.Equal("28 \u00b7 REC", vm.CqChips[recommended].Label);
+        Assert.Equal("Quality 28, recommended", vm.CqChips[recommended].AutomationName);
+        Assert.Equal(["20", "22", "24", "26", "28 \u00b7 REC", "30"], vm.CqChips.Select(c => c.Label));
+        Assert.False(vm.HasCqOverride);
 
-        vm.CqIndex = MainViewModel.CqDetents.ToList().IndexOf(26);
+        vm.CqChips[MainViewModel.CqDetents.ToList().IndexOf(26)].IsSelected = true;
 
-        Assert.Equal("CQ 26 · Show", vm.CqSourceText);
         Assert.True(vm.HasCqOverride);
-        Assert.True(vm.ResetCqCommand.CanExecute(null));
+        Assert.Equal("28 \u00b7 REC", vm.CqChips[recommended].Label);
     }
 
     [Fact]
-    public async Task Reset_clears_the_show_override_and_turns_the_knob_back_to_the_default()
+    public async Task Choosing_the_recommended_quality_clears_the_show_override()
     {
         var rig = Library();
-        rig.Settings.ShowCqOverrides["Scrubs"] = 27;
+        rig.Settings.ShowCqOverrides["Scrubs"] = 26;
         rig.Settings.ShowCqOverrides["Bluey"] = 22;
         var vm = await rig.StartedWith("Scrubs");
-        Assert.Equal("CQ 27 · Show", vm.CqSourceText);
         var saves = rig.SettingsSaves;
 
-        vm.ResetCqCommand.Execute(null);
+        vm.CqChips[vm.RecommendedCqIndex].IsSelected = true;
 
         Assert.False(rig.Settings.ShowCqOverrides.ContainsKey("Scrubs"));
         Assert.Equal(22, rig.Settings.ShowCqOverrides["Bluey"]);
         Assert.True(rig.SettingsSaves > saves);
-        Assert.Equal(vm.RecommendedCqIndex, vm.CqIndex);
         Assert.Equal(28, vm.Cq);
-        Assert.Equal("CQ 28 · Default", vm.CqSourceText);
-        Assert.False(vm.ResetCqCommand.CanExecute(null));
+        Assert.False(vm.HasCqOverride);
     }
 
     [Fact]
-    public async Task Reset_is_locked_while_encoding()
+    public async Task Quality_is_locked_while_encoding_and_with_no_show_loaded()
     {
         var rig = Library();
-        rig.Settings.ShowCqOverrides["Scrubs"] = 24;
         var first = DeckRig.Episode("Scrubs", 1, 1);
         rig.Runner.Hold[first] = new TaskCompletionSource();
+        var idle = rig.Create();
+        await idle.StartAsync();
+        Assert.False(idle.CanEditQuality);
+        Assert.Equal("Pick a show to set its quality", idle.CqCaption);
+
         var vm = await rig.StartedWith("Scrubs");
+        Assert.True(vm.CanEditQuality);
         vm.EncodeCommand.Execute(null);
         await rig.Runner.WaitUntilHeldAsync();
 
-        Assert.False(vm.ResetCqCommand.CanExecute(null));
-        vm.ResetCqCommand.Execute(null);
-        Assert.Equal(24, rig.Settings.ShowCqOverrides["Scrubs"]);
-        Assert.Equal("CQ 24 · Show", vm.CqSourceText);
-
+        Assert.False(vm.CanEditQuality);
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
-        Assert.True(vm.ResetCqCommand.CanExecute(null));
+        Assert.True(vm.CanEditQuality);
     }
 
     // ---- Encode ----
@@ -325,8 +351,8 @@ public class MainViewModelTests
         Assert.Equal("\u221264%", vm.Tracks[0].StatusText);
         Assert.Equal("0.36", vm.Tracks[0].SizeText);
         Assert.Equal("  2.6", vm.SavedDigits);
-        Assert.Equal("3 of 3 episodes shrunk", vm.EpisodesDoneText);
-        Assert.Equal(1, vm.HandledFraction);
+        Assert.Equal("4.0 GB \u2192 1.4 GB \u00b7 3 OF 3 SHRUNK", vm.SizeCaption);
+        Assert.Equal(0.36, vm.AfterFraction, 3);
         Assert.Equal(640_000_000, rig.Ledger.Get(DeckRig.Episode("Scrubs", 1, 1))!.SavedBytes);
     }
 
@@ -410,8 +436,9 @@ public class MainViewModelTests
         await vm.CurrentRun.WaitAsync(Timeout);
         vm.Seasons[0].IsSelected = true;
 
-        Assert.Equal("KEPT 9%", vm.Tracks[0].StatusText);
-        Assert.Equal("FAIL DECODE", vm.Tracks[1].StatusText);
+        Assert.Equal("KEPT", vm.Tracks[0].StatusText);
+        Assert.Contains("9%", vm.Tracks[0].Detail);
+        Assert.Equal("FAILED", vm.Tracks[1].StatusText);
         Assert.Equal("Full decode reported errors", vm.Tracks[1].Detail);
         Assert.Null(rig.Ledger.Get(kept));
     }
@@ -430,7 +457,7 @@ public class MainViewModelTests
         vm.Seasons[0].IsSelected = true;
 
         var track = vm.Tracks.Single(t => t.Path == failed);
-        Assert.Equal("FAIL SUBS", track.StatusText);
+        Assert.Equal("FAILED", track.StatusText);
         Assert.Equal("Subtitle streams: expected 2, output has 3; Duration missing from the source or the output", track.Detail);
         Assert.Equal("LAST FAIL S01E02 · SUBTITLE STREAMS: EXPECTED 2, OUTPUT HAS 3; DURATION MISSING FROM THE SOURCE OR THE OUTPUT", vm.LastFailureText);
         Assert.StartsWith("S01E02: Subtitle streams", vm.LastFailureDetail);
@@ -450,7 +477,7 @@ public class MainViewModelTests
 
         var vm = await rig.StartedWith("Scrubs");
 
-        Assert.Equal("FAIL ENCODE", vm.Tracks.Single(t => t.Path == older).StatusText);
+        Assert.Equal("FAILED", vm.Tracks.Single(t => t.Path == older).StatusText);
         Assert.Equal("HandBrakeCLI exited with code 3", vm.Tracks.Single(t => t.Path == older).Detail);
         Assert.Equal("LAST FAIL S02E01 · AUDIO STREAMS: EXPECTED 2, OUTPUT HAS 1", vm.LastFailureText);
 
@@ -460,15 +487,30 @@ public class MainViewModelTests
         Assert.Equal("", vm.LastFailureText);
     }
 
-    [Theory]
-    [InlineData("Subtitle streams (closed captions add one): expected 2, output has 3", "FAIL SUBS")]
-    [InlineData("Duration differs by 4.0 s (source 1320.0 s, output 1316.0 s)", "FAIL LENGTH")]
-    [InlineData("Attachments: expected 4, output has 0", "FAIL FONTS")]
-    [InlineData("Output video codec is h264, expected hevc", "FAIL VIDEO")]
-    [InlineData("The uploaded temp file is 10 bytes, expected 12.", "FAILED")]
-    [InlineData("", "FAILED")]
-    public void A_failure_reason_gets_a_short_status(string reason, string expected) =>
-        Assert.Equal(expected, TrackViewModel.FailedStatus(reason));
+    [Fact]
+    public async Task A_row_leaves_off_everything_it_does_not_need_and_keeps_the_rest_for_screen_readers()
+    {
+        var rig = Library();
+        var kept = DeckRig.Episode("Scrubs", 1, 1);
+        var failed = DeckRig.Episode("Scrubs", 1, 2);
+        rig.Runner.Results[kept] = new PipelineResult(PipelineOutcome.KeptOriginal, "Saves 9%, below the 15% minimum");
+        rig.Runner.Results[failed] = new PipelineResult(PipelineOutcome.Failed, "Full decode reported errors");
+        var vm = await rig.StartedWith("Scrubs");
+        Assert.Equal("S01E01, Title 1, 1.00 gigabytes, queued", vm.Tracks[0].AutomationName);
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+        vm.Seasons[0].IsSelected = true;
+        vm.Seasons[1].IsSelected = true;
+        Assert.Equal("\u221264%", vm.Tracks[0].StatusText);
+        Assert.Equal("S02E01, Title 1, 0.72 gigabytes, shrunk, \u221264%", vm.Tracks[0].AutomationName);
+        vm.Seasons[0].IsSelected = true;
+
+        Assert.Equal("KEPT", vm.Tracks[0].StatusText);
+        Assert.Equal("S01E01, Title 1, 1.00 gigabytes, kept the original. Saves 9%, below the 15% minimum", vm.Tracks[0].AutomationName);
+        Assert.Equal("FAILED", vm.Tracks[1].StatusText);
+        Assert.EndsWith("failed. Full decode reported errors", vm.Tracks[1].AutomationName);
+    }
 
     [Fact]
     public async Task While_encoding_the_deck_shows_the_episode_and_locks_the_tape()
@@ -488,15 +530,16 @@ public class MainViewModelTests
         Assert.Equal("170", vm.FpsDigits);
         Assert.Equal("11:00", vm.TapeTimeDigits);
         Assert.Equal("/ 22:00", vm.TapeTotalText);
+        Assert.Equal("S01E01, 170 frames per second, 11:00 / 22:00", vm.EpisodeDetail);
+        Assert.Equal("Episode 50.0 percent", vm.EpisodeCounterName);
         Assert.Equal(0.5, vm.SourcePack);
         Assert.Equal(LampState.Red, vm.EncodeLamp);
-        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("Encoding", vm.RunLamp.Label);
         Assert.Equal(TrackKind.Encoding, vm.Tracks[0].Kind);
         Assert.Equal("50%", vm.Tracks[0].StatusText);
         Assert.Equal(LampState.Active, vm.Seasons[0].Lamp);
-        Assert.False(vm.EjectCommand.CanExecute(null));
-        Assert.False(vm.LoadTapeCommand.CanExecute(null));
-        Assert.False(vm.IsKnobEnabled);
+        Assert.False(vm.CanEditQuality);
+        Assert.Equal(" 0:09", vm.ShowLeftDigits);
         Assert.False(vm.DropFolder(DeckRig.Root + @"\Bluey"));
 
         rig.Runner.Hold[first].SetResult();
@@ -621,33 +664,33 @@ public class MainViewModelTests
         var vm = await rig.StartedWith("Scrubs");
         vm.EncodeCommand.Execute(null);
         await rig.Runner.WaitUntilHeldAsync();
-        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("Encoding", vm.RunLamp.Label);
         Assert.Equal("50%", vm.Tracks[0].StatusText);
 
         // The phase comes from the report, not from the percent.
         rig.Runner.Report(EpisodePhase.Copying);
-        Assert.Equal("Copying S01E01", vm.RunLamp.Label);
+        Assert.Equal("Copying", vm.RunLamp.Label);
         Assert.Equal("COPY", vm.Tracks[0].StatusText);
         Assert.Equal("  0", vm.FpsDigits);
 
         rig.Runner.Report(42);
-        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("Encoding", vm.RunLamp.Label);
         Assert.Equal("42%", vm.Tracks[0].StatusText);
         Assert.Equal("170", vm.FpsDigits);
 
         rig.Runner.Report(EpisodePhase.Verifying);
-        Assert.Equal("Checking S01E01", vm.RunLamp.Label);
+        Assert.Equal("Checking", vm.RunLamp.Label);
         Assert.Equal("CHECK", vm.Tracks[0].StatusText);
         Assert.Equal("  0", vm.FpsDigits);
         Assert.Equal("99.9", vm.PercentDigits);
         Assert.Equal(0, vm.SourcePack);
 
         rig.Runner.Report(EpisodePhase.Uploading);
-        Assert.Equal("Uploading S01E01", vm.RunLamp.Label);
+        Assert.Equal("Uploading", vm.RunLamp.Label);
         Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
 
         rig.Runner.Report(EpisodePhase.Swapping);
-        Assert.Equal("Swapping S01E01", vm.RunLamp.Label);
+        Assert.Equal("Swapping", vm.RunLamp.Label);
         Assert.Equal("SWAP", vm.Tracks[0].StatusText);
 
         rig.Runner.Hold[first].SetResult();
@@ -676,7 +719,7 @@ public class MainViewModelTests
         Assert.Equal(0, vm.OutputPack);
         Assert.Equal(1, vm.SourcePack);
         Assert.Equal(" 0:00", vm.TapeTimeDigits);
-        Assert.EndsWith("· 0.00 GB", vm.OutputText);
+        Assert.EndsWith("0.00 GB so far", vm.OutputDetail);
 
         // The encode shows its own percent once the copy is done.
         rig.Runner.Report(EpisodePhase.Copying, 1);
@@ -699,7 +742,7 @@ public class MainViewModelTests
 
         rig.Runner.Report(EpisodePhase.Verifying);
         var wound = vm.OutputPack;
-        var output = vm.OutputText;
+        var output = vm.OutputDetail;
         var encoded = Path.Combine(EpisodePipeline.WorkFolder(@"C:\Scratch", first), "encoded.mkv");
         rig.Sizes[encoded] = 165_000_000;
         vm.Tick();
@@ -716,7 +759,7 @@ public class MainViewModelTests
         Assert.Equal(wound, vm.OutputPack);
         Assert.Equal(0, vm.SourcePack);
         Assert.Equal("22:00", vm.TapeTimeDigits);
-        Assert.Equal(output, vm.OutputText);
+        Assert.Equal(output, vm.OutputDetail);
 
         // The needle keeps the encode's bitrate.
         vm.Tick();
@@ -761,7 +804,7 @@ public class MainViewModelTests
         Assert.False(vm.IsCloseOverlayOpen);
         Assert.True(vm.IsEncoding);
         Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
-        Assert.Equal("Encoding S01E01", vm.RunLamp.Label);
+        Assert.Equal("Encoding", vm.RunLamp.Label);
 
         // A second close asks again.
         Assert.False(vm.RequestClose());
@@ -820,7 +863,7 @@ public class MainViewModelTests
         // The swap is left to finish: nothing cancelled it, the deck says so, and the window stays.
         Assert.True(vm.IsClosing);
         Assert.False(rig.Runner.Tokens[first].IsCancellationRequested);
-        Assert.Equal("Finishing swap S01E01", vm.RunLamp.Label);
+        Assert.Equal("Finishing swap", vm.RunLamp.Label);
         Assert.False(vm.RequestClose());
         Assert.Equal(0, ready);
 
@@ -909,18 +952,17 @@ public class MainViewModelTests
     // ---- Settings ----
 
     [Fact]
-    public async Task Replace_originals_saves_and_changes_the_footer_lamps()
+    public async Task Replace_originals_saves()
     {
         var rig = Library();
         var vm = await rig.StartedWith("Scrubs");
-        Assert.Equal(LampState.Ok, vm.OriginalsLamp.State);
+        var saves = rig.SettingsSaves;
 
         vm.ReplaceOriginals = false;
 
         Assert.False(rig.Settings.ReplaceOriginals);
-        Assert.Equal("Originals kept", vm.OriginalsLamp.Label);
-        Assert.Equal(LampState.Off, vm.OriginalsLamp.State);
-        Assert.Equal("Encodes stay in scratch", vm.RecycleLamp.Label);
+        Assert.False(vm.ReplaceOriginals);
+        Assert.True(rig.SettingsSaves > saves);
     }
 
     [Fact]
@@ -1037,6 +1079,86 @@ public class MainViewModelTests
         Assert.Empty(rig.Runner.Ran);
     }
 
+    // ---- Header lamp and counters ----
+
+    [Fact]
+    public async Task The_header_lamp_names_a_missing_tool_and_the_system_row_lists_every_tool()
+    {
+        var rig = Library();
+        rig.MissingTools.Add(rig.Settings.FfmpegPath);
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal("ffmpeg missing", vm.RunLamp.Label);
+        Assert.Equal(LampState.Active, vm.RunLamp.State);
+        Assert.StartsWith("ffmpeg or ffprobe was not found", vm.AttentionDetail);
+        Assert.Equal(LampState.Off, vm.FfmpegLamp.State);
+        Assert.Equal(LampState.Ok, vm.HandBrakeLamp.State);
+        Assert.Equal(5, vm.SystemLamps.Count);
+    }
+
+    [Fact]
+    public async Task Several_problems_read_needs_attention_and_the_detail_lists_them_all()
+    {
+        var rig = Library();
+        rig.MissingTools.Add(rig.Settings.FfmpegPath);
+        rig.MissingTools.Add(rig.Settings.HandBrakeCliPath);
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal("Needs attention", vm.RunLamp.Label);
+        Assert.Equal(2, vm.AttentionDetail.Split('\n').Length);
+    }
+
+    [Fact]
+    public async Task A_run_overrides_the_attention_word_and_a_finished_run_brings_it_back()
+    {
+        var rig = Library();
+        rig.MissingTools.Add(rig.Settings.FfprobePath);
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        Assert.Equal("ffmpeg missing", vm.RunLamp.Label);
+
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+        Assert.Equal("Encoding", vm.RunLamp.Label);
+        Assert.Equal(LampState.Red, vm.RunLamp.State);
+
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+        Assert.Equal("ffmpeg missing", vm.RunLamp.Label);
+    }
+
+    [Fact]
+    public async Task The_size_caption_estimates_until_every_episode_is_handled()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+
+        Assert.Equal("4.0 GB \u2192 ~1.4 GB \u00b7 0 OF 3 SHRUNK", vm.SizeCaption);
+        Assert.Equal(0.36, vm.AfterFraction, 3);
+        Assert.Equal("  0.0", vm.SavedDigits);
+    }
+
+    [Fact]
+    public async Task Show_left_counts_down_the_time_for_the_whole_show()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+
+        // Three episodes of 33,000 frames at the measured 165 frames per second: 10 minutes.
+        Assert.Equal(" 0:10", vm.ShowLeftDigits);
+        Assert.Contains("3 episodes", vm.ShowLeftDetail);
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Equal(" 0:00", vm.ShowLeftDigits);
+
+        var empty = Library().Create();
+        await empty.StartAsync();
+        Assert.Equal("--:--", empty.ShowLeftDigits);
+    }
+
     // ---- Drag and drop ----
 
     [Fact]
@@ -1064,7 +1186,6 @@ public class MainViewModelTests
         await WaitForAsync(() => vm.LoadedName == "Frieren");
 
         Assert.Equal(@"Y:\Anime\Frieren", rig.Settings.LibraryRoot);
-        Assert.Equal("ANIME/FRIEREN", vm.LibraryLabel);
         Assert.Equal(["FRIEREN"], vm.Shows.Select(s => s.Name));
     }
 
@@ -1099,10 +1220,8 @@ public class MainViewModelTests
 
         Assert.Equal(DeckRig.Root + @"\Scrubs", rig.Settings.LibraryRoot);
         Assert.Equal(["SCRUBS"], vm.Shows.Select(s => s.Name));
-        Assert.Equal("1 TO SHRINK", vm.ShowCountText);
-        Assert.Equal("TV/SCRUBS", vm.LibraryLabel);
+        Assert.Contains("1 to shrink", vm.LibraryTooltip);
         Assert.Equal("SCRUBS", vm.LabelTitle);
-        Assert.Equal("Space reclaimed \u00b7 Scrubs", vm.FooterTitle);
         Assert.Equal("Scrubs", rig.SavedPreferences?.LastShow);
 
         // A stale override saved under a season folder's name no longer matches anything.

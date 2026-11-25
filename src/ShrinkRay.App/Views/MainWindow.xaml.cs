@@ -127,17 +127,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnShowDoubleClick(object sender, MouseButtonEventArgs e) => ViewModel.LoadTapeCommand.Execute(null);
-
-    private void OnShowKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            ViewModel.LoadTapeCommand.Execute(null);
-            e.Handled = true;
-        }
-    }
-
     private void OnScrimDown(object sender, MouseButtonEventArgs e) => ViewModel.CloseSettingsCommand.Execute(null);
 
     [DllImport("user32.dll")]

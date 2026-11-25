@@ -65,21 +65,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- A short keycap that fits beside a readout, such as the knob's Reset -->
-        <Style x:Key="SmallKey" TargetType="Button" BasedOn="{StaticResource TextKey}">
-            <Setter Property="Height" Value="18" />
-            <Setter Property="MinWidth" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="ContentTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <sr:TrackedText Text="{Binding}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="9"
-                                        Tracking="0.14" Foreground="{DynamicResource SR.Ink}" Margin="6,0" />
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!-- Option chips in the service panel: the lamp lights on the chosen one -->
         <Style x:Key="OptionChip" TargetType="sr:SeasonChip">
             <Setter Property="Padding" Value="8,0" />
@@ -111,7 +96,8 @@
 
         <!-- One J-card line -->
         <DataTemplate x:Key="TrackRow" DataType="{x:Type vm:TrackViewModel}">
-            <Grid Height="31" Background="Transparent" ToolTip="{Binding Detail}" ToolTipService.IsEnabled="{Binding Detail, Converter={StaticResource NotEmpty}}">
+            <Grid Height="31" Background="Transparent" ToolTip="{Binding Detail}" ToolTipService.IsEnabled="{Binding Detail, Converter={StaticResource NotEmpty}}"
+                  AutomationProperties.Name="{Binding AutomationName}">
                 <Rectangle Fill="{DynamicResource SR.PhosphorRowTint}" HorizontalAlignment="Stretch" RenderTransformOrigin="0,0.5">
                     <Rectangle.RenderTransform>
                         <ScaleTransform ScaleX="{Binding Progress}" />
@@ -193,20 +179,6 @@
                         </StackPanel>
                     </ContentControl>
                     <sr:VentGrille DockPanel.Dock="Left" Width="150" Height="26" Margin="18,0,0,0" />
-                    <ItemsControl DockPanel.Dock="Left" Margin="22,0,0,0" VerticalAlignment="Center" Focusable="False"
-                                  ItemsSource="{Binding SystemLamps}" ItemTemplate="{StaticResource LampItem}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemContainerStyle>
-                            <Style TargetType="ContentPresenter">
-                                <Setter Property="Margin" Value="0,0,16,0" />
-                            </Style>
-                        </ItemsControl.ItemContainerStyle>
-                    </ItemsControl>
-
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource SR.HardwareKey}" Click="OnMinimize" AutomationProperties.Name="Minimize"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
@@ -225,7 +197,9 @@
                             Command="{Binding OpenSettingsCommand}" AutomationProperties.Name="Open the service panel"
                             WindowChrome.IsHitTestVisibleInChrome="True" />
                     <sr:Lamp DockPanel.Dock="Right" Style="{StaticResource PanelLamp}" Margin="0,0,18,0" VerticalAlignment="Center"
-                             Content="{Binding RunLamp.Label}" State="{Binding RunLamp.State}" Blink="{Binding RunLamp.Blink}" />
+                             Content="{Binding RunLamp.Label}" State="{Binding RunLamp.State}" Blink="{Binding RunLamp.Blink}"
+                             ToolTip="{Binding AttentionDetail}" ToolTipService.IsEnabled="{Binding AttentionDetail, Converter={StaticResource NotEmpty}}"
+                             WindowChrome.IsHitTestVisibleInChrome="True" />
                 </DockPanel>
 
                 <!-- ============ MIDDLE ============ -->
@@ -246,48 +220,28 @@
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
                             <DockPanel>
-                                <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8" Height="20">
-                                    <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Height="22"
-                                            Command="{Binding ChooseLibraryCommand}" AutomationProperties.Name="Choose the library folder" />
-                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Library · show select" VerticalAlignment="Center" />
-                                </DockPanel>
+                                <sr:TrackedText DockPanel.Dock="Top" Style="{StaticResource SR.Silk}" Text="Library" Margin="4,0,0,8" Height="20"
+                                                VerticalAlignment="Center" ToolTip="{Binding LibraryTooltip}" />
                                 <sr:CrtPanel CornerRadius="24" Padding="6,14,6,10" TubeShadow="50">
                                     <DockPanel>
-                                        <DockPanel DockPanel.Dock="Top" Margin="10,0,10,8" Opacity="0.8">
-                                            <TextBlock DockPanel.Dock="Right" Text="{Binding ShowCountText}" Margin="12,0,0,0" />
-                                            <TextBlock Text="{Binding LibraryLabel}" TextTrimming="CharacterEllipsis" ToolTip="{Binding LibraryRoot}" />
-                                        </DockPanel>
-                                        <Grid DockPanel.Dock="Top" Margin="32,0,10,4" Opacity="0.55">
-                                            <TextBlock Text="SHOW" />
-                                            <TextBlock Text="GB" HorizontalAlignment="Right" />
-                                        </Grid>
-                                        <Rectangle DockPanel.Dock="Top" Height="1" Margin="10,0,10,6" Fill="{DynamicResource SR.PhosphorDim}" />
+                                        <!-- Empty states and the scan count print here; the line is gone when there is nothing to say -->
+                                        <TextBlock DockPanel.Dock="Top" Margin="10,0,10,8" Opacity="0.8" Text="{Binding MonitorMessage}"
+                                                   TextTrimming="CharacterEllipsis" Visibility="{Binding MonitorMessage, Converter={StaticResource NotEmpty}}" />
 
-                                        <TextBlock DockPanel.Dock="Bottom" Text="{Binding CursorInfo}" Margin="10,0" LineHeight="23"
-                                                   LineStackingStrategy="BlockLineHeight" Opacity="0.9" TextTrimming="CharacterEllipsis" />
-                                        <Rectangle DockPanel.Dock="Bottom" Height="1" Margin="10,6" Fill="{DynamicResource SR.PhosphorDim}" />
-                                        <StackPanel DockPanel.Dock="Bottom" Margin="32,4,10,0" Opacity="0.55">
-                                            <TextBlock Text="{Binding HiddenText}" TextTrimming="CharacterEllipsis"
-                                                       Visibility="{Binding HiddenText, Converter={StaticResource NotEmpty}}" />
-                                            <TextBlock Text="{Binding MonitorMessage}" TextTrimming="CharacterEllipsis"
-                                                       Visibility="{Binding MonitorMessage, Converter={StaticResource NotEmpty}}" />
-                                            <TextBlock Text="{Binding RecoveryText}" TextTrimming="CharacterEllipsis"
-                                                       Visibility="{Binding RecoveryText, Converter={StaticResource NotEmpty}}" />
-                                            <TextBlock Text="{Binding MonitorNotice}" TextWrapping="Wrap" MaxHeight="44"
-                                                       Visibility="{Binding MonitorNotice, Converter={StaticResource NotEmpty}}" />
-                                        </StackPanel>
+                                        <TextBlock DockPanel.Dock="Bottom" Margin="10,6,10,0" Opacity="0.55" Text="{Binding MonitorNotice}" TextWrapping="Wrap"
+                                                   MaxHeight="44" Visibility="{Binding MonitorNotice, Converter={StaticResource NotEmpty}}" />
                                         <!-- The latest failure in the deck's show; the full reason is on hover -->
-                                        <TextBlock DockPanel.Dock="Bottom" Margin="32,6,10,0" Opacity="0.9" Text="{Binding LastFailureText}"
+                                        <TextBlock DockPanel.Dock="Bottom" Margin="10,6,10,0" Opacity="0.9" Text="{Binding LastFailureText}"
                                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44"
                                                    ToolTip="{Binding LastFailureDetail}" AutomationProperties.Name="{Binding LastFailureDetail}"
                                                    Visibility="{Binding LastFailureText, Converter={StaticResource NotEmpty}}" />
 
                                         <ListBox x:Name="ShowList" Style="{StaticResource SR.CrtListBox}" ItemsSource="{Binding Shows}"
-                                                 SelectedItem="{Binding SelectedShow}" AutomationProperties.Name="Shows to shrink"
-                                                 MouseDoubleClick="OnShowDoubleClick" KeyDown="OnShowKeyDown">
+                                                 SelectedItem="{Binding SelectedShow}" AutomationProperties.Name="Shows to shrink">
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource SR.CrtListBoxItem}">
                                                     <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
+                                                    <Setter Property="ToolTip" Value="{Binding Detail}" />
                                                 </Style>
                                             </ListBox.ItemContainerStyle>
                                             <ListBox.ItemTemplate>
@@ -319,11 +273,11 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" MinHeight="280" />
                             <RowDefinition Height="14" />
-                            <RowDefinition Height="74" />
+                            <RowDefinition Height="80" />
                             <RowDefinition Height="14" />
                             <RowDefinition Height="84" />
                             <RowDefinition Height="14" />
-                            <RowDefinition Height="146" />
+                            <RowDefinition Height="138" />
                         </Grid.RowDefinitions>
 
                         <ContentControl Style="{StaticResource SR.Plate}" Padding="12,12">
@@ -339,18 +293,14 @@
                                     <ctl:TapePath Width="640" Height="256" SourcePack="{Binding SourcePack}" OutputPack="{Binding OutputPack}" IsHitTestVisible="False" />
                                     <Ellipse Canvas.Left="245" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
                                     <Ellipse Canvas.Left="381" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
-                                    <Border Canvas.Left="290" Canvas.Top="236" Width="60" Height="18" CornerRadius="3" Background="#B9AD92">
-                                        <sr:TrackedText Text="NVENC" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                        Tracking="0.2" Foreground="#2A2824" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
                                     <sr:CassetteLabel Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
-                                                      Title="{Binding LabelTitle}" Side="{Binding LabelSide}" Episode="{Binding LabelEpisode}" />
+                                                      Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}" />
                                     <sr:TrackedText Canvas.Left="58" Canvas.Top="210" Style="{StaticResource SR.SilkOnPlate}" FontSize="12" Tracking="0.16"
-                                                    Text="{Binding SourceText}" />
+                                                    Text="{Binding SourceCaption}" ToolTip="{Binding SourceDetail}" />
                                     <Grid Canvas.Left="0" Canvas.Top="210" Width="582">
                                         <sr:TrackedText HorizontalAlignment="Right" Style="{StaticResource SR.Silk}" FontSize="12" Tracking="0.16"
                                                         Foreground="{DynamicResource SR.Phosphor}" Effect="{DynamicResource SR.PhosphorTextGlow}"
-                                                        Text="{Binding OutputText}" />
+                                                        Text="{Binding OutputCaption}" ToolTip="{Binding OutputDetail}" />
                                     </Grid>
                                 </Canvas>
                                 <Border CornerRadius="16" Background="{DynamicResource SR.DeckWindow}" BorderBrush="Black" BorderThickness="2"
@@ -359,49 +309,37 @@
                                         <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="16" Tracking="0.3" Text="No tape"
                                                         Foreground="{DynamicResource SR.SilkLight}" HorizontalAlignment="Center" />
                                         <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Tracking="0.14" Margin="0,12,0,0" HorizontalAlignment="Center"
-                                                        Text="Pick a show on monitor A, then double-click it or press Enter" />
+                                                        Text="Pick a show from the library" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
                         </ContentControl>
 
-                        <!-- Readouts -->
+                        <!-- Readouts: where the current episode is, and how long the whole show has left -->
                         <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="150" />
-                                <ColumnDefinition Width="10" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="110" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <ContentControl Style="{StaticResource SR.Plate}" Padding="12,8">
+                            <ContentControl Style="{StaticResource SR.Plate}" Padding="22,10" ToolTip="{Binding EpisodeDetail}"
+                                            AutomationProperties.Name="{Binding EpisodeCounterName}">
                                 <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Episode" />
-                                    <sr:SevenSegmentDisplay Text="{Binding EpisodeDigits}" DigitHeight="30" Spacing="3" VerticalAlignment="Top" />
-                                </DockPanel>
-                            </ContentControl>
-                            <ContentControl Grid.Column="2" Style="{StaticResource SR.Plate}" Padding="12,8">
-                                <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Tape time" />
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
-                                        <sr:SevenSegmentDisplay Text="{Binding TapeTimeDigits}" DigitHeight="30" Spacing="3" />
-                                        <TextBlock Style="{StaticResource Pixel}" Text="{Binding TapeTotalText}" Foreground="#8F8670"
-                                                   VerticalAlignment="Bottom" Margin="12,0,0,0" />
+                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Episode" Margin="0,4,0,0" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <sr:SevenSegmentDisplay Text="{Binding PercentDigits}" DigitHeight="40" Spacing="4" Glow="True" />
+                                        <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="26" FontWeight="Bold" Tracking="0" Text="%" Margin="10,0,0,2"
+                                                        VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                        Effect="{DynamicResource SR.PhosphorTextGlow}" />
                                     </StackPanel>
                                 </DockPanel>
                             </ContentControl>
-                            <ContentControl Grid.Column="4" Style="{StaticResource SR.Plate}" Padding="12,8">
+                            <ContentControl Grid.Column="2" Style="{StaticResource SR.Plate}" Padding="22,10" ToolTip="{Binding ShowLeftDetail}"
+                                            AutomationProperties.Name="{Binding ShowLeftName}">
                                 <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Frames / s" />
-                                    <sr:SevenSegmentDisplay Text="{Binding FpsDigits}" DigitHeight="30" Spacing="3" VerticalAlignment="Top" />
-                                </DockPanel>
-                            </ContentControl>
-                            <ContentControl Grid.Column="6" Style="{StaticResource SR.Plate}" Padding="12,8">
-                                <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Percent" />
-                                    <sr:SevenSegmentDisplay Text="{Binding PercentDigits}" DigitHeight="30" Spacing="3" VerticalAlignment="Top" />
+                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Show left" Margin="0,4,0,0" />
+                                    <sr:SevenSegmentDisplay Text="{Binding ShowLeftDigits}" DigitHeight="40" Spacing="4" Glow="True"
+                                                            HorizontalAlignment="Left" VerticalAlignment="Center" />
                                 </DockPanel>
                             </ContentControl>
                         </Grid>
@@ -416,85 +354,44 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="12" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="12" />
-                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <sr:PianoLatchKey x:Name="EncodeKey" Label="Encode" IsRecord="True" ShowLamp="True" MinWidth="0" VerticalAlignment="Top"
                                               Icon="{StaticResource SR.Icon.Record}" IsChecked="{Binding IsEncoding, Mode=OneWay}"
                                               Lamp="{Binding EncodeLamp}" LampBlink="{Binding EncodeLampBlink}"
-                                              Command="{Binding EncodeCommand}" Click="OnLatchClick" AutomationProperties.Name="Start encoding" />
+                                              Command="{Binding EncodeCommand}" Click="OnLatchClick" AutomationProperties.Name="Start encoding" ToolTip="Start encoding" />
                             <sr:PianoLatchKey x:Name="PauseKey" Grid.Column="2" Label="Pause" MinWidth="0" VerticalAlignment="Top"
                                               Icon="{StaticResource SR.Icon.Pause}" IsChecked="{Binding IsPaused, Mode=OneWay}"
-                                              Command="{Binding PauseCommand}" Click="OnLatchClick" AutomationProperties.Name="Pause the encode" />
+                                              Command="{Binding PauseCommand}" Click="OnLatchClick" AutomationProperties.Name="Pause the encode" ToolTip="Pause the encode" />
                             <sr:PianoKey Grid.Column="4" Label="Stop" MinWidth="0" VerticalAlignment="Top" Icon="{StaticResource SR.Icon.Stop}"
-                                         Command="{Binding StopCommand}" AutomationProperties.Name="Stop and discard this encode" />
-                            <sr:PianoKey Grid.Column="6" Label="Skip ep" MinWidth="0" VerticalAlignment="Top" Icon="{StaticResource SR.Icon.Skip}"
-                                         Command="{Binding SkipCommand}" AutomationProperties.Name="Skip this episode" />
-                            <sr:PianoKey Grid.Column="8" Label="Eject" MinWidth="0" VerticalAlignment="Top" Icon="{StaticResource SR.Icon.Eject}"
-                                         Command="{Binding EjectCommand}" AutomationProperties.Name="Eject the show" />
+                                         Command="{Binding StopCommand}" AutomationProperties.Name="Stop and discard this encode" ToolTip="Stop and discard this encode" />
+                            <sr:PianoKey Grid.Column="6" Label="Skip" MinWidth="0" VerticalAlignment="Top" Icon="{StaticResource SR.Icon.Skip}"
+                                         Command="{Binding SkipCommand}" AutomationProperties.Name="Skip this episode" ToolTip="Skip this episode" />
                         </Grid>
 
-                        <!-- Meters and quality -->
+                        <!-- Meters -->
                         <Grid Grid.Row="6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="12" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="12" />
-                                <ColumnDefinition Width="150" />
                             </Grid.ColumnDefinitions>
-                            <ContentControl Style="{StaticResource SR.Bezel}" Padding="9">
-                                <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource SR.Silk}" FontSize="10" Text="Video out"
-                                                    HorizontalAlignment="Center" Margin="0,4,0,0" />
-                                    <sr:VuMeter Height="Auto" MinWidth="0" Caption="Mbps" Minimum="0" Maximum="8" MinLabel="0" MidLabel="4" MaxLabel="8"
-                                                Value="{Binding BitrateMbps}" AutomationProperties.Name="Output video bitrate, megabits per second" />
-                                </DockPanel>
+                            <ContentControl Style="{StaticResource SR.Bezel}" Padding="9" ToolTip="Output video bitrate, megabits per second">
+                                <sr:VuMeter Height="Auto" MinWidth="0" Caption="Mbps" Minimum="0" Maximum="8" MinLabel="0" MidLabel="4" MaxLabel="8"
+                                            Value="{Binding BitrateMbps}" AutomationProperties.Name="Output video bitrate, megabits per second" />
                             </ContentControl>
-                            <ContentControl Grid.Column="2" Style="{StaticResource SR.Bezel}" Padding="9">
-                                <DockPanel>
-                                    <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource SR.Silk}" FontSize="10" Text="Encoder load"
-                                                    HorizontalAlignment="Center" Margin="0,4,0,0" />
-                                    <sr:VuMeter Height="Auto" MinWidth="0" Caption="Load %" Minimum="0" Maximum="100" MinLabel="0" MidLabel="50" MaxLabel="100"
-                                                Value="{Binding EncoderLoad}" AutomationProperties.Name="NVENC encoder load, percent" />
-                                </DockPanel>
-                            </ContentControl>
-                            <ContentControl Grid.Column="4" Style="{StaticResource SR.Bezel}" Padding="6,4,6,6">
-                                <StackPanel HorizontalAlignment="Center">
-                                    <!-- The phosphor tick marks the default CQ, the tested balance. Reset clears the show's override. -->
-                                    <sr:RotaryKnob Width="96" Height="90" Labels="{Binding CqLabels}" SelectedIndex="{Binding CqIndex}"
-                                                   RecommendedIndex="{Binding RecommendedCqIndex}"
-                                                   IsEnabled="{Binding IsKnobEnabled}" Caption="Quality CQ" />
-                                    <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="Quality · CQ" HorizontalAlignment="Center" />
-                                    <DockPanel Margin="0,3,0,0">
-                                        <Button DockPanel.Dock="Right" Style="{StaticResource SmallKey}" Content="Reset" Margin="6,0,0,0"
-                                                Command="{Binding ResetCqCommand}"
-                                                AutomationProperties.Name="Reset this show to the default quality" />
-                                        <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="{Binding CqSourceText}"
-                                                        VerticalAlignment="Center" />
-                                    </DockPanel>
-                                    <sr:TrackedText Style="{StaticResource SR.Silk}" FontSize="10" Text="{Binding EstimateText}" HorizontalAlignment="Center"
-                                                    Opacity="0.8" Margin="0,3,0,0" />
-                                </StackPanel>
+                            <ContentControl Grid.Column="2" Style="{StaticResource SR.Bezel}" Padding="9" ToolTip="NVENC encoder load, percent">
+                                <sr:VuMeter Height="Auto" MinWidth="0" Caption="Load" Minimum="0" Maximum="100" MinLabel="0" MidLabel="50" MaxLabel="100"
+                                            Value="{Binding EncoderLoad}" AutomationProperties.Name="NVENC encoder load, percent" />
                             </ContentControl>
                         </Grid>
                     </Grid>
 
-                    <!-- Right: J-card and lifetime counter -->
+                    <!-- Right: J-card -->
                     <Grid Grid.Column="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="14" />
-                            <RowDefinition Height="112" />
-                        </Grid.RowDefinitions>
-
                         <ContentControl Style="{StaticResource SR.Bezel}">
                             <DockPanel>
-                                <DockPanel DockPanel.Dock="Top" Margin="4,0,4,8">
-                                    <sr:TrackedText DockPanel.Dock="Right" Style="{StaticResource SR.Silk}" FontSize="10" Opacity="0.8"
-                                                    Text="{Binding JCardHeader}" VerticalAlignment="Center" />
-                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="J-card · track list" VerticalAlignment="Center" />
-                                </DockPanel>
+                                <sr:TrackedText DockPanel.Dock="Top" Style="{StaticResource SR.Silk}" Text="Tracks" Margin="4,0,4,8" Height="20"
+                                                VerticalAlignment="Center" />
                                 <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Seasons}" Margin="0,0,0,6" Focusable="False">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -529,27 +426,12 @@
                                                             Tracking="0.16" Foreground="#7A7160" VerticalAlignment="Center" HorizontalAlignment="Right" />
                                         </Grid>
                                         <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource SR.JCardRule}" />
-                                        <sr:TrackedText DockPanel.Dock="Bottom" Margin="10,6" Text="{Binding SeasonFooter}" FontFamily="{DynamicResource SR.Font.Silk}"
-                                                        FontWeight="SemiBold" FontSize="12" Tracking="0.12" Foreground="#7A7160" />
                                         <ScrollViewer VerticalScrollBarVisibility="Hidden" Focusable="False" PanningMode="VerticalOnly">
                                             <ItemsControl ItemsSource="{Binding Tracks}" ItemTemplate="{StaticResource TrackRow}" Focusable="False"
                                                           AutomationProperties.Name="Episodes in this season" />
                                         </ScrollViewer>
                                     </DockPanel>
                                 </Border>
-                            </DockPanel>
-                        </ContentControl>
-
-                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Plate}" Padding="22,12">
-                            <DockPanel>
-                                <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Saved, all time" />
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <sr:SevenSegmentDisplay Text="{Binding LifetimeSavedDigits}" DigitHeight="48" Spacing="4" Glow="True"
-                                                            AutomationProperties.Name="{Binding LifetimeSavedName}" />
-                                    <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="18" Tracking="0" Text="{Binding LifetimeSavedUnit}"
-                                                    Margin="12,0,0,2" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
-                                                    Effect="{DynamicResource SR.PhosphorTextGlow}" />
-                                </StackPanel>
                             </DockPanel>
                         </ContentControl>
                     </Grid>
@@ -559,18 +441,18 @@
                 <ContentControl Grid.Row="4" Style="{StaticResource SR.Plate}" Padding="22,14">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="430" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="22" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="22" />
-                            <ColumnDefinition Width="250" />
+                            <ColumnDefinition Width="1.35*" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel VerticalAlignment="Center">
-                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="{Binding FooterTitle}" />
+                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Saved · this show" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <sr:SevenSegmentDisplay Text="{Binding SavedDigits}" DigitHeight="74" Spacing="5" Glow="True"
-                                                        AutomationProperties.Name="Gigabytes reclaimed" />
+                                                        AutomationProperties.Name="Gigabytes saved in this show" />
                                 <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="22" Tracking="0" Text="GB" Margin="14,0,0,6"
                                                 VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
                                                 Effect="{DynamicResource SR.PhosphorTextGlow}" />
@@ -578,56 +460,32 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                            <DockPanel>
-                                <sr:TrackedText DockPanel.Dock="Right" Style="{StaticResource SR.Silk}" FontSize="12" Text="{Binding EpisodesDoneText}"
-                                                Foreground="{DynamicResource SR.Phosphor}" Effect="{DynamicResource SR.PhosphorTextGlow}" />
-                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Show size · GB" />
-                            </DockPanel>
-                            <Grid Margin="0,9,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="54" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="70" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="28" />
-                                    <RowDefinition Height="28" />
-                                </Grid.RowDefinitions>
-                                <sr:TrackedText Style="{StaticResource PlateLabel}" Text="Before" VerticalAlignment="Center" />
-                                <Border Grid.Column="1" Height="14" CornerRadius="2" Background="{DynamicResource SR.BarTrack}" Margin="0,0,8,0">
-                                    <Border CornerRadius="2" Background="#8F8670" />
-                                </Border>
-                                <TextBlock Grid.Column="2" Style="{StaticResource Pixel}" Text="{Binding BeforeText}" Foreground="{DynamicResource SR.SilkLight}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                <sr:TrackedText Grid.Row="1" Style="{StaticResource PlateLabel}" Text="After" VerticalAlignment="Center" />
-                                <Border Grid.Row="1" Grid.Column="1" Height="14" CornerRadius="2" Background="{DynamicResource SR.BarTrack}" Margin="0,0,8,0">
-                                    <Border CornerRadius="2" Background="{DynamicResource SR.Phosphor}" RenderTransformOrigin="0,0.5">
-                                        <Border.RenderTransform>
-                                            <ScaleTransform ScaleX="{Binding AfterFraction}" />
-                                        </Border.RenderTransform>
-                                    </Border>
-                                </Border>
-                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Pixel}" Text="{Binding AfterText}" Foreground="{DynamicResource SR.Phosphor}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
-                            </Grid>
-                            <sr:LedBar Segments="36" Height="10" Margin="0,8,0,0" Fraction="{Binding HandledFraction}" GlowBrush="{DynamicResource SR.PhosphorGlow}"
-                                       AutomationProperties.Name="Episodes handled" />
+                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Saved · all time" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <sr:SevenSegmentDisplay Text="{Binding LifetimeSavedDigits}" DigitHeight="74" Spacing="5" Glow="True"
+                                                        AutomationProperties.Name="{Binding LifetimeSavedName}" />
+                                <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="22" Tracking="0" Text="{Binding LifetimeSavedUnit}"
+                                                Margin="14,0,0,6" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                            </StackPanel>
                         </StackPanel>
 
+                        <!-- One bar: the lit part is what the show weighs after, the rest is what it gives back -->
                         <StackPanel Grid.Column="4" VerticalAlignment="Center">
-                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Text="Originals" />
-                            <sr:Lamp Style="{StaticResource PanelLamp}" Foreground="{DynamicResource SR.CreamInk}" Margin="0,10,0,0"
-                                     Content="{Binding OriginalsLamp.Label}" State="{Binding OriginalsLamp.State}" />
-                            <sr:Lamp Style="{StaticResource PanelLamp}" Foreground="{DynamicResource SR.CreamInk}" Margin="0,8,0,0"
-                                     Content="{Binding RecycleLamp.Label}" State="{Binding RecycleLamp.State}" />
-                            <Button Margin="0,10,0,0" HorizontalAlignment="Left" Cursor="Hand" Command="{Binding OpenSettingsCommand}"
-                                    FocusVisualStyle="{DynamicResource SR.FocusVisual}" AutomationProperties.Name="Change in settings">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <sr:TrackedText Style="{StaticResource PlateLabel}" Tracking="0.1" Opacity="0.7" Text="Change in settings" />
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
+                            <Border Height="22" CornerRadius="3" Background="#8F8670" AutomationProperties.Name="{Binding SizeCaption}">
+                                <Border CornerRadius="3" Background="{DynamicResource SR.Phosphor}" RenderTransformOrigin="0,0.5">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="{Binding AfterFraction}" />
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Border>
+                            <!-- The pixel and silk fonts have no arrow glyph, so the caption's arrow is drawn -->
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" AutomationProperties.Name="{Binding SizeCaption}">
+                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="14" Text="{Binding SizeBeforeText}" />
+                                <Path Data="M0,5 L14,5 M9,1 L14,5 L9,9" Stroke="{DynamicResource SR.SilkLight}" StrokeThickness="1.6" Width="14" Height="10"
+                                      Margin="9,0,9,0" VerticalAlignment="Center" />
+                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="14" Text="{Binding SizeAfterText}" />
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </ContentControl>
@@ -641,11 +499,7 @@
                         <DockPanel>
                             <sr:PianoKey DockPanel.Dock="Right" Label="Close" MinWidth="88" Width="88"
                                          Command="{Binding CloseSettingsCommand}" AutomationProperties.Name="Close the service panel" />
-                            <StackPanel VerticalAlignment="Top">
-                                <sr:TrackedText Style="{StaticResource SR.Heading}" Text="Service panel" />
-                                <TextBlock Style="{StaticResource SR.Text.Caption}" Margin="0,6,0,0" FontSize="13"
-                                           Text="Saved to this machine as soon as you change it." />
-                            </StackPanel>
+                            <sr:TrackedText Style="{StaticResource SR.Heading}" Text="Service panel" VerticalAlignment="Center" />
                         </DockPanel>
 
                         <Grid Margin="0,18,0,0">
@@ -654,6 +508,8 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -672,20 +528,43 @@
                                 <sr:DymoLabel Text="Deletes originals" Tape="Red" Margin="14,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="1" Style="{StaticResource SR.Silk}" Text="Fonts" VerticalAlignment="Center" />
-                            <ToggleButton Grid.Row="1" Grid.Column="1" Style="{StaticResource SR.ToggleSwitch}" Margin="0,6" HorizontalAlignment="Left"
+                            <!-- The show in the deck encodes at the chosen CQ. The recommended one is marked, and choosing it clears the show's own setting. -->
+                            <sr:TrackedText Grid.Row="1" Style="{StaticResource SR.Silk}" Text="Quality (CQ)" VerticalAlignment="Top" Margin="0,16,0,0" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,8">
+                                <ItemsControl ItemsSource="{Binding CqChips}" IsEnabled="{Binding CanEditQuality}" Focusable="False"
+                                              AutomationProperties.Name="Quality, constant quality value">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:CqChipViewModel}">
+                                            <sr:SeasonChip GroupName="quality" Style="{StaticResource OptionChip}" Content="{Binding Label}" MinWidth="44"
+                                                           Margin="0,0,6,6" IsChecked="{Binding IsSelected}" AutomationProperties.Name="{Binding AutomationName}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource SR.Text.Caption}" Text="{Binding CqCaption}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <sr:TrackedText Grid.Row="2" Style="{StaticResource SR.Silk}" Text="Fonts" VerticalAlignment="Center" />
+                            <ToggleButton Grid.Row="2" Grid.Column="1" Style="{StaticResource SR.ToggleSwitch}" Margin="0,6" HorizontalAlignment="Left"
                                           Content="Restore MKV fonts if an encode drops them" IsChecked="{Binding RestoreFonts}"
                                           IsEnabled="{Binding CanEditSettings}" AutomationProperties.Name="Restore fonts" />
 
-                            <sr:TrackedText Grid.Row="2" Style="{StaticResource SR.Silk}" Text="Encode window" VerticalAlignment="Center" />
-                            <ToggleButton Grid.Row="2" Grid.Column="1" Style="{StaticResource SR.ToggleSwitch}" Margin="0,6" HorizontalAlignment="Left"
+                            <sr:TrackedText Grid.Row="3" Style="{StaticResource SR.Silk}" Text="Encode window" VerticalAlignment="Center" />
+                            <ToggleButton Grid.Row="3" Grid.Column="1" Style="{StaticResource SR.ToggleSwitch}" Margin="0,6" HorizontalAlignment="Left"
                                           IsChecked="{Binding EncodeWindowEnabled}" IsEnabled="{Binding CanEditSettings}"
                                           AutomationProperties.Name="Only start episodes inside the encode window">
                                 <TextBlock><Run Text="Only start episodes during " /><Run Text="{Binding WindowText, Mode=OneWay}" /></TextBlock>
                             </ToggleButton>
 
-                            <sr:TrackedText Grid.Row="3" Style="{StaticResource SR.Silk}" Text="Window times" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,6">
+                            <!-- The times only matter while the window is on -->
+                            <sr:TrackedText Grid.Row="4" Style="{StaticResource SR.Silk}" Text="Window times" VerticalAlignment="Center"
+                                            Visibility="{Binding EncodeWindowEnabled, Converter={StaticResource Visible}}" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,6"
+                                        Visibility="{Binding EncodeWindowEnabled, Converter={StaticResource Visible}}">
                                 <Button Style="{StaticResource StepKey}" Command="{Binding WindowStartEarlierCommand}"
                                         AutomationProperties.Name="Open the window half an hour earlier">
                                     <Path Data="{StaticResource StepEarlier}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
@@ -715,34 +594,50 @@
                                 </Button>
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="4" Style="{StaticResource SR.Silk}" Text="Phosphor" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="5" Style="{StaticResource SR.Silk}" Text="Phosphor" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <sr:SeasonChip GroupName="phosphor" Content="AMBER" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorAmber}" />
                                 <sr:SeasonChip GroupName="phosphor" Content="GREEN" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorGreen}" />
                                 <sr:SeasonChip GroupName="phosphor" Content="ICE" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorIce}" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="5" Style="{StaticResource SR.Silk}" Text="Chassis" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="6" Style="{StaticResource SR.Silk}" Text="Chassis" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <sr:SeasonChip GroupName="chassis" Content="BEIGE" Style="{StaticResource OptionChip}" MinWidth="96" IsChecked="{Binding ChassisBeige}" />
                                 <sr:SeasonChip GroupName="chassis" Content="GRAPHITE" Style="{StaticResource OptionChip}" MinWidth="96" IsChecked="{Binding ChassisGraphite}" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="6" Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center" />
-                            <DockPanel Grid.Row="6" Grid.Column="1" Margin="0,8">
+                            <sr:TrackedText Grid.Row="7" Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="7" Grid.Column="1" Margin="0,8">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Command="{Binding ChooseLibraryCommand}"
                                         AutomationProperties.Name="Choose the library folder" />
                                 <TextBlock Style="{StaticResource SR.Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            Margin="0,0,10,0" Text="{Binding LibraryRoot}" ToolTip="{Binding LibraryRoot}" />
                             </DockPanel>
 
-                            <sr:TrackedText Grid.Row="7" Style="{StaticResource SR.Silk}" Text="Scratch" VerticalAlignment="Center" />
-                            <DockPanel Grid.Row="7" Grid.Column="1" Margin="0,8">
+                            <sr:TrackedText Grid.Row="8" Style="{StaticResource SR.Silk}" Text="Scratch" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="8" Grid.Column="1" Margin="0,8">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Command="{Binding ChooseScratchCommand}"
                                         AutomationProperties.Name="Choose the local scratch folder" />
                                 <TextBlock Style="{StaticResource SR.Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            Margin="0,0,10,0" Text="{Binding ScratchFolder}" ToolTip="{Binding ScratchFolder}" />
                             </DockPanel>
+
+                            <!-- What the header lamp watches, one lamp per tool -->
+                            <sr:TrackedText Grid.Row="9" Style="{StaticResource SR.Silk}" Text="System" VerticalAlignment="Top" Margin="0,14,0,0" />
+                            <ItemsControl Grid.Row="9" Grid.Column="1" Margin="0,12,0,4" Focusable="False" ItemsSource="{Binding SystemLamps}"
+                                          ItemTemplate="{StaticResource LampItem}" AutomationProperties.Name="System status">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0,0,14,6" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                            </ItemsControl>
                         </Grid>
 
                         <TextBlock Style="{StaticResource SR.Text.Caption}" Margin="0,14,0,0" Text="{Binding Notice}"
