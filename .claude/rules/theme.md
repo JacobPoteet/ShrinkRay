@@ -24,6 +24,8 @@ VU needles, Dymo labels.
   stop when `MotionPolicy.IsMotionEnabled` is false.
 - The feel is tactile and retro, never futuristic: moulded parts, glass, ink and clicks in
   steps. Counters tick rather than glide.
+- Glass over a readout is `GlassPane`: a domed window with a crisp curved edge. A soft diagonal
+  gradient reads as a rendering fault, not a reflection.
 - Glow comes from the lit parts only. A readout draws unlit segments on itself and lit ones on
   the layers `LitReadout` carries, so never put an effect on the whole control.
 
