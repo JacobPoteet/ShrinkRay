@@ -646,7 +646,7 @@ public sealed partial class MainViewModel
         if (IsEncoding)
         {
             // The counter counts down with the clock, so it reads again on every tick.
-            Raise(nameof(ShowLeftDigits), nameof(ShowLeftDetail), nameof(ShowLeftName));
+            Raise(nameof(ShowLeftHourDigits), nameof(ShowLeftMinuteDigits), nameof(ShowLeftDetail), nameof(ShowLeftName));
         }
 
         if (_current is null || _runSettings is null || !IsSpinning)
@@ -823,9 +823,9 @@ public sealed partial class MainViewModel
     private void RefreshReadouts() =>
         Raise(nameof(SourceCaption), nameof(SourceDetail), nameof(OutputCaption), nameof(OutputDetail), nameof(SourcePack),
             nameof(OutputPack), nameof(IsSpinning), nameof(EpisodeDigits), nameof(TapeTimeDigits), nameof(TapeTotalText),
-            nameof(FpsDigits), nameof(PercentDigits), nameof(EpisodeDetail), nameof(EpisodeCounterName), nameof(ShowLeftDigits),
-            nameof(ShowLeftDetail), nameof(ShowLeftName), nameof(DeckAutomationName), nameof(SizeCaption), nameof(SizeBeforeText),
-            nameof(SizeAfterText), nameof(AfterFraction),
+            nameof(FpsDigits), nameof(PercentDigits), nameof(EpisodeDetail), nameof(EpisodeCounterName), nameof(ShowLeftHourDigits),
+            nameof(ShowLeftMinuteDigits), nameof(ShowLeftDetail), nameof(ShowLeftName), nameof(DeckAutomationName), nameof(SizeCaption),
+            nameof(SizeBeforeText), nameof(SizeAfterText), nameof(AfterFraction),
             nameof(EncodeLampBlink));
 
     /// <summary>Marks the chosen and the recommended CQ on the Quality chips.</summary>

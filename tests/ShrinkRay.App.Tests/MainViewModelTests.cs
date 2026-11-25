@@ -545,7 +545,7 @@ public class MainViewModelTests
         Assert.False(vm.CanEditQuality);
 
         // The start-of-run figure holds: the fresh estimate is under 3 minutes off, so it does not move.
-        Assert.Equal(" 0:10", vm.ShowLeftDigits);
+        Assert.Equal((" 0", "10"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
         Assert.False(vm.DropFolder(DeckRig.Root + @"\Bluey"));
 
         rig.Runner.Hold[first].SetResult();
@@ -1153,17 +1153,17 @@ public class MainViewModelTests
         var vm = await rig.StartedWith("Scrubs");
 
         // Three episodes of 33,000 frames at the measured 165 frames per second: 10 minutes.
-        Assert.Equal(" 0:10", vm.ShowLeftDigits);
+        Assert.Equal((" 0", "10"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
         Assert.Contains("3 episodes", vm.ShowLeftDetail);
 
         vm.EncodeCommand.Execute(null);
         await vm.CurrentRun.WaitAsync(Timeout);
 
-        Assert.Equal(" 0:00", vm.ShowLeftDigits);
+        Assert.Equal((" 0", "00"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
 
         var empty = Library().Create();
         await empty.StartAsync();
-        Assert.Equal("--:--", empty.ShowLeftDigits);
+        Assert.Equal(("--", "--"), (empty.ShowLeftHourDigits, empty.ShowLeftMinuteDigits));
     }
 
     // ---- Drag and drop ----

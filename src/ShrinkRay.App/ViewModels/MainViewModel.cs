@@ -401,20 +401,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string EpisodeCounterName => $"Episode {PercentDigits.Trim()} percent";
 
-    /// <summary>Time left for the whole show, as <c>h:mm</c>. Dashes before a show is loaded.</summary>
-    public string ShowLeftDigits
-    {
-        get
-        {
-            if (_loaded is null)
-            {
-                return "--:--";
-            }
+    /// <summary>Whole hours left for the whole show; the deck prints H after them. Dashes before a show is loaded.</summary>
+    public string ShowLeftHourDigits => _loaded is null ? "--" : (ShowLeftMinutes / 60).ToString(CultureInfo.InvariantCulture).PadLeft(2);
 
-            var minutes = ShowLeftMinutes;
-            return string.Create(CultureInfo.InvariantCulture, $"{minutes / 60}:{minutes % 60:00}").PadLeft(5);
-        }
-    }
+    /// <summary>The minutes past those hours; the deck prints M after them.</summary>
+    public string ShowLeftMinuteDigits => _loaded is null ? "--" : (ShowLeftMinutes % 60).ToString("00", CultureInfo.InvariantCulture);
 
     public string ShowLeftDetail => _loaded is null
         ? "Time left for the whole show"

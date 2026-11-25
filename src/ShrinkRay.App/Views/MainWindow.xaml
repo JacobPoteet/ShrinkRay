@@ -93,6 +93,17 @@
             <Setter Property="FontSize" Value="10" />
         </Style>
 
+        <!-- The small lit H and M after the time-left digits, on their baseline -->
+        <Style x:Key="TimeUnit" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.Silk}">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Tracking" Value="0" />
+            <Setter Property="Margin" Value="7,0,0,2" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="Foreground" Value="{DynamicResource SR.Phosphor}" />
+            <Setter Property="Effect" Value="{DynamicResource SR.PhosphorTextGlow}" />
+        </Style>
+
         <Style x:Key="Pixel" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Pixel}" />
 
         <!-- One J-card line -->
@@ -340,8 +351,13 @@
                                             AutomationProperties.Name="{Binding ShowLeftName}">
                                 <DockPanel>
                                     <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Show left" Margin="0,4,0,0" />
-                                    <sr:SevenSegmentDisplay Text="{Binding ShowLeftDigits}" DigitHeight="40" Spacing="4" Glow="True"
-                                                            HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <sr:SevenSegmentDisplay Text="{Binding ShowLeftHourDigits}" DigitHeight="40" Spacing="4" Glow="True" />
+                                        <sr:TrackedText Style="{StaticResource TimeUnit}" Text="H" />
+                                        <sr:SevenSegmentDisplay Text="{Binding ShowLeftMinuteDigits}" DigitHeight="40" Spacing="4" Glow="True"
+                                                                Margin="16,0,0,0" />
+                                        <sr:TrackedText Style="{StaticResource TimeUnit}" Text="M" />
+                                    </StackPanel>
                                 </DockPanel>
                             </ContentControl>
                         </Grid>

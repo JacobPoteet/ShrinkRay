@@ -47,16 +47,16 @@ public class ShowLeftTests(ITestOutputHelper output)
             }
 
             vm.Tick();
-            if (seen.Count == 0 || seen[^1].Digits != vm.ShowLeftDigits)
+            if (seen.Count == 0 || seen[^1].Digits != Readout(vm))
             {
-                seen.Add((half / 120.0, vm.ShowLeftDigits));
+                seen.Add((half / 120.0, Readout(vm)));
             }
         }
 
         output.WriteLine("minute  show left");
         foreach (var (minute, digits) in seen)
         {
-            output.WriteLine($"{minute,6:0.0}  {digits.Trim()}");
+            output.WriteLine($"{minute,6:0.0}  {digits}");
         }
 
         // After the first minute settles the estimate, every change is downward, and above an hour in fives.
@@ -80,16 +80,16 @@ public class ShowLeftTests(ITestOutputHelper output)
         var (rig, vm, first) = await RunningAsync();
         rig.Runner.Report(10, 100);
         vm.Tick();
-        var before = vm.ShowLeftDigits;
+        var before = Readout(vm);
 
         vm.PauseCommand.Execute(null);
         rig.Now = rig.Now.AddMinutes(30);
         vm.Tick();
-        Assert.Equal(before, vm.ShowLeftDigits);
+        Assert.Equal(before, Readout(vm));
 
         vm.PauseCommand.Execute(null);
         vm.Tick();
-        Assert.Equal(before, vm.ShowLeftDigits);
+        Assert.Equal(before, Readout(vm));
 
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
@@ -101,18 +101,22 @@ public class ShowLeftTests(ITestOutputHelper output)
         var (rig, vm, first) = await RunningAsync();
         rig.Runner.Report(50, 100);
         vm.Tick();
-        var during = ToMinutes(vm.ShowLeftDigits);
+        var during = ToMinutes(Readout(vm));
 
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
 
         Assert.True(during > 0);
-        Assert.Equal("0:00", vm.ShowLeftDigits.Trim());
+        Assert.Equal("0:00", Readout(vm));
     }
+
+    /// <summary>The counter's two readouts as one "h:mm" string.</summary>
+    private static string Readout(ShrinkRay.App.ViewModels.MainViewModel vm) =>
+        $"{vm.ShowLeftHourDigits.Trim()}:{vm.ShowLeftMinuteDigits}";
 
     private static int ToMinutes(string digits)
     {
-        var parts = digits.Trim().Split(':');
+        var parts = digits.Split(':');
         return (int.Parse(parts[0]) * 60) + int.Parse(parts[1]);
     }
 }
