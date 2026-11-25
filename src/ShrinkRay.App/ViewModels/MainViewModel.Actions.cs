@@ -262,20 +262,11 @@ public sealed partial class MainViewModel
         }
 
         _tracks.Clear();
-        foreach (var episode in scan.Episodes)
-        {
-            var last = _s.Journal.Latest(episode.Path);
-            _tracks.Add(TrackViewModel.From(episode, Classify(episode), _s.Ledger.Get(episode.Path), last?.Reason, last?.Timestamp));
-        }
-
-        Seasons.Clear();
-        foreach (var season in _tracks.Select(t => t.Record.Season).Distinct().OrderBy(s => s == 0 ? int.MaxValue : s))
-        {
-            Seasons.Add(new SeasonChipViewModel(season, SelectSeason));
-        }
-
-        var first = _tracks.FirstOrDefault(t => t.IsQueueable)?.Record.Season ?? Seasons.FirstOrDefault()?.Number ?? 0;
-        ShowSeason(first);
+        _tracks.AddRange(scan.Episodes.Select(MakeTrack));
+        _browsed = null;
+        _browseTracks = null;
+        ListTracksFrom(_tracks);
+        Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
 
         _cqIndex = NearestDetent(_settings.CqForShow(scan.Name));
         Raise(nameof(CqIndex), nameof(Cq));
@@ -284,6 +275,74 @@ public sealed partial class MainViewModel
         SavePreferences();
         Notice = "";
         RefreshAll();
+    }
+
+    private TrackViewModel MakeTrack(EpisodeRecord episode)
+    {
+        var last = _s.Journal.Latest(episode.Path);
+        return TrackViewModel.From(episode, Classify(episode), _s.Ledger.Get(episode.Path), last?.Reason, last?.Timestamp);
+    }
+
+    /// <summary>The episodes the track list is built from: the browsed show's during a browse, else the tape's.</summary>
+    private List<TrackViewModel> ListTracks => _browseTracks ?? _tracks;
+
+    /// <summary>Rebuilds the season chips and the list from a show's tracks, opening the first season with work to do.</summary>
+    private void ListTracksFrom(List<TrackViewModel> tracks, int? preferSeason = null)
+    {
+        Seasons.Clear();
+        foreach (var season in tracks.Select(t => t.Record.Season).Distinct().OrderBy(s => s == 0 ? int.MaxValue : s))
+        {
+            Seasons.Add(new SeasonChipViewModel(season, SelectSeason));
+        }
+
+        var first = preferSeason is { } p && Seasons.Any(c => c.Number == p)
+            ? p
+            : tracks.FirstOrDefault(t => t.IsQueueable)?.Record.Season ?? Seasons.FirstOrDefault()?.Number ?? 0;
+        ShowSeason(first);
+    }
+
+    // ---- Browsing ----
+
+    /// <summary>
+    /// Opens another show in the track list during a run, for viewing. Its rows read the journal
+    /// and the ledger as they stand, and nothing of the run reaches them.
+    /// </summary>
+    private void Browse(ShowRowViewModel row)
+    {
+        _browsed = row.Scan;
+        _browseTracks = row.Scan.Episodes.Select(MakeTrack).ToList();
+        ListTracksFrom(_browseTracks);
+        Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
+    }
+
+    /// <summary>Goes back to listing the show on the tape.</summary>
+    private void EndBrowse()
+    {
+        if (_browsed is null)
+        {
+            return;
+        }
+
+        _browsed = null;
+        _browseTracks = null;
+        ListTracksFrom(_tracks, _current?.Record.Season);
+        Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
+    }
+
+    private void BackToRun()
+    {
+        if (_browsed is null)
+        {
+            return;
+        }
+
+        // Moving the cursor to the loaded row ends the browse; a loaded show with no row ends it directly.
+        if (Shows.FirstOrDefault(r => r.IsLoaded) is { } loaded)
+        {
+            SelectedShow = loaded;
+        }
+
+        EndBrowse();
     }
 
     private void SelectSeason(int season) => ShowSeason(season);
@@ -297,7 +356,7 @@ public sealed partial class MainViewModel
         }
 
         Tracks.Clear();
-        foreach (var track in _tracks.Where(t => t.Record.Season == season))
+        foreach (var track in ListTracks.Where(t => t.Record.Season == season))
         {
             Tracks.Add(track);
         }
@@ -353,6 +412,8 @@ public sealed partial class MainViewModel
         queue.Progress += (path, p) => _s.Dispatch(() => OnProgress(path, p));
         queue.EpisodeFinished += f => _s.Dispatch(() => OnEpisodeFinished(f));
         queue.StateChanged += _ => _s.Dispatch(RefreshTransport);
+        _estimator = new TimeLeftEstimator();
+        _estimator.Rebase(_s.Now(), FramesLeft());
         _queue = queue;
         RefreshTransport();
 
@@ -414,7 +475,8 @@ public sealed partial class MainViewModel
         }
 
         _current.SetEncoding(0, Ratio, PhaseStatus(_phase));
-        if (_current.Record.Season != _selectedSeason)
+        _estimator?.Rebase(_s.Now(), FramesLeft());
+        if (!IsBrowsing && _current.Record.Season != _selectedSeason)
         {
             ShowSeason(_current.Record.Season);
         }
@@ -463,6 +525,7 @@ public sealed partial class MainViewModel
         }
 
         _current.SetEncoding(_transfer ?? _progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
+        _estimator?.Sample(_s.Now(), FramesLeft(), _fps);
         RefreshReadouts();
         RefreshTransport();
 
@@ -497,6 +560,7 @@ public sealed partial class MainViewModel
             _fps = null;
         }
 
+        _estimator?.Rebase(_s.Now(), FramesLeft());
         RefreshAll();
         RefreshClosing();
     }
@@ -526,7 +590,16 @@ public sealed partial class MainViewModel
     private void OnRunFinished()
     {
         _queue = null;
+        _estimator = null;
         ResetStopping();
+
+        // The deck goes back to normal: the show that encoded stays loaded, and the cursor returns to it.
+        EndBrowse();
+        if (_selectedShow is { IsLoaded: false } && Shows.FirstOrDefault(r => r.IsLoaded) is { } loaded)
+        {
+            SelectedShow = loaded;
+        }
+
         _current = null;
         _progress = 0;
         _transfer = null;
@@ -570,6 +643,12 @@ public sealed partial class MainViewModel
     /// </summary>
     public void Tick()
     {
+        if (IsEncoding)
+        {
+            // The counter counts down with the clock, so it reads again on every tick.
+            Raise(nameof(ShowLeftDigits), nameof(ShowLeftDetail), nameof(ShowLeftName));
+        }
+
         if (_current is null || _runSettings is null || !IsSpinning)
         {
             BitrateMeterRest();
@@ -735,7 +814,7 @@ public sealed partial class MainViewModel
 
     private void RefreshDeck()
     {
-        Raise(nameof(LabelTitle), nameof(LabelEpisode), nameof(EstimateText), nameof(Cq), nameof(CqCaption),
+        Raise(nameof(LabelTitle), nameof(LabelEpisode), nameof(LabelEpisodeTitle), nameof(EstimateText), nameof(Cq), nameof(CqCaption),
             nameof(SavedGigabytes), nameof(SavedDigits), nameof(SizeCaption), nameof(SizeBeforeText), nameof(SizeAfterText), nameof(AfterFraction),
             nameof(HasCqOverride), nameof(RecommendedCqIndex), nameof(LastFailureText), nameof(LastFailureDetail));
         RefreshReadouts();
@@ -769,6 +848,7 @@ public sealed partial class MainViewModel
 
     private void RefreshTransport()
     {
+        _estimator?.SetFrozen(_queue?.State is QueueState.Paused or QueueState.WaitingForWindow, _s.Now());
         Raise(nameof(IsEncoding), nameof(IsPaused), nameof(EncodeLamp), nameof(EncodeLampBlink), nameof(IsSpinning),
             nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits));
         RefreshRunLamp();
@@ -830,7 +910,7 @@ public sealed partial class MainViewModel
     {
         foreach (var chip in Seasons)
         {
-            var season = _tracks.Where(t => t.Record.Season == chip.Number).ToList();
+            var season = ListTracks.Where(t => t.Record.Season == chip.Number).ToList();
             var encoding = season.Any(t => t.Kind == TrackKind.Encoding);
             chip.Lamp = encoding ? LampState.Active : season.All(t => !t.IsQueueable) ? LampState.Ok : LampState.Off;
             chip.Blink = encoding && IsSpinning;

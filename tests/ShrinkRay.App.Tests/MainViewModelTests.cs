@@ -145,7 +145,8 @@ public class MainViewModelTests
 
         Assert.True(vm.IsTapeLoaded);
         Assert.Equal("SCRUBS", vm.LabelTitle);
-        Assert.Equal("S01E01 \u00b7 Title 1", vm.LabelEpisode);
+        Assert.Equal("S01E01", vm.LabelEpisode);
+        Assert.Equal("Title 1", vm.LabelEpisodeTitle);
         Assert.Equal("H.264", vm.SourceCaption);
         Assert.Equal("HEVC", vm.OutputCaption);
         Assert.Equal("Ready", vm.RunLamp.Label);
@@ -197,8 +198,11 @@ public class MainViewModelTests
 
         vm.SelectedShow = vm.Shows.Single(s => s.FolderName == "Bluey");
 
+        // The tape stays on Scrubs. The cursor stays on Bluey, which the track list shows for viewing.
         Assert.Equal("Scrubs", vm.LoadedName);
-        Assert.Equal("Scrubs", vm.SelectedShow?.FolderName);
+        Assert.Equal("Bluey", vm.SelectedShow?.FolderName);
+        Assert.True(vm.IsBrowsing);
+        Assert.Equal("Scrubs", rig.SavedPreferences?.LastShow ?? "Scrubs");
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
     }
@@ -539,7 +543,9 @@ public class MainViewModelTests
         Assert.Equal("50%", vm.Tracks[0].StatusText);
         Assert.Equal(LampState.Active, vm.Seasons[0].Lamp);
         Assert.False(vm.CanEditQuality);
-        Assert.Equal(" 0:09", vm.ShowLeftDigits);
+
+        // The start-of-run figure holds: the fresh estimate is under 3 minutes off, so it does not move.
+        Assert.Equal(" 0:10", vm.ShowLeftDigits);
         Assert.False(vm.DropFolder(DeckRig.Root + @"\Bluey"));
 
         rig.Runner.Hold[first].SetResult();

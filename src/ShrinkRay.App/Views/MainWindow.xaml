@@ -295,7 +295,8 @@
                                     <Ellipse Canvas.Left="245" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
                                     <Ellipse Canvas.Left="381" Canvas.Top="237" Width="14" Height="14" Fill="#A59B86" Stroke="#3A3833" />
                                     <sr:CassetteLabel Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
-                                                      Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}" />
+                                                      Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}"
+                                                      EpisodeTitle="{Binding LabelEpisodeTitle}" />
                                     <sr:TrackedText Canvas.Left="58" Canvas.Top="210" Style="{StaticResource SR.SilkOnPlate}" FontSize="12" Tracking="0.16"
                                                     Text="{Binding SourceCaption}" ToolTip="{Binding SourceDetail}" />
                                     <Grid Canvas.Left="0" Canvas.Top="210" Width="582">
@@ -395,8 +396,13 @@
                     <Grid Grid.Column="4">
                         <ContentControl Style="{StaticResource SR.Bezel}">
                             <DockPanel>
-                                <sr:TrackedText DockPanel.Dock="Top" Style="{StaticResource SR.Silk}" Text="Tracks" Margin="4,0,4,8" Height="20"
-                                                VerticalAlignment="Center" />
+                                <Grid DockPanel.Dock="Top" Margin="4,0,4,8" Height="20" ClipToBounds="True">
+                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="{Binding TracksHeading}" VerticalAlignment="Center" />
+                                </Grid>
+                                <!-- Browsing another show during a run: the tape and the run stay with the show that is encoding -->
+                                <Button DockPanel.Dock="Top" Style="{StaticResource TextKey}" Content="{Binding BackText}" HorizontalAlignment="Left"
+                                        Margin="0,0,0,8" Command="{Binding BackToRunCommand}" AutomationProperties.Name="{Binding BackText}"
+                                        Visibility="{Binding IsBrowsing, Converter={StaticResource Visible}}" />
                                 <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Seasons}" Margin="0,0,0,6" Focusable="False">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>

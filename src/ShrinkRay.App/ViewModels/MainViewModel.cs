@@ -44,11 +44,16 @@ public sealed partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _scanCts;
     private ShowRowViewModel? _selectedShow;
     private ShowScan? _loaded;
+
+    // While another show is browsed during a run, the track list reads these instead of _tracks.
+    private ShowScan? _browsed;
+    private List<TrackViewModel>? _browseTracks;
     private int _selectedSeason;
     private int _cqIndex;
 
     private EncodeQueue? _queue;
     private ShrinkRaySettings? _runSettings;
+    private TimeLeftEstimator? _estimator;
     private int _runCq;
     private TrackViewModel? _current;
     private double _progress;
@@ -87,6 +92,7 @@ public sealed partial class MainViewModel : ObservableObject
         PauseCommand = new RelayCommand(TogglePause);
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
+        BackToRunCommand = new RelayCommand(BackToRun);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
@@ -118,6 +124,9 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand StopCommand { get; }
 
     public RelayCommand SkipCommand { get; }
+
+    /// <summary>Leaves the browsed show and shows the one that is encoding.</summary>
+    public RelayCommand BackToRunCommand { get; }
 
     public RelayCommand ChooseLibraryCommand { get; }
 
@@ -168,16 +177,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// The show under the cursor. Picking another one while the deck is idle loads it. During an
-    /// encode the deck keeps its show, and the cursor goes back to it.
+    /// encode the deck keeps its show on the tape, and the other show opens in the track list for
+    /// viewing only.
     /// </summary>
     public ShowRowViewModel? SelectedShow
     {
         get => _selectedShow;
         set
         {
-            if (IsEncoding && value is not null && !value.IsLoaded)
+            if (IsEncoding && value is not null)
             {
-                _s.Dispatch(() => Raise());
+                if (Set(ref _selectedShow, value))
+                {
+                    if (value.IsLoaded)
+                    {
+                        EndBrowse();
+                    }
+                    else
+                    {
+                        Browse(value);
+                    }
+                }
+
                 return;
             }
 
@@ -187,6 +208,15 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>The track list shows another show than the one on the tape. Viewing only: nothing of the run touches it.</summary>
+    public bool IsBrowsing => _browsed is not null;
+
+    /// <summary>The track list's heading: the browsed show's name, else Tracks.</summary>
+    public string TracksHeading => _browsed?.Name ?? "Tracks";
+
+    /// <summary>The back key's text while browsing, naming the show that is encoding.</summary>
+    public string BackText => IsBrowsing ? $"Back to {_loaded?.Name}" : "";
 
     /// <summary>The library's tooltip: its folder, and how many shows are hidden because there is nothing to do.</summary>
     public string LibraryTooltip
@@ -284,6 +314,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string LabelTitle => _loaded?.Name.ToUpperInvariant() ?? "";
 
+    /// <summary>The label's episode code, which stays put, such as <c>S01E04</c>.</summary>
     public string LabelEpisode
     {
         get
@@ -294,9 +325,12 @@ public sealed partial class MainViewModel : ObservableObject
                 return _loaded is null ? "" : "All episodes handled";
             }
 
-            return track.Title.Length > 0 ? $"{track.Code} · {track.Title}" : track.Code;
+            return track.Code;
         }
     }
+
+    /// <summary>The title beside the code. The label scrolls it when it is too long.</summary>
+    public string LabelEpisodeTitle => (_current ?? NextQueued)?.Title ?? "";
 
     /// <summary>The codec under the source reel, such as <c>H.264</c>.</summary>
     public string SourceCaption
@@ -377,7 +411,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return "--:--";
             }
 
-            var minutes = (int)Math.Min(99 * 60 + 59, Math.Ceiling(TimeLeft.TotalMinutes));
+            var minutes = ShowLeftMinutes;
             return string.Create(CultureInfo.InvariantCulture, $"{minutes / 60}:{minutes % 60:00}").PadLeft(5);
         }
     }
@@ -715,24 +749,26 @@ public sealed partial class MainViewModel : ObservableObject
         _ => "SWAP",
     };
 
-    /// <summary>The frame rate the time left is figured at: the live encode rate, else the measured one.</summary>
-    private double SpeedFps => IsSpinning && _fps is > 1 ? _fps.Value : SizeEstimate.MeasuredFps;
+    /// <summary>The frame rate the time left is figured at: the run's smoothed speed, else the measured one.</summary>
+    private double SpeedFps => _estimator?.Speed ?? SizeEstimate.MeasuredFps;
 
-    /// <summary>Encode time left for every episode still to do, less what the current one has done.</summary>
-    private TimeSpan TimeLeft
+    /// <summary>Frames still to encode for every episode to do, less what the current one has done.</summary>
+    private long FramesLeft()
     {
-        get
-        {
-            var frames = _tracks.Where(t => t.IsQueueable || t.Kind == TrackKind.Encoding).Sum(t => t.Record.FrameCount ?? 0);
-            if (frames <= 0)
-            {
-                return TimeSpan.Zero;
-            }
-
-            var done = _current?.Record.FrameCount is { } f ? (long)(f * _progress) : 0;
-            return SizeEstimate.EncodeTime(Math.Max(0, frames - done), SpeedFps);
-        }
+        var frames = _tracks.Where(t => t.IsQueueable || t.Kind == TrackKind.Encoding).Sum(t => t.Record.FrameCount ?? 0);
+        var done = _current?.Record.FrameCount is { } f ? (long)(f * _progress) : 0;
+        return Math.Max(0, frames - done);
     }
+
+    /// <summary>
+    /// The time left as the counter shows it. During a run the estimator counts it down with the
+    /// clock; before one, it is the measured-speed figure. Both round the way the display does.
+    /// </summary>
+    private TimeSpan TimeLeft => TimeSpan.FromMinutes(ShowLeftMinutes);
+
+    private int ShowLeftMinutes => Math.Min(99 * 60 + 59, _estimator is { } e
+        ? e.DisplayMinutes(_s.Now())
+        : TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(FramesLeft())));
 
     private long After(TrackViewModel t) => t.Kind switch
     {
