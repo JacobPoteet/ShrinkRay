@@ -242,8 +242,6 @@
                     <Grid Grid.Column="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="14" />
-                            <RowDefinition Height="136" />
                         </Grid.RowDefinitions>
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
@@ -314,24 +312,6 @@
                             </DockPanel>
                         </ContentControl>
 
-                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Bezel}" Padding="14,10,12,10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="112" />
-                                </Grid.ColumnDefinitions>
-                                <ItemsControl ItemsSource="{Binding RuleLamps}" VerticalAlignment="Center" Focusable="False">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type vm:LampViewModel}">
-                                            <sr:Lamp Style="{StaticResource PanelLamp}" Margin="0,4" Content="{Binding Label}" State="{Binding State}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <sr:PianoKey Grid.Column="1" Label="Load tape" Icon="{StaticResource SR.Icon.Load}" VerticalAlignment="Center"
-                                             MinWidth="0" ShowLamp="True" Lamp="{Binding LoadLampState}" LampBlink="{Binding LoadLampBlink}"
-                                             Command="{Binding LoadTapeCommand}" AutomationProperties.Name="Load the selected show into the deck" />
-                            </Grid>
-                        </ContentControl>
                     </Grid>
 
                     <!-- Centre: transport -->
@@ -379,7 +359,7 @@
                                         <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="16" Tracking="0.3" Text="No tape"
                                                         Foreground="{DynamicResource SR.SilkLight}" HorizontalAlignment="Center" />
                                         <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" Tracking="0.14" Margin="0,12,0,0" HorizontalAlignment="Center"
-                                                        Text="Pick a show on monitor A, then press Load tape" />
+                                                        Text="Pick a show on monitor A, then double-click it or press Enter" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
@@ -500,12 +480,12 @@
                         </Grid>
                     </Grid>
 
-                    <!-- Right: J-card and encode window -->
+                    <!-- Right: J-card and lifetime counter -->
                     <Grid Grid.Column="4">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
                             <RowDefinition Height="14" />
-                            <RowDefinition Height="150" />
+                            <RowDefinition Height="112" />
                         </Grid.RowDefinitions>
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
@@ -560,26 +540,17 @@
                             </DockPanel>
                         </ContentControl>
 
-                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Bezel}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="126" />
-                                    <ColumnDefinition Width="14" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ctl:EncodeWindowDial Width="126" Height="126" StartHours="{Binding WindowStartHours}" EndHours="{Binding WindowEndHours}"
-                                                      NowHours="{Binding NowHours}" IsLit="{Binding WindowEnabled}"
-                                                      ArcBrush="{DynamicResource SR.Phosphor}" ArcDimBrush="{DynamicResource SR.PhosphorDim}"
-                                                      GlowBrush="{DynamicResource SR.PhosphorGlow}" LabelFont="{DynamicResource SR.Font.Silk}"
-                                                      AutomationProperties.Name="Encode window clock" />
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Encode window" />
-                                    <TextBlock Style="{StaticResource Pixel}" Text="{Binding WindowText}" Foreground="{DynamicResource SR.Ink}" Margin="0,8,0,0" />
-                                    <sr:Lamp Style="{StaticResource PanelLamp}" Margin="0,8,0,0" Content="{Binding WindowLamp.Label}"
-                                             State="{Binding WindowLamp.State}" Blink="{Binding WindowLamp.Blink}" />
-                                    <sr:DymoLabel Text="{Binding WindowDymo}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                        <ContentControl Grid.Row="2" Style="{StaticResource SR.Plate}" Padding="22,12">
+                            <DockPanel>
+                                <sr:TrackedText DockPanel.Dock="Bottom" Style="{StaticResource PlateLabel}" Text="Saved, all time" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <sr:SevenSegmentDisplay Text="{Binding LifetimeSavedDigits}" DigitHeight="48" Spacing="4" Glow="True"
+                                                            AutomationProperties.Name="{Binding LifetimeSavedName}" />
+                                    <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="18" Tracking="0" Text="{Binding LifetimeSavedUnit}"
+                                                    Margin="12,0,0,2" VerticalAlignment="Bottom" Foreground="{DynamicResource SR.Phosphor}"
+                                                    Effect="{DynamicResource SR.PhosphorTextGlow}" />
                                 </StackPanel>
-                            </Grid>
+                            </DockPanel>
                         </ContentControl>
                     </Grid>
                 </Grid>

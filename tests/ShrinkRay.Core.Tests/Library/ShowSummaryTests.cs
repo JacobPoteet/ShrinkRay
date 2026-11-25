@@ -100,6 +100,40 @@ public class ShowSummaryTests
     }
 
     [Fact]
+    public void Ledger_total_saved_counts_each_file_once_at_its_latest_entry()
+    {
+        var ledger = new ShrinkLedger();
+        Assert.Equal(0, ledger.TotalSaved());
+
+        ledger.Record(new LedgerEntry(@"X:\TV\A.mkv", 1000, 400, 28, DateTimeOffset.UnixEpoch));
+        ledger.Record(new LedgerEntry(@"X:\TV\B.mkv", 500, 300, 28, DateTimeOffset.UnixEpoch));
+        Assert.Equal(800, ledger.TotalSaved());
+
+        // A re-encode of the same file replaces its entry, and a file that grew counts as zero.
+        ledger.Record(new LedgerEntry(@"x:\tv\a.mkv", 1000, 350, 28, DateTimeOffset.UnixEpoch));
+        ledger.Record(new LedgerEntry(@"X:\TV\C.mkv", 100, 150, 28, DateTimeOffset.UnixEpoch));
+        Assert.Equal(850, ledger.TotalSaved());
+    }
+
+    [Fact]
+    public void Ledger_total_saved_survives_a_reload()
+    {
+        var file = Path.Combine(Path.GetTempPath(), "shrinkray-test-" + Guid.NewGuid().ToString("N"), "ledger.jsonl");
+        try
+        {
+            var ledger = new ShrinkLedger(file);
+            ledger.Record(new LedgerEntry(@"X:\TV\A.mkv", 1000, 400, 28, DateTimeOffset.UnixEpoch));
+            ledger.Record(new LedgerEntry(@"X:\TV\B.mkv", 500, 300, 28, DateTimeOffset.UnixEpoch));
+
+            Assert.Equal(800, new ShrinkLedger(file).TotalSaved());
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(file)!, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Ledger_keeps_the_latest_entry_per_file_across_reloads()
     {
         var file = Path.Combine(Path.GetTempPath(), "shrinkray-test-" + Guid.NewGuid().ToString("N"), "ledger.jsonl");
