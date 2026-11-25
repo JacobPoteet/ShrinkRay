@@ -30,6 +30,8 @@ public partial class MainWindow : Window
         _timer.Tick += (_, _) => viewModel.Tick();
         Loaded += (_, _) => _timer.Start();
         Loaded += (_, _) => SelfTest();
+        // The screens warm up from a line. It only draws, so recovery and the scan carry on.
+        Loaded += (_, _) => CrtWarmUp.Play(Chassis);
         Closed += (_, _) => _timer.Stop();
         Drop += OnDrop;
         DragOver += OnDragOver;

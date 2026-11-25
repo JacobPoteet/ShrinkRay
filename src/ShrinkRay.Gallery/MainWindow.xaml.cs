@@ -138,6 +138,8 @@ public partial class MainWindow : Window
         SetRunning();
     }
 
+    private void OnWarmUpClick(object sender, RoutedEventArgs e) => CrtWarmUp.Play(this);
+
     private void OnPhosphorChecked(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string tag } && Enum.TryParse(tag, out Phosphor phosphor)

@@ -135,6 +135,13 @@ public class SevenSegmentDisplay : LitReadout
         var h = DigitHeight;
         var scale = h / SevenSegmentMath.DigitBoxHeight;
         var lean = LeanWidth;
+        var warmth = CrtWarmUp.GetProgress(this);
+        if (warmth < 1)
+        {
+            // The unlit glass stays put; the light opens from the middle of the digits.
+            lit.PushTransform(new ScaleTransform(1, WarmUpMath.Opening(warmth), 0, h / 2));
+        }
+
         // Skewing about the middle pushes one corner lean/2 past the left edge either way.
         foreach (var layer in new[] { unlit, lit })
         {
@@ -170,6 +177,16 @@ public class SevenSegmentDisplay : LitReadout
         {
             layer.Pop();
             layer.Pop();
+        }
+
+        if (warmth < 1)
+        {
+            lit.Pop();
+            var width = (x - Spacing + lean) * WarmUpMath.LineWidth(warmth);
+            var thickness = System.Math.Max(2, System.Math.Round(h * 0.06));
+            lit.PushOpacity(WarmUpMath.LineOpacity(warmth));
+            lit.DrawRectangle(LitBrush, null, new Rect((x - Spacing + lean - width) / 2, (h - thickness) / 2, width, thickness));
+            lit.Pop();
         }
     }
 

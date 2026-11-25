@@ -111,8 +111,12 @@
                                         OffsetY="0" Color="#F2000000" />
                         <Border BorderThickness="2" BorderBrush="Black" IsHitTestVisible="False"
                                 CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static sr:DoubleToCornerRadius.Instance}}" />
-                        <ContentPresenter x:Name="Screen" Margin="{TemplateBinding Padding}"
+                        <ContentPresenter x:Name="PART_Screen" Margin="{TemplateBinding Padding}"
                                           Effect="{DynamicResource SR.PhosphorTextGlow}" />
+                        <!-- The bright line a cold tube opens from; hidden once it has warmed up -->
+                        <Rectangle x:Name="PART_Line" Height="3" Margin="10,0" VerticalAlignment="Center" Visibility="Collapsed"
+                                   Fill="{DynamicResource SR.Phosphor}" Effect="{DynamicResource SR.PhosphorStrongGlow}"
+                                   IsHitTestVisible="False" />
                         <Grid x:Name="PART_Overlay" IsHitTestVisible="False">
                             <Rectangle Fill="{StaticResource SR.Scanlines}" />
                             <Rectangle Fill="{StaticResource SR.Vignette}" />
@@ -120,7 +124,7 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsGlowEnabled" Value="False">
-                            <Setter TargetName="Screen" Property="Effect" Value="{x:Null}" />
+                            <Setter TargetName="PART_Screen" Property="Effect" Value="{x:Null}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

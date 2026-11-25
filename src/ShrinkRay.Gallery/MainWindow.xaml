@@ -216,6 +216,12 @@
                     <Border Style="{StaticResource SR.LedSlot}" Margin="0,14,0,0">
                         <sr:LedBar Fraction="0.6333" Segments="30" Glow="True" />
                     </Border>
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                        <sr:PianoKey Label="Warm up" Width="110" Click="OnWarmUpClick"
+                                     AutomationProperties.Name="Warm up every screen on this board" />
+                        <TextBlock Style="{StaticResource Caption}" Margin="14,0,0,0" Width="250" VerticalAlignment="Center"
+                                   Text="At startup the screens and digits open from a bright line. Meters and printed parts stay put." />
+                    </StackPanel>
                 </StackPanel>
             </ContentControl>
 
