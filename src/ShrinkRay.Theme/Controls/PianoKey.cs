@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
@@ -205,10 +207,46 @@ public class PianoLatchKey : ToggleButton
     private static void OnIsKeyDownChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         KeyThrow.Animate((Control)d, (bool)e.NewValue);
 
+    /// <summary>Skips the local flip when UI Automation clicks the key, so the binding keeps the latch.</summary>
+    protected override void OnToggle()
+    {
+        if (!_automationClick)
+        {
+            base.OnToggle();
+        }
+    }
+
     private void UpdateKeyDown() => SetValue(IsKeyDownPropertyKey, IsPressed || IsChecked == true);
 
-    private sealed class PianoLatchKeyAutomationPeer(PianoLatchKey owner) : ToggleButtonAutomationPeer(owner)
+    private bool _automationClick;
+
+    /// <summary>Acts like a click without flipping <see cref="ToggleButton.IsChecked"/>: raises Click and runs the command.</summary>
+    private void ClickFromAutomation()
     {
+        _automationClick = true;
+        try
+        {
+            OnClick();
+        }
+        finally
+        {
+            _automationClick = false;
+        }
+    }
+
+    private sealed class PianoLatchKeyAutomationPeer(PianoLatchKey owner) : ToggleButtonAutomationPeer(owner), IToggleProvider
+    {
+        /// <summary>UI Automation Toggle is a click. The command decides what the latch shows.</summary>
+        void IToggleProvider.Toggle()
+        {
+            if (!IsEnabled())
+            {
+                throw new ElementNotEnabledException();
+            }
+
+            ((PianoLatchKey)Owner).ClickFromAutomation();
+        }
+
         protected override string GetClassNameCore() => nameof(PianoLatchKey);
 
         protected override string GetNameCore()
