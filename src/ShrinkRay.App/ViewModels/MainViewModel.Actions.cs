@@ -391,12 +391,6 @@ public sealed partial class MainViewModel
         RefreshTransport();
     }
 
-    private void Stop()
-    {
-        _queue?.Stop();
-        RefreshTransport();
-    }
-
     private void Skip()
     {
         _queue?.Skip();
@@ -532,6 +526,7 @@ public sealed partial class MainViewModel
     private void OnRunFinished()
     {
         _queue = null;
+        ResetStopping();
         _current = null;
         _progress = 0;
         _transfer = null;
@@ -779,6 +774,7 @@ public sealed partial class MainViewModel
         RefreshRunLamp();
         RefreshSeasonLamps();
         EncodeCommand.Refresh();
+        ToggleStopAfterCommand.Refresh();
         ChooseLibraryCommand.Refresh();
         ChooseScratchCommand.Refresh();
         RescanCommand.Refresh();
@@ -802,7 +798,11 @@ public sealed partial class MainViewModel
         }
         else if (_isClosing && _queue is not null)
         {
-            RunLamp.Show(IsFinishingSwap ? "Finishing swap" : "Stopping", LampState.Active, blink: true);
+            RunLamp.Show(IsFinishingSwap ? "Finishing swap" : _isStopArmed ? "Last episode" : "Stopping", LampState.Active, blink: true);
+        }
+        else if (_isStopArmed && _queue is not null)
+        {
+            RunLamp.Show("Last episode", LampState.Active, blink: true);
         }
         else if (state == QueueState.Paused)
         {

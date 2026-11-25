@@ -584,6 +584,7 @@ public class MainViewModelTests
         await rig.Runner.WaitUntilHeldAsync();
 
         vm.StopCommand.Execute(null);
+        vm.StopNowCommand.Execute(null);
         await vm.CurrentRun.WaitAsync(Timeout);
 
         Assert.Single(rig.Runner.Ran);

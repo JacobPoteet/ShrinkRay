@@ -20,6 +20,9 @@ public sealed partial class MainViewModel
     /// <summary>Keep running. Escape presses it.</summary>
     public RelayCommand CancelCloseCommand { get; private set; } = null!;
 
+    /// <summary>Let the current episode finish, then close once the run has ended.</summary>
+    public RelayCommand CloseAfterEpisodeCommand { get; private set; } = null!;
+
     /// <summary>The window asked to close during a run and the deck is asking first.</summary>
     public bool IsCloseConfirmOpen
     {
@@ -50,6 +53,12 @@ public sealed partial class MainViewModel
     public bool IsCloseOverlayOpen => _isCloseConfirmOpen || _isClosing;
 
     /// <summary>
+    /// An episode is running that closing could let finish. Past the upload the swap finishes
+    /// anyway, and with no episode running there is nothing to wait for.
+    /// </summary>
+    public bool CanCloseAfterEpisode => _current is not null && !IsFinishingSwap;
+
+    /// <summary>
     /// The current episode is past the upload, so closing lets its swap finish instead of
     /// cancelling it. See <see cref="EpisodePhases.IsPastUpload"/>.
     /// </summary>
@@ -63,8 +72,13 @@ public sealed partial class MainViewModel
             var code = _current?.Code;
             if (_isClosing)
             {
-                return IsFinishingSwap
-                    ? $"Finishing the swap of {code}. ShrinkRay closes when the new file is in place."
+                if (IsFinishingSwap)
+                {
+                    return $"Finishing the swap of {code}. ShrinkRay closes when the new file is in place.";
+                }
+
+                return _isStopArmed
+                    ? $"Finishing {code}. ShrinkRay closes when the run ends."
                     : "Stopping the encode and clearing its scratch folder. ShrinkRay closes when that is done.";
             }
 
@@ -98,6 +112,7 @@ public sealed partial class MainViewModel
 
         if (!_isClosing)
         {
+            IsStopCardOpen = false;
             IsCloseConfirmOpen = true;
         }
 
@@ -108,6 +123,7 @@ public sealed partial class MainViewModel
     {
         ConfirmCloseCommand = new RelayCommand(ConfirmClose, () => _isCloseConfirmOpen);
         CancelCloseCommand = new RelayCommand(() => IsCloseConfirmOpen = false, () => _isCloseConfirmOpen);
+        CloseAfterEpisodeCommand = new RelayCommand(ConfirmCloseAfterEpisode, () => _isCloseConfirmOpen && CanCloseAfterEpisode);
     }
 
     private void ConfirmClose()
@@ -130,16 +146,36 @@ public sealed partial class MainViewModel
         else
         {
             // The same path as the Stop key: the journal records Cancelled and scratch is cleared.
+            // A stop that was armed to finish the episode no longer is.
+            IsStopArmed = false;
             queue.Stop();
         }
 
         RefreshTransport();
     }
 
+    /// <summary>Arms the same stop as the Stop card's first key, and closes when the run ends.</summary>
+    private void ConfirmCloseAfterEpisode()
+    {
+        IsCloseConfirmOpen = false;
+        IsClosing = true;
+        if (_queue is null)
+        {
+            // The run ended while the card was open.
+            CloseReady?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        ArmStop();
+    }
+
     private void RefreshClosing()
     {
-        Raise(nameof(IsCloseOverlayOpen), nameof(IsFinishingSwap), nameof(CloseHeading), nameof(CloseText), nameof(CloseKeyLabel));
+        Raise(nameof(IsCloseOverlayOpen), nameof(IsFinishingSwap), nameof(CanCloseAfterEpisode), nameof(CloseHeading),
+            nameof(CloseText), nameof(CloseKeyLabel));
         ConfirmCloseCommand.Refresh();
         CancelCloseCommand.Refresh();
+        CloseAfterEpisodeCommand.Refresh();
+        RefreshStopping();
     }
 }
