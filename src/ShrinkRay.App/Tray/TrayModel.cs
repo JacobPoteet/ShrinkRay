@@ -19,6 +19,8 @@ public sealed class TrayModel : IDisposable
     [
         nameof(MainViewModel.IsEncoding),
         nameof(MainViewModel.IsPaused),
+        nameof(MainViewModel.IsStopArmed),
+        nameof(MainViewModel.IsClosing),
         nameof(MainViewModel.EpisodeDigits),
         nameof(MainViewModel.PercentDigits),
         nameof(MainViewModel.LastFailureDetail),
@@ -39,6 +41,17 @@ public sealed class TrayModel : IDisposable
     public TrayState State { get; private set; }
 
     public string Tooltip { get; private set; } = AppName;
+
+    /// <summary>The menu item that arms the stop after this episode, or takes it back while armed.</summary>
+    public string StopAfterText { get; private set; } = StopAfterTextFor(armed: false);
+
+    /// <summary>The stop item works during a run that is not already closing the window.</summary>
+    public bool CanStopAfter { get; private set; }
+
+    public static string StopAfterTextFor(bool armed) => armed ? "Keep going" : "Stop after this episode";
+
+    /// <summary>Arms the stop, or takes it back when armed. The deck decides what that means.</summary>
+    public void ToggleStopAfter() => _viewModel.ToggleStopAfterCommand.Execute(null);
 
     public static TrayState StateFor(bool isEncoding, bool isPaused, bool hasFailure) =>
         isEncoding && isPaused ? TrayState.Paused
@@ -82,13 +95,17 @@ public sealed class TrayModel : IDisposable
         var episode = _viewModel.IsEncoding ? _viewModel.EpisodeDigits.Trim('-', ' ') : "";
         var percent = _viewModel.IsEncoding ? _viewModel.PercentDigits : "";
         var tooltip = TooltipFor(state, episode, percent, failure);
-        if (state == State && tooltip == Tooltip)
+        var stopAfter = StopAfterTextFor(_viewModel.IsStopArmed);
+        var canStopAfter = _viewModel.ToggleStopAfterCommand.CanExecute(null);
+        if (state == State && tooltip == Tooltip && stopAfter == StopAfterText && canStopAfter == CanStopAfter)
         {
             return;
         }
 
         State = state;
         Tooltip = tooltip;
+        StopAfterText = stopAfter;
+        CanStopAfter = canStopAfter;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

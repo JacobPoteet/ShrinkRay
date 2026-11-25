@@ -50,6 +50,7 @@ public sealed class EncodeQueue
     private bool _paused;
     private bool _skipRequested;
     private bool _stopAfterCurrent;
+    private bool _stopCommitted;
 
     /// <param name="mayStart">False holds the next episode, such as outside the encode window.</param>
     /// <param name="delay">Waits between window checks. Tests pass a fake.</param>
@@ -101,6 +102,7 @@ public sealed class EncodeQueue
             _run = new CancellationTokenSource();
             token = _run.Token;
             _stopAfterCurrent = false;
+            _stopCommitted = false;
         }
 
         try
@@ -128,6 +130,7 @@ public sealed class EncodeQueue
                 _run = null;
                 _paused = false;
                 _stopAfterCurrent = false;
+                _stopCommitted = false;
                 _resume.TrySetResult();
             }
 
@@ -240,6 +243,28 @@ public sealed class EncodeQueue
         }
     }
 
+    /// <summary>
+    /// Takes back <see cref="StopAfterCurrent"/> so the run goes on through the list.
+    /// </summary>
+    /// <returns>
+    /// True when the request was cleared and the run carries on. False when there was nothing
+    /// to clear, or the run is already ending: the episode finished and the queue committed to
+    /// stopping, or the request stopped the run at once.
+    /// </returns>
+    public bool ContinueAfterCurrent()
+    {
+        lock (_lock)
+        {
+            if (_run is null || !_stopAfterCurrent || _stopCommitted || _run.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            _stopAfterCurrent = false;
+            return true;
+        }
+    }
+
     private static void CancelQuietly(CancellationTokenSource source)
     {
         try
@@ -339,10 +364,19 @@ public sealed class EncodeQueue
         }
     }
 
+    /// <summary>
+    /// Reads the request and, when it is set, commits to ending the run in the same lock, so
+    /// <see cref="ContinueAfterCurrent"/> can never clear a request the loop already acted on.
+    /// </summary>
     private bool StopAfterCurrentRequested()
     {
         lock (_lock)
         {
+            if (_stopAfterCurrent)
+            {
+                _stopCommitted = true;
+            }
+
             return _stopAfterCurrent;
         }
     }

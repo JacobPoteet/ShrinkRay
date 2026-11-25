@@ -41,6 +41,14 @@ public partial class MainWindow : Window
             }
         };
 
+        StopOverlay.IsVisibleChanged += (_, _) =>
+        {
+            if (StopOverlay.IsVisible)
+            {
+                StopPrimaryKey.Focus();
+            }
+        };
+
         // Open no larger than the work area. The deck scales down to fit a smaller window.
         var area = SystemParameters.WorkArea;
         Width = Math.Max(MinWidth, Math.Min(Width, area.Width));

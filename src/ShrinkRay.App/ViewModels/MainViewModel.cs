@@ -97,6 +97,7 @@ public sealed partial class MainViewModel : ObservableObject
         WindowEndEarlierCommand = new RelayCommand(() => StepWindow(start: false, -1), () => !IsEncoding);
         WindowEndLaterCommand = new RelayCommand(() => StepWindow(start: false, 1), () => !IsEncoding);
         CreateCloseCommands();
+        CreateStopCommands();
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
         _cqIndex = NearestDetent(_settings.Cq);

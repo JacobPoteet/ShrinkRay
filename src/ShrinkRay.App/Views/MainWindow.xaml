@@ -150,7 +150,7 @@
     </Window.Resources>
 
     <Window.InputBindings>
-        <KeyBinding Key="Escape" Command="{Binding CancelCloseCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding DismissCardCommand}" />
     </Window.InputBindings>
 
     <!-- The deck is drawn for 1440 by 900. A smaller window scales it down evenly instead of clipping it. -->
@@ -363,8 +363,12 @@
                             <sr:PianoLatchKey x:Name="PauseKey" Grid.Column="2" Label="Pause" MinWidth="0" VerticalAlignment="Top"
                                               Icon="{StaticResource SR.Icon.Pause}" IsChecked="{Binding IsPaused, Mode=OneWay}"
                                               Command="{Binding PauseCommand}" Click="OnLatchClick" AutomationProperties.Name="Pause the encode" ToolTip="Pause the encode" />
-                            <sr:PianoKey Grid.Column="4" Label="Stop" MinWidth="0" VerticalAlignment="Top" Icon="{StaticResource SR.Icon.Stop}"
-                                         Command="{Binding StopCommand}" AutomationProperties.Name="Stop and discard this encode" ToolTip="Stop and discard this encode" />
+                            <!-- Latched, with a blinking lamp, while the run is set to end after this episode -->
+                            <sr:PianoLatchKey x:Name="StopKey" Grid.Column="4" Label="Stop" ShowLamp="True" MinWidth="0" VerticalAlignment="Top"
+                                              Icon="{StaticResource SR.Icon.Stop}" IsChecked="{Binding IsStopArmed, Mode=OneWay}"
+                                              Lamp="{Binding StopLamp}" LampBlink="{Binding StopLampBlink}"
+                                              Command="{Binding StopCommand}" Click="OnLatchClick"
+                                              AutomationProperties.Name="{Binding StopKeyName}" ToolTip="{Binding StopKeyName}" />
                             <sr:PianoKey Grid.Column="6" Label="Skip" MinWidth="0" VerticalAlignment="Top" Icon="{StaticResource SR.Icon.Skip}"
                                          Command="{Binding SkipCommand}" AutomationProperties.Name="Skip this episode" ToolTip="Skip this episode" />
                         </Grid>
@@ -647,11 +651,35 @@
                 </ContentControl>
             </Grid>
 
+            <!-- ============ STOP CARD ============ -->
+            <!-- Stop mid-episode asks first. Escape or a click outside dismisses it and changes nothing. -->
+            <Grid x:Name="StopOverlay" Visibility="{Binding IsStopCardOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
+                <Rectangle Fill="#8C000000">
+                    <Rectangle.InputBindings>
+                        <MouseBinding MouseAction="LeftClick" Command="{Binding DismissCardCommand}" />
+                    </Rectangle.InputBindings>
+                </Rectangle>
+                <ContentControl Style="{StaticResource SR.Card}" Width="500" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
+                                KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle"
+                                AutomationProperties.Name="Stop the encode">
+                    <StackPanel>
+                        <sr:TrackedText Style="{StaticResource SR.Heading}" Text="{Binding StopCardHeading}" />
+                        <TextBlock Style="{StaticResource SR.Text.Caption}" Margin="0,10,0,0" FontSize="14" Text="{Binding StopCardText}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+                            <sr:PianoKey x:Name="StopPrimaryKey" Label="{Binding StopPrimaryLabel}" MinWidth="190" Width="190"
+                                         Command="{Binding StopPrimaryCommand}" AutomationProperties.Name="{Binding StopPrimaryName}" />
+                            <sr:PianoKey Label="Stop now" MinWidth="130" Width="130" Margin="14,0,0,0"
+                                         Command="{Binding StopNowCommand}" AutomationProperties.Name="Stop now and discard this encode" />
+                        </StackPanel>
+                    </StackPanel>
+                </ContentControl>
+            </Grid>
+
             <!-- ============ CLOSE CONFIRM ============ -->
             <!-- Closing during a run asks first. Escape keeps running; once confirmed, the card shows the wait. -->
             <Grid x:Name="CloseOverlay" Visibility="{Binding IsCloseOverlayOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
                 <Rectangle Fill="#8C000000" />
-                <ContentControl Style="{StaticResource SR.Card}" Width="540" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
+                <ContentControl Style="{StaticResource SR.Card}" Width="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
                                 KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle"
                                 AutomationProperties.Name="Close ShrinkRay during a run">
                     <StackPanel>
@@ -665,6 +693,10 @@
                                     Visibility="{Binding IsCloseConfirmOpen, Converter={StaticResource Visible}}">
                             <sr:PianoKey x:Name="KeepRunningKey" Label="Keep running" MinWidth="150" Width="150"
                                          Command="{Binding CancelCloseCommand}" AutomationProperties.Name="Keep running and leave ShrinkRay open" />
+                            <sr:PianoKey Label="Close after this episode" MinWidth="220" Width="220" Margin="14,0,0,0"
+                                         Visibility="{Binding CanCloseAfterEpisode, Converter={StaticResource Visible}}"
+                                         Command="{Binding CloseAfterEpisodeCommand}"
+                                         AutomationProperties.Name="Let this episode finish, then close ShrinkRay" />
                             <sr:PianoKey Label="{Binding CloseKeyLabel}" MinWidth="150" Width="150" Margin="14,0,0,0"
                                          Command="{Binding ConfirmCloseCommand}" AutomationProperties.Name="{Binding CloseKeyLabel}" />
                         </StackPanel>

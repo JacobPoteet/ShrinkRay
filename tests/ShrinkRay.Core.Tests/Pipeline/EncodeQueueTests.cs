@@ -334,6 +334,132 @@ public class EncodeQueueTests
     }
 
     [Fact]
+    public async Task Continue_after_current_clears_the_request_and_the_run_goes_on()
+    {
+        var rig = new Rig();
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+        rig.Queue.StopAfterCurrent();
+
+        Assert.True(rig.Queue.ContinueAfterCurrent());
+        rig.Runner.Finish("a");
+        await rig.Runner.WaitForStartAsync();
+        rig.Runner.Finish("b");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a", "b"], rig.Runner.Started);
+        Assert.Equal([EpisodeEnd.Finished, EpisodeEnd.Finished], rig.Finished.Select(f => f.End));
+    }
+
+    [Fact]
+    public async Task The_request_can_be_set_and_cleared_again()
+    {
+        var rig = new Rig();
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+
+        rig.Queue.StopAfterCurrent();
+        Assert.True(rig.Queue.ContinueAfterCurrent());
+        rig.Queue.StopAfterCurrent();
+        rig.Runner.Finish("a");
+        await run.WaitAsync(Timeout);
+
+        Assert.Equal(["a"], rig.Runner.Started);
+    }
+
+    [Fact]
+    public async Task Continue_after_current_does_nothing_without_a_request_or_a_run()
+    {
+        var rig = new Rig();
+        Assert.False(rig.Queue.ContinueAfterCurrent());
+
+        var run = rig.Queue.RunAsync(["a"]);
+        await rig.Runner.WaitForStartAsync();
+        Assert.False(rig.Queue.ContinueAfterCurrent());
+
+        rig.Runner.Finish("a");
+        await run.WaitAsync(Timeout);
+        Assert.False(rig.Queue.ContinueAfterCurrent());
+    }
+
+    [Fact]
+    public async Task Continue_after_current_cannot_undo_a_stop_that_ended_the_run_at_once()
+    {
+        var rig = new Rig();
+        var waiting = new TaskCompletionSource();
+        var queue = new EncodeQueue(rig.Runner, rig.Gate, () => false, async (_, ct) =>
+        {
+            waiting.TrySetResult();
+            await Task.Delay(Timeout, ct);
+        });
+        var run = queue.RunAsync(["a"]);
+        await waiting.Task.WaitAsync(Timeout);
+
+        queue.StopAfterCurrent();
+        Assert.False(queue.ContinueAfterCurrent());
+        await run.WaitAsync(Timeout);
+
+        Assert.Empty(rig.Runner.Started);
+    }
+
+    [Fact]
+    public async Task Continue_after_current_loses_once_the_finished_episode_committed_the_queue_to_stop()
+    {
+        var rig = new Rig();
+        var run = rig.Queue.RunAsync(["a", "b"]);
+        await rig.Runner.WaitForStartAsync();
+        rig.Queue.StopAfterCurrent();
+        rig.Runner.Finish("a");
+        await run.WaitAsync(Timeout);
+
+        Assert.False(rig.Queue.ContinueAfterCurrent());
+        Assert.Equal(["a"], rig.Runner.Started);
+    }
+
+    [Fact]
+    public async Task Clearing_the_request_as_the_episode_finishes_never_loses_or_half_applies_it()
+    {
+        // The episode ends on one thread while another clears the request. Either the clear wins
+        // and the next episode starts, or the queue had already committed to stopping and the
+        // clear reports that. It must never say "continuing" and then stop.
+        for (var i = 0; i < 300; i++)
+        {
+            var rig = new Rig();
+            var run = rig.Queue.RunAsync(["a", "b"]);
+            await rig.Runner.WaitForStartAsync();
+            rig.Queue.StopAfterCurrent();
+
+            var gate = new ManualResetEventSlim(false);
+            var finish = Task.Run(() =>
+            {
+                gate.Wait();
+                rig.Runner.Finish("a");
+            });
+            var clear = Task.Run(() =>
+            {
+                gate.Wait();
+                return rig.Queue.ContinueAfterCurrent();
+            });
+            gate.Set();
+            await finish.WaitAsync(Timeout);
+            var cleared = await clear.WaitAsync(Timeout);
+
+            if (cleared)
+            {
+                await rig.Runner.WaitForStartAsync();
+                rig.Runner.Finish("b");
+                await run.WaitAsync(Timeout);
+                Assert.Equal(["a", "b"], rig.Runner.Started);
+            }
+            else
+            {
+                await run.WaitAsync(Timeout);
+                Assert.Equal(["a"], rig.Runner.Started);
+            }
+        }
+    }
+
+    [Fact]
     public void Transport_keys_do_nothing_when_idle()
     {
         var rig = new Rig();
@@ -342,6 +468,7 @@ public class EncodeQueueTests
         rig.Queue.Skip();
         rig.Queue.Stop();
         rig.Queue.StopAfterCurrent();
+        Assert.False(rig.Queue.ContinueAfterCurrent());
 
         Assert.Equal(QueueState.Idle, rig.Queue.State);
         Assert.Empty(rig.Gate.Calls.Where(c => c == "pause"));
