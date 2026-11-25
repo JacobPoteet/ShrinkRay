@@ -37,6 +37,31 @@ public static class ThemeKeys
     public const string KeyCap = "SR.KeyCap";
     public const string BezelFill = "SR.BezelFill";
 
+    // Printed parts, which follow the chassis (see PaperPalette)
+    public const string JCard = "SR.JCard";
+    public const string JCardRule = "SR.JCardRule";
+    public const string CardInk = "SR.CardInk";
+    public const string CardInkSoft = "SR.CardInkSoft";
+    public const string CardInkFaint = "SR.CardInkFaint";
+    public const string CardDoneInk = "SR.CardDoneInk";
+    public const string CardFailInk = "SR.CardFailInk";
+    public const string StripeQueued = "SR.StripeQueued";
+    public const string StripeDone = "SR.StripeDone";
+    public const string StripeKept = "SR.StripeKept";
+    public const string StripeSkipped = "SR.StripeSkipped";
+    public const string StripeFailed = "SR.StripeFailed";
+    public const string Paper = "SR.Paper";
+    public const string PrintInk = "SR.PrintInk";
+    public const string RedZone = "SR.RedZone";
+    public const string Needle = "SR.Needle";
+    public const string Pivot = "SR.Pivot";
+    public const string Cream = "SR.Cream";
+    public const string Marker = "SR.Marker";
+    public const string PrintInkSoft = "SR.PrintInkSoft";
+    public const string PartFill = "SR.PartFill";
+    public const string PartInk = "SR.PartInk";
+    public const string Roller = "SR.Roller";
+
     /// <summary>Every key the manager writes, in a stable order.</summary>
     public static IReadOnlyList<string> All { get; } =
     [
@@ -44,5 +69,8 @@ public static class ThemeKeys
         PhosphorHalo, PhosphorTextGlow, PhosphorStrongGlow, PhosphorBloom, PhosphorRowTint, PhosphorSpill,
         AbsColor, AbsHiColor, AbsLoColor, InkColor, Abs, AbsHi, AbsLo, Ink, InkSoft,
         LinePrinterInk, MarkerInk, SelectInk, ChassisSurface, KeyCap, BezelFill,
+        JCard, JCardRule, CardInk, CardInkSoft, CardInkFaint, CardDoneInk, CardFailInk, StripeQueued, StripeDone,
+        StripeKept, StripeSkipped, StripeFailed, Paper, PrintInk, RedZone, Needle, Pivot, Cream, Marker,
+        PrintInkSoft, PartFill, PartInk, Roller,
     ];
 }

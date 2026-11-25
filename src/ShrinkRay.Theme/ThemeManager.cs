@@ -111,6 +111,34 @@ public static class ThemeManager
 
         d[ThemeKeys.KeyCap] = Vertical(c.AbsHi, c.Abs);
         d[ThemeKeys.BezelFill] = Vertical(c.Abs, c.AbsLo);
+        WritePaper(d, c.Paper);
+    }
+
+    private static void WritePaper(ResourceDictionary d, PaperPalette paper)
+    {
+        d[ThemeKeys.JCard] = Solid(paper.Card);
+        d[ThemeKeys.JCardRule] = Solid(paper.CardRule);
+        d[ThemeKeys.CardInk] = Solid(paper.CardInk);
+        d[ThemeKeys.CardInkSoft] = Solid(paper.CardInkSoft);
+        d[ThemeKeys.CardInkFaint] = Solid(paper.CardInkFaint);
+        d[ThemeKeys.CardDoneInk] = Solid(paper.CardDoneInk);
+        d[ThemeKeys.CardFailInk] = Solid(paper.CardFailInk);
+        d[ThemeKeys.StripeQueued] = Solid(paper.StripeQueued);
+        d[ThemeKeys.StripeDone] = Solid(paper.StripeDone);
+        d[ThemeKeys.StripeKept] = Solid(paper.StripeKept);
+        d[ThemeKeys.StripeSkipped] = Solid(paper.StripeSkipped);
+        d[ThemeKeys.StripeFailed] = Solid(paper.StripeFailed);
+        d[ThemeKeys.Paper] = Solid(paper.Meter);
+        d[ThemeKeys.PrintInk] = Solid(paper.MeterInk);
+        d[ThemeKeys.RedZone] = Solid(paper.MeterRed);
+        d[ThemeKeys.Needle] = Solid(paper.Needle);
+        d[ThemeKeys.Pivot] = Solid(paper.Pivot);
+        d[ThemeKeys.Cream] = Solid(paper.Label);
+        d[ThemeKeys.Marker] = Solid(paper.LabelInk);
+        d[ThemeKeys.PrintInkSoft] = Solid(paper.LabelInkSoft);
+        d[ThemeKeys.PartFill] = Solid(paper.Part);
+        d[ThemeKeys.PartInk] = Solid(paper.PartInk);
+        d[ThemeKeys.Roller] = Solid(paper.Roller);
     }
 
     private static SolidColorBrush Solid(Color color)

@@ -241,7 +241,7 @@
                         <sr:DymoLabel Text="Verify first" Tape="Red" Margin="10,0,0,0" />
                         <sr:StampMark Margin="16,0,0,0" VerticalAlignment="Center">
                             <sr:TrackedText Text="−64%" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13"
-                                            Tracking="0.1" Foreground="#4D6B1E" />
+                                            Tracking="0.1" Foreground="{DynamicResource SR.CardDoneInk}" />
                         </sr:StampMark>
                     </StackPanel>
                     <sr:CassetteLabel Title="BIG BUCK BUNNY" Side="Side A · 6 seasons" Margin="0,14,0,0" />

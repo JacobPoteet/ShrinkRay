@@ -20,15 +20,8 @@
     <SolidColorBrush x:Key="SR.PlateFill" Color="#262421" />
     <SolidColorBrush x:Key="SR.Crt" Color="#0D0A05" />
     <SolidColorBrush x:Key="SR.DeckWindow" Color="#0C0B09" />
-    <SolidColorBrush x:Key="SR.Cream" Color="#F1E9D6" />
-    <SolidColorBrush x:Key="SR.JCard" Color="#EFE7D4" />
-    <SolidColorBrush x:Key="SR.JCardRule" Color="#D8CEB8" />
-    <SolidColorBrush x:Key="SR.Paper" Color="#F1E6C8" />
     <SolidColorBrush x:Key="SR.Oxide" Color="#3A281A" />
     <SolidColorBrush x:Key="SR.TapeRun" Color="#4A3322" />
-    <SolidColorBrush x:Key="SR.Marker" Color="#1F3B73" />
-    <SolidColorBrush x:Key="SR.PrintInk" Color="#3B352A" />
-    <SolidColorBrush x:Key="SR.PrintInkSoft" Color="#5B5344" />
     <SolidColorBrush x:Key="SR.SilkLight" Color="#CFC4AB" />
     <SolidColorBrush x:Key="SR.CreamInk" Color="#EFE7D4" />
     <SolidColorBrush x:Key="SR.Unlit" Color="#8F8670" />
@@ -41,7 +34,6 @@
     </LinearGradientBrush>
     <SolidColorBrush x:Key="SR.SignalRedSide" Color="#7A2414" />
     <SolidColorBrush x:Key="SR.SignalRedInk" Color="#FFF1E4" />
-    <SolidColorBrush x:Key="SR.RedZone" Color="#C0391F" />
 
     <!-- Lamps -->
     <Color x:Key="SR.LampGreenColor">#A6D651</Color>
@@ -72,8 +64,6 @@
     <SolidColorBrush x:Key="SR.KnobBody" Color="#1F1E1B" />
     <SolidColorBrush x:Key="SR.KnobKnurl" Color="#45413A" />
     <SolidColorBrush x:Key="SR.KnobCap" Color="#2E2C28" />
-    <SolidColorBrush x:Key="SR.Needle" Color="#1B1B1B" />
-    <SolidColorBrush x:Key="SR.Pivot" Color="#2A2824" />
     <SolidColorBrush x:Key="SR.ReelHub" Color="#ECE4D2" />
     <SolidColorBrush x:Key="SR.ReelHole" Color="#151412" />
     <SolidColorBrush x:Key="SR.Grille" Color="#1C1B18" />

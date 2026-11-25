@@ -66,7 +66,7 @@
 
     <!-- Embossed tape: a light edge under each letter and a dark one over it -->
     <Style TargetType="sr:StampMark">
-        <Setter Property="Foreground" Value="#4D6B1E" />
+        <Setter Property="Foreground" Value="{DynamicResource SR.CardDoneInk}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="sr:StampMark">
