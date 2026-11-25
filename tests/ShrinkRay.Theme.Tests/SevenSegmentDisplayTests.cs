@@ -16,8 +16,27 @@ public sealed class SevenSegmentDisplayTests
     public void Lit_segments_glow() => Sta(() =>
         Assert.NotEqual(Render("18", glow: false), Render("18", glow: true)));
 
-    /// <summary>The themed display in a margin wide enough to catch any glow around it.</summary>
-    private static byte[] Render(string text, bool glow)
+    [Fact]
+    public void The_self_test_lights_every_segment() => Sta(() =>
+    {
+        Assert.Equal(Render("88", glow: false), Render("  ", glow: false, testing: true));
+        Assert.NotEqual(Render("88", glow: false), Render("  ", glow: false));
+    });
+
+    [Fact]
+    public void The_self_test_lights_every_led() => Sta(() =>
+    {
+        Assert.Equal(Render(Bar(1), testing: false), Render(Bar(0), testing: true));
+        Assert.NotEqual(Render(Bar(1), testing: false), Render(Bar(0), testing: false));
+    });
+
+    private static LedBar Bar(double fraction) => new() { Fraction = fraction, Segments = 8, Width = 120, Height = 12 };
+
+    private static byte[] Render(string text, bool glow, bool testing = false) =>
+        Render(new SevenSegmentDisplay { Text = text, DigitHeight = 40, Glow = glow }, testing);
+
+    /// <summary>The themed readout in a margin wide enough to catch any glow around it.</summary>
+    private static byte[] Render(FrameworkElement readout, bool testing)
     {
         // Touching Application registers the pack: scheme the theme loads itself through.
         _ = Application.Current;
@@ -27,8 +46,9 @@ public sealed class SevenSegmentDisplayTests
         {
             Resources = theme,
             Padding = new Thickness(20),
-            Child = new SevenSegmentDisplay { Text = text, DigitHeight = 40, Glow = glow },
+            Child = readout,
         };
+        PowerOn.SetIsTesting(host, testing);
         host.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         host.Arrange(new Rect(host.DesiredSize));
         host.UpdateLayout();

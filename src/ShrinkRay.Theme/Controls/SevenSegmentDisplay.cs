@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
+using System.Windows.Media.Animation;
 using ShrinkRay.Theme.Mechanics;
 
 namespace ShrinkRay.Theme.Controls;
@@ -11,7 +11,7 @@ namespace ShrinkRay.Theme.Controls;
 /// 'E', ':' and '.'. Unlit segments stay faintly visible, like real glass, and the digits lean
 /// 6 degrees. Lit segments are drawn on their own layer, so the glow and bloom come from them alone.
 /// </summary>
-public class SevenSegmentDisplay : FrameworkElement
+public class SevenSegmentDisplay : LitReadout
 {
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(
         nameof(Text), typeof(string), typeof(SevenSegmentDisplay),
@@ -38,32 +38,20 @@ public class SevenSegmentDisplay : FrameworkElement
         nameof(UnlitBrush), typeof(Brush), typeof(SevenSegmentDisplay),
         new FrameworkPropertyMetadata(Brushes.DimGray, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty GlowProperty = DependencyProperty.Register(
-        nameof(Glow), typeof(bool), typeof(SevenSegmentDisplay), new PropertyMetadata(false));
+    public static readonly DependencyProperty RollProperty = DependencyProperty.Register(
+        nameof(Roll), typeof(CounterRoll), typeof(SevenSegmentDisplay), new PropertyMetadata(null, OnRollChanged));
 
-    public static readonly DependencyProperty GlowEffectProperty = DependencyProperty.Register(
-        nameof(GlowEffect), typeof(Effect), typeof(SevenSegmentDisplay),
-        new PropertyMetadata(null, (d, e) => ((SevenSegmentDisplay)d)._lit.Glow = (Effect?)e.NewValue));
+    private static readonly DependencyProperty RollProgressProperty = DependencyProperty.Register(
+        "RollProgress", typeof(double), typeof(SevenSegmentDisplay),
+        new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty BloomEffectProperty = DependencyProperty.Register(
-        nameof(BloomEffect), typeof(Effect), typeof(SevenSegmentDisplay),
-        new PropertyMetadata(null, (d, e) => ((SevenSegmentDisplay)d)._bloom.Glow = (Effect?)e.NewValue));
-
-    // The lit segments sit inside the bloom layer, so the wide halo is cast by the tight glow as well.
-    private readonly LitLayer _lit = new();
-    private readonly BloomLayer _bloom = new();
+    private static readonly System.TimeSpan RollTime = System.TimeSpan.FromSeconds(1.6);
 
     static SevenSegmentDisplay()
     {
         DefaultStyleKeyProperty.OverrideMetadata(typeof(SevenSegmentDisplay),
             new FrameworkPropertyMetadata(typeof(SevenSegmentDisplay)));
         SnapsToDevicePixelsProperty.OverrideMetadata(typeof(SevenSegmentDisplay), new FrameworkPropertyMetadata(true));
-    }
-
-    public SevenSegmentDisplay()
-    {
-        _bloom.Children.Add(_lit);
-        AddVisualChild(_bloom);
     }
 
     public string Text
@@ -103,28 +91,15 @@ public class SevenSegmentDisplay : FrameworkElement
         set => SetValue(UnlitBrushProperty, value);
     }
 
-    /// <summary>Adds the phosphor glow, for hero readouts.</summary>
-    public bool Glow
+    /// <summary>Set to count up to <see cref="Text"/> from an earlier reading. Held motion skips the count.</summary>
+    public CounterRoll? Roll
     {
-        get => (bool)GetValue(GlowProperty);
-        set => SetValue(GlowProperty, value);
+        get => (CounterRoll?)GetValue(RollProperty);
+        set => SetValue(RollProperty, value);
     }
 
-    /// <summary>The tight glow around the lit segments. The theme sets it when <see cref="Glow"/> is on.</summary>
-    public Effect? GlowEffect
-    {
-        get => (Effect?)GetValue(GlowEffectProperty);
-        set => SetValue(GlowEffectProperty, value);
-    }
-
-    /// <summary>The wide halo outside that glow, also set by the theme.</summary>
-    public Effect? BloomEffect
-    {
-        get => (Effect?)GetValue(BloomEffectProperty);
-        set => SetValue(BloomEffectProperty, value);
-    }
-
-    protected override int VisualChildrenCount => 1;
+    /// <summary>What the digits read right now: <see cref="Text"/>, or a step on the way to it during a roll.</summary>
+    public string Reading => RollMath.Frame(Roll?.From, Text ?? string.Empty, (double)GetValue(RollProgressProperty));
 
     private double DigitWidth => DigitHeight * SevenSegmentMath.DigitBoxWidth / SevenSegmentMath.DigitBoxHeight;
 
@@ -148,24 +123,20 @@ public class SevenSegmentDisplay : FrameworkElement
         return new Size(System.Math.Ceiling(width + LeanWidth), System.Math.Ceiling(DigitHeight));
     }
 
-    protected override Visual GetVisualChild(int index) =>
-        index == 0 ? _bloom : throw new System.ArgumentOutOfRangeException(nameof(index));
-
-    protected override void OnRender(DrawingContext dc)
+    protected override void Draw(DrawingContext unlit, DrawingContext lit)
     {
-        // Unlit segments go on the element itself and lit ones on the layer above, which carries the light.
-        using var lit = _lit.RenderOpen();
-        var cells = SevenSegmentMath.Layout(Text);
+        var cells = SevenSegmentMath.Layout(Reading);
         if (cells.Count == 0)
         {
             return;
         }
 
+        var testing = PowerOn.GetIsTesting(this);
         var h = DigitHeight;
         var scale = h / SevenSegmentMath.DigitBoxHeight;
         var lean = LeanWidth;
         // Skewing about the middle pushes one corner lean/2 past the left edge either way.
-        foreach (var layer in new[] { dc, lit })
+        foreach (var layer in new[] { unlit, lit })
         {
             layer.PushTransform(new TranslateTransform(lean / 2, 0));
             layer.PushTransform(new SkewTransform(Skew, 0, 0, h / 2));
@@ -178,7 +149,7 @@ public class SevenSegmentDisplay : FrameworkElement
             switch (cell.Kind)
             {
                 case CellKind.Digit:
-                    DrawDigit(dc, lit, cell.Lit, x, scale);
+                    DrawDigit(unlit, lit, testing ? Segments.All : cell.Lit, x, scale);
                     x += DigitWidth;
                     break;
                 case CellKind.Dot:
@@ -195,7 +166,7 @@ public class SevenSegmentDisplay : FrameworkElement
             x += Spacing;
         }
 
-        foreach (var layer in new[] { dc, lit })
+        foreach (var layer in new[] { unlit, lit })
         {
             layer.Pop();
             layer.Pop();
@@ -211,6 +182,15 @@ public class SevenSegmentDisplay : FrameworkElement
             peer.RaisePropertyChangedEvent(System.Windows.Automation.AutomationElementIdentifiers.NameProperty,
                 e.OldValue as string ?? string.Empty, e.NewValue as string ?? string.Empty);
         }
+    }
+
+    private static void OnRollChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var display = (SevenSegmentDisplay)d;
+        display.BeginAnimation(RollProgressProperty, e.NewValue is null || !MotionPolicy.IsMotionEnabled
+            ? null
+            : new DoubleAnimation(0, 1, RollTime) { FillBehavior = FillBehavior.Stop });
+        display.InvalidateVisual();
     }
 
     private void DrawDigit(DrawingContext unlitLayer, DrawingContext litLayer, Segments lit, double left, double scale)
@@ -237,23 +217,6 @@ public class SevenSegmentDisplay : FrameworkElement
             {
                 unlitLayer.DrawGeometry(UnlitBrush, null, geometry);
             }
-        }
-    }
-
-    /// <summary>The lit segments. <see cref="Visual"/> keeps its effect setter protected, hence the subclasses.</summary>
-    private sealed class LitLayer : DrawingVisual
-    {
-        public Effect? Glow
-        {
-            set => VisualEffect = value;
-        }
-    }
-
-    private sealed class BloomLayer : ContainerVisual
-    {
-        public Effect? Glow
-        {
-            set => VisualEffect = value;
         }
     }
 

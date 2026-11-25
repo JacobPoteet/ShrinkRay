@@ -53,6 +53,13 @@
                             <Setter TargetName="Body" Property="Fill" Value="{DynamicResource SR.LampRed}" />
                             <Setter TargetName="Shade" Property="Fill" Value="{StaticResource SR.LampShadeOn}" />
                         </Trigger>
+                        <!-- The self-test lights every lamp; it comes after the state triggers so it wins -->
+                        <Trigger Property="sr:PowerOn.IsTesting" Value="True">
+                            <Setter TargetName="Halo" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Halo" Property="Fill" Value="{DynamicResource SR.PhosphorHalo}" />
+                            <Setter TargetName="Body" Property="Fill" Value="{DynamicResource SR.Phosphor}" />
+                            <Setter TargetName="Shade" Property="Fill" Value="{StaticResource SR.LampShadeOn}" />
+                        </Trigger>
                         <Trigger Property="LabelPlacement" Value="Below">
                             <Setter TargetName="Layout" Property="Orientation" Value="Vertical" />
                         </Trigger>
@@ -135,6 +142,12 @@
     <Style TargetType="sr:LedBar">
         <Setter Property="LitBrush" Value="{DynamicResource SR.Phosphor}" />
         <Setter Property="UnlitBrush" Value="{DynamicResource SR.PhosphorDim}" />
+        <Style.Triggers>
+            <Trigger Property="Glow" Value="True">
+                <Setter Property="GlowEffect" Value="{DynamicResource SR.PhosphorStrongGlow}" />
+                <Setter Property="BloomEffect" Value="{DynamicResource SR.PhosphorBloom}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

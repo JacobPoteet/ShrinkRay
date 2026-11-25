@@ -100,8 +100,8 @@ public class VuMeter : Control
         set => SetValue(MaxLabelProperty, value);
     }
 
-    /// <summary>The angle the needle is heading for.</summary>
-    public double TargetAngle => VuMath.NeedleAngle(Value, Minimum, Maximum);
+    /// <summary>The angle the needle is heading for: its reading, or full scale during the self-test.</summary>
+    public double TargetAngle => VuMath.NeedleAngle(PowerOn.GetIsTesting(this) ? Maximum : Value, Minimum, Maximum);
 
     public override void OnApplyTemplate()
     {
@@ -116,18 +116,29 @@ public class VuMeter : Control
         UpdateRedZone();
     }
 
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property == PowerOn.IsTestingProperty)
+        {
+            SwingToTarget();
+        }
+    }
+
     protected override AutomationPeer OnCreateAutomationPeer() => new VuMeterAutomationPeer(this);
 
     private static void OnReadingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var meter = (VuMeter)d;
-        meter._needle?.BeginAnimation(RotateTransform.AngleProperty,
-            new DoubleAnimation(meter.TargetAngle, Swing) { EasingFunction = CubicBezierEase.Needle });
+        meter.SwingToTarget();
         if (e.Property == ValueProperty && UIElementAutomationPeer.FromElement(meter) is { } peer)
         {
             peer.RaisePropertyChangedEvent(RangeValuePatternIdentifiers.ValueProperty, e.OldValue, e.NewValue);
         }
     }
+
+    private void SwingToTarget() => _needle?.BeginAnimation(RotateTransform.AngleProperty,
+        new DoubleAnimation(TargetAngle, Swing) { EasingFunction = CubicBezierEase.Needle });
 
     private static void OnRedZoneChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((VuMeter)d).UpdateRedZone();

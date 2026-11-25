@@ -11,7 +11,7 @@ namespace ShrinkRay.Theme.Controls;
 /// A row of LED segments that fills left to right. <see cref="Fraction"/> picks how many of
 /// <see cref="Segments"/> light. The segments share the width evenly.
 /// </summary>
-public class LedBar : FrameworkElement
+public class LedBar : LitReadout
 {
     public static readonly DependencyProperty FractionProperty = DependencyProperty.Register(
         nameof(Fraction), typeof(double), typeof(LedBar),
@@ -33,9 +33,8 @@ public class LedBar : FrameworkElement
         nameof(UnlitBrush), typeof(Brush), typeof(LedBar),
         new FrameworkPropertyMetadata(Brushes.DimGray, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty GlowBrushProperty = DependencyProperty.Register(
-        nameof(GlowBrush), typeof(Brush), typeof(LedBar),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    private static readonly Brush LitGlint = Frozen(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
+    private static readonly Brush UnlitGlint = Frozen(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
 
     static LedBar()
     {
@@ -74,31 +73,23 @@ public class LedBar : FrameworkElement
         set => SetValue(UnlitBrushProperty, value);
     }
 
-    /// <summary>Optional halo behind lit segments. Leave null on light panels.</summary>
-    public Brush? GlowBrush
-    {
-        get => (Brush?)GetValue(GlowBrushProperty);
-        set => SetValue(GlowBrushProperty, value);
-    }
-
     public int LitCount => LedMath.LitCount(Fraction, Segments);
 
-    protected override void OnRender(DrawingContext dc)
+    protected override void Draw(DrawingContext unlit, DrawingContext lit)
     {
-        var lit = LitCount;
+        var count = PowerOn.GetIsTesting(this) ? Segments : LitCount;
         var h = ActualHeight;
         for (var i = 0; i < Segments; i++)
         {
             var (left, width) = LedMath.SegmentBounds(i, Segments, ActualWidth, Gap);
-            var rect = new Rect(left, 0, width, h);
-            if (i < lit && GlowBrush is not null)
+            var on = i < count;
+            var layer = on ? lit : unlit;
+            layer.DrawRoundedRectangle(on ? LitBrush : UnlitBrush, null, new Rect(left, 0, width, h), 1, 1);
+            if (width > 2 && h > 4)
             {
-                var glow = rect;
-                glow.Inflate(2, 2);
-                dc.DrawRoundedRectangle(GlowBrush, null, glow, 3, 3);
+                // The glint on top of each moulded lens.
+                layer.DrawRectangle(on ? LitGlint : UnlitGlint, null, new Rect(left + 1, 1, width - 2, 1));
             }
-
-            dc.DrawRoundedRectangle(i < lit ? LitBrush : UnlitBrush, null, rect, 1, 1);
         }
     }
 
@@ -110,6 +101,13 @@ public class LedBar : FrameworkElement
         {
             peer.RaisePropertyChangedEvent(RangeValuePatternIdentifiers.ValueProperty, e.OldValue, e.NewValue);
         }
+    }
+
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private sealed class LedBarAutomationPeer(LedBar owner) : FrameworkElementAutomationPeer(owner), IRangeValueProvider

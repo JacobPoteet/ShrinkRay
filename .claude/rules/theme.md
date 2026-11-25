@@ -19,8 +19,13 @@ VU needles, Dymo labels.
 - Silkscreen labels are uppercase Barlow Condensed 600 or 700, tracked about +18%. Use
   `TrackedText`; TextBlock has no letter spacing.
 - Michroma is for the wordmark, the badge and kit headings only.
-- Only parts that move on real hardware animate: reels, needles, lamps, keys. Reel spin, lamp
-  blink and CRT flicker stop when `MotionPolicy.IsMotionEnabled` is false.
+- Only parts that move on real hardware animate: reels, needles, lamps, keys, counters and
+  stamps. Reel spin, lamp blink, CRT flicker, counter rolls, the stamp and the power-on self-test
+  stop when `MotionPolicy.IsMotionEnabled` is false.
+- The feel is tactile and retro, never futuristic: moulded parts, glass, ink and clicks in
+  steps. Counters tick rather than glide.
+- Glow comes from the lit parts only. A readout draws unlit segments on itself and lit ones on
+  the layers `LitReadout` carries, so never put an effect on the whole control.
 
 ## scientifica
 
