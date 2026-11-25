@@ -153,8 +153,9 @@ The app deletes originals on a live Plex library, so these hold everywhere:
    the share.
 5. For changes to the theme, open the gallery, screenshot it, and compare it with the design
    boards. Check Amber on Beige and Green on Graphite at least.
-6. For changes to the app, render the main window and compare it with the main deck board,
-   in Amber on Beige and Green on Graphite at least. On-screen captures of WPF windows can
+6. For changes to the app, render the main window before and after the change and compare the
+   two, in Amber on Beige and Green on Graphite at least. The original main deck design board is
+   archived and out of date, so don't use it as a reference. On-screen captures of WPF windows can
    come out white here, so render off-screen: a small exe that references the app, opens
    `MainWindow` at Left/Top -10000 and draws `window.Content` to a `RenderTargetBitmap` at
    96 dpi. For changes to the run, drive one real encode through the view model on a copy
