@@ -69,8 +69,17 @@ public static class ThemeManager
         halo.Freeze();
         d[ThemeKeys.PhosphorHalo] = halo;
 
+        // The light a lit readout throws onto the plate around it.
+        var spill = new RadialGradientBrush();
+        spill.GradientStops.Add(new GradientStop(Color.FromArgb(0x26, p.On.R, p.On.G, p.On.B), 0.0));
+        spill.GradientStops.Add(new GradientStop(Color.FromArgb(0x10, p.On.R, p.On.G, p.On.B), 0.55));
+        spill.GradientStops.Add(new GradientStop(Color.FromArgb(0, p.On.R, p.On.G, p.On.B), 1.0));
+        spill.Freeze();
+        d[ThemeKeys.PhosphorSpill] = spill;
+
         d[ThemeKeys.PhosphorTextGlow] = Glow(p, blur: 7, opacity: p.Glow.A / 255.0);
-        d[ThemeKeys.PhosphorStrongGlow] = Glow(p, blur: 12, opacity: 0.8);
+        d[ThemeKeys.PhosphorStrongGlow] = Glow(p, blur: 10, opacity: 1);
+        d[ThemeKeys.PhosphorBloom] = Glow(p, blur: 32, opacity: 0.85);
     }
 
     private static void WriteChassis(ResourceDictionary d, ChassisPalette c)

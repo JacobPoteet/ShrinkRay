@@ -137,7 +137,7 @@
                         <TextBlock Text="Signal red belongs to Encode and to anything that deletes. Nowhere else." />
                         <TextBlock Text="Every status pairs a lamp with a word, so it never relies on color alone." />
                         <TextBlock Text="Silkscreen labels are uppercase condensed type, tracked wide, printed on the panel." />
-                        <TextBlock Text="Only parts that move on real hardware animate: reels, needles, lamps, keys." />
+                        <TextBlock Text="Only parts that move on real hardware animate: reels, needles, lamps, keys, counters and stamps." />
                     </StackPanel>
                 </StackPanel>
             </ContentControl>
@@ -209,11 +209,13 @@
                         <ContentControl.RenderTransform>
                             <SkewTransform AngleX="-6" />
                         </ContentControl.RenderTransform>
-                        <sr:SevenSegmentDisplay Text="041.3" DigitHeight="50" Spacing="4" Skew="0" />
+                        <sr:SevenSegmentDisplay Text="041.3" DigitHeight="50" Spacing="4" Skew="0" Glow="True" />
                     </ContentControl>
                     <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
                                Text="Seven-segment digits are drawn, not a font. Unlit segments stay faintly visible, like real glass." />
-                    <sr:LedBar Fraction="0.6333" Segments="30" Margin="0,14,0,0" />
+                    <Border Style="{StaticResource SR.LedSlot}" Margin="0,14,0,0">
+                        <sr:LedBar Fraction="0.6333" Segments="30" Glow="True" />
+                    </Border>
                 </StackPanel>
             </ContentControl>
 
@@ -231,6 +233,10 @@
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                         <sr:DymoLabel Text="Runs overnight" />
                         <sr:DymoLabel Text="Verify first" Tape="Red" Margin="10,0,0,0" />
+                        <sr:StampMark Margin="16,0,0,0" VerticalAlignment="Center">
+                            <sr:TrackedText Text="−64%" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13"
+                                            Tracking="0.1" Foreground="#4D6B1E" />
+                        </sr:StampMark>
                     </StackPanel>
                     <sr:CassetteLabel Title="BIG BUCK BUNNY" Side="Side A · 6 seasons" Margin="0,14,0,0" />
                     <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0"
@@ -367,13 +373,13 @@
                         </Grid.ColumnDefinitions>
                         <ContentControl Style="{StaticResource SR.Plate}" Padding="12,8">
                             <StackPanel>
-                                <sr:SevenSegmentDisplay x:Name="TapeTime" DigitHeight="30" Spacing="3" Text="00:00" />
+                                <sr:SevenSegmentDisplay x:Name="TapeTime" DigitHeight="30" Spacing="3" Text="00:00" Glow="True" />
                                 <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Text="Tape time" Margin="0,8,0,0" />
                             </StackPanel>
                         </ContentControl>
                         <ContentControl Grid.Column="2" Style="{StaticResource SR.Plate}" Padding="12,8">
                             <StackPanel>
-                                <sr:SevenSegmentDisplay x:Name="Percent" DigitHeight="30" Spacing="3" Text=" 0.0" />
+                                <sr:SevenSegmentDisplay x:Name="Percent" DigitHeight="30" Spacing="3" Text=" 0.0" Glow="True" />
                                 <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Text="Percent" Margin="0,8,0,0" />
                             </StackPanel>
                         </ContentControl>
@@ -392,7 +398,9 @@
                                     MinLabel="0" MidLabel="50" MaxLabel="100" Height="92" AutomationProperties.Name="Encoder load, percent" />
                     </Grid>
 
-                    <sr:LedBar x:Name="Progress" Segments="24" Margin="0,14,0,0" GlowBrush="{x:Null}" />
+                    <Border Style="{StaticResource SR.LedSlot}" Margin="0,14,0,0">
+                        <sr:LedBar x:Name="Progress" Segments="24" Glow="True" />
+                    </Border>
 
                     <!-- Transport -->
                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">

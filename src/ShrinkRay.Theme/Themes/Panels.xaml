@@ -94,6 +94,37 @@
         </Setter>
     </Style>
 
+    <!-- Readout: a plate behind a domed acrylic window, for lit digits and LED bars. The content is
+         clipped to the window, so no light leaks onto the case, and the glass lies over it. -->
+    <Style x:Key="SR.Readout" TargetType="ContentControl">
+        <Setter Property="Foreground" Value="{DynamicResource SR.SilkLight}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Border Margin="0,0,0,-1" CornerRadius="8" Background="{DynamicResource SR.AbsHi}" />
+                        <Border CornerRadius="8" Background="{DynamicResource SR.PlateFill}" />
+                        <Grid sr:RoundClip.Radius="8">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" />
+                        </Grid>
+                        <sr:GlassPane />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- LED slot: the dark channel an LED bar is set into, with a lit lower lip -->
+    <Style x:Key="SR.LedSlot" TargetType="Border">
+        <Setter Property="Background" Value="#100F0D" />
+        <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Padding" Value="3,3,3,2" />
+    </Style>
+
     <!-- Nameplate: the dark badge plate that carries the wordmark -->
     <Style x:Key="SR.Nameplate" TargetType="ContentControl">
         <Setter Property="Padding" Value="18,8" />

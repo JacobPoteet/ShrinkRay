@@ -22,6 +22,8 @@ public sealed class TrackViewModel : ObservableObject
     private string _statusText = "";
     private string _sizeText = "";
     private string _detail = "";
+    private bool _isStamped;
+    private bool _isStamping;
 
     private TrackViewModel(EpisodeRecord record)
     {
@@ -102,6 +104,28 @@ public sealed class TrackViewModel : ObservableObject
     }
 
     public bool IsQueueable => Kind is TrackKind.Queued or TrackKind.Failed;
+
+    /// <summary>The file was replaced while this list has been open, so its saving prints as a stamp.</summary>
+    public bool IsStamped
+    {
+        get => _isStamped;
+        private set => Set(ref _isStamped, value);
+    }
+
+    /// <summary>The stamp is coming down right now.</summary>
+    public bool IsStamping
+    {
+        get => _isStamping;
+        private set => Set(ref _isStamping, value);
+    }
+
+    public void Stamp()
+    {
+        IsStamped = true;
+        IsStamping = true;
+    }
+
+    public void SettleStamp() => IsStamping = false;
 
     /// <param name="reason">The journal's reason for the file's last state.</param>
     /// <param name="at">When the journal recorded that state.</param>

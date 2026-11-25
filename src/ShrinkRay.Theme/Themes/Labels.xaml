@@ -65,6 +65,20 @@
     </Style>
 
     <!-- Embossed tape: a light edge under each letter and a dark one over it -->
+    <Style TargetType="sr:StampMark">
+        <Setter Property="Foreground" Value="#4D6B1E" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="sr:StampMark">
+                    <Border x:Name="PART_Mark" BorderThickness="1.5" CornerRadius="3" Padding="5,0,4,1"
+                            BorderBrush="{TemplateBinding Foreground}" Background="#1F7FA63A">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="sr:DymoLabel">
         <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Silk}" />
         <Setter Property="FontWeight" Value="Bold" />

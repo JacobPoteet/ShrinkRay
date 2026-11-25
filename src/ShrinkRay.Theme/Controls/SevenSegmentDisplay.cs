@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using ShrinkRay.Theme.Mechanics;
 
 namespace ShrinkRay.Theme.Controls;
@@ -8,9 +9,9 @@ namespace ShrinkRay.Theme.Controls;
 /// <summary>
 /// A seven-segment readout, drawn rather than set in a font. Shows digits, space, '-', 'S',
 /// 'E', ':' and '.'. Unlit segments stay faintly visible, like real glass, and the digits lean
-/// 6 degrees.
+/// 6 degrees. Lit segments are drawn on their own layer, so the glow and bloom come from them alone.
 /// </summary>
-public class SevenSegmentDisplay : FrameworkElement
+public class SevenSegmentDisplay : LitReadout
 {
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(
         nameof(Text), typeof(string), typeof(SevenSegmentDisplay),
@@ -37,8 +38,14 @@ public class SevenSegmentDisplay : FrameworkElement
         nameof(UnlitBrush), typeof(Brush), typeof(SevenSegmentDisplay),
         new FrameworkPropertyMetadata(Brushes.DimGray, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty GlowProperty = DependencyProperty.Register(
-        nameof(Glow), typeof(bool), typeof(SevenSegmentDisplay), new PropertyMetadata(false));
+    public static readonly DependencyProperty RollProperty = DependencyProperty.Register(
+        nameof(Roll), typeof(CounterRoll), typeof(SevenSegmentDisplay), new PropertyMetadata(null, OnRollChanged));
+
+    private static readonly DependencyProperty RollProgressProperty = DependencyProperty.Register(
+        "RollProgress", typeof(double), typeof(SevenSegmentDisplay),
+        new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    private static readonly System.TimeSpan RollTime = System.TimeSpan.FromSeconds(1.6);
 
     static SevenSegmentDisplay()
     {
@@ -84,12 +91,15 @@ public class SevenSegmentDisplay : FrameworkElement
         set => SetValue(UnlitBrushProperty, value);
     }
 
-    /// <summary>Adds the phosphor glow, for hero readouts.</summary>
-    public bool Glow
+    /// <summary>Set to count up to <see cref="Text"/> from an earlier reading. Held motion skips the count.</summary>
+    public CounterRoll? Roll
     {
-        get => (bool)GetValue(GlowProperty);
-        set => SetValue(GlowProperty, value);
+        get => (CounterRoll?)GetValue(RollProperty);
+        set => SetValue(RollProperty, value);
     }
+
+    /// <summary>What the digits read right now: <see cref="Text"/>, or a step on the way to it during a roll.</summary>
+    public string Reading => RollMath.Frame(Roll?.From, Text ?? string.Empty, (double)GetValue(RollProgressProperty));
 
     private double DigitWidth => DigitHeight * SevenSegmentMath.DigitBoxWidth / SevenSegmentMath.DigitBoxHeight;
 
@@ -113,20 +123,24 @@ public class SevenSegmentDisplay : FrameworkElement
         return new Size(System.Math.Ceiling(width + LeanWidth), System.Math.Ceiling(DigitHeight));
     }
 
-    protected override void OnRender(DrawingContext dc)
+    protected override void Draw(DrawingContext unlit, DrawingContext lit)
     {
-        var cells = SevenSegmentMath.Layout(Text);
+        var cells = SevenSegmentMath.Layout(Reading);
         if (cells.Count == 0)
         {
             return;
         }
 
+        var testing = PowerOn.GetIsTesting(this);
         var h = DigitHeight;
         var scale = h / SevenSegmentMath.DigitBoxHeight;
         var lean = LeanWidth;
         // Skewing about the middle pushes one corner lean/2 past the left edge either way.
-        dc.PushTransform(new TranslateTransform(lean / 2, 0));
-        dc.PushTransform(new SkewTransform(Skew, 0, 0, h / 2));
+        foreach (var layer in new[] { unlit, lit })
+        {
+            layer.PushTransform(new TranslateTransform(lean / 2, 0));
+            layer.PushTransform(new SkewTransform(Skew, 0, 0, h / 2));
+        }
 
         var x = 0.0;
         var mark = MarkSize;
@@ -135,16 +149,16 @@ public class SevenSegmentDisplay : FrameworkElement
             switch (cell.Kind)
             {
                 case CellKind.Digit:
-                    DrawDigit(dc, cell.Lit, x, scale);
+                    DrawDigit(unlit, lit, testing ? Segments.All : cell.Lit, x, scale);
                     x += DigitWidth;
                     break;
                 case CellKind.Dot:
-                    dc.DrawRectangle(LitBrush, null, new Rect(x, h * 0.96 - mark, mark, mark));
+                    lit.DrawRectangle(LitBrush, null, new Rect(x, h * 0.96 - mark, mark, mark));
                     x += mark;
                     break;
                 case CellKind.Colon:
-                    dc.DrawRectangle(LitBrush, null, new Rect(x, h * 0.30 - mark / 2, mark, mark));
-                    dc.DrawRectangle(LitBrush, null, new Rect(x, h * 0.70 - mark / 2, mark, mark));
+                    lit.DrawRectangle(LitBrush, null, new Rect(x, h * 0.30 - mark / 2, mark, mark));
+                    lit.DrawRectangle(LitBrush, null, new Rect(x, h * 0.70 - mark / 2, mark, mark));
                     x += mark;
                     break;
             }
@@ -152,8 +166,11 @@ public class SevenSegmentDisplay : FrameworkElement
             x += Spacing;
         }
 
-        dc.Pop();
-        dc.Pop();
+        foreach (var layer in new[] { unlit, lit })
+        {
+            layer.Pop();
+            layer.Pop();
+        }
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => new SevenSegmentAutomationPeer(this);
@@ -167,7 +184,16 @@ public class SevenSegmentDisplay : FrameworkElement
         }
     }
 
-    private void DrawDigit(DrawingContext dc, Segments lit, double left, double scale)
+    private static void OnRollChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var display = (SevenSegmentDisplay)d;
+        display.BeginAnimation(RollProgressProperty, e.NewValue is null || !MotionPolicy.IsMotionEnabled
+            ? null
+            : new DoubleAnimation(0, 1, RollTime) { FillBehavior = FillBehavior.Stop });
+        display.InvalidateVisual();
+    }
+
+    private void DrawDigit(DrawingContext unlitLayer, DrawingContext litLayer, Segments lit, double left, double scale)
     {
         foreach (var segment in SevenSegmentMath.EachSegment)
         {
@@ -183,7 +209,14 @@ public class SevenSegmentDisplay : FrameworkElement
             }
 
             geometry.Freeze();
-            dc.DrawGeometry((lit & segment) != 0 ? LitBrush : UnlitBrush, null, geometry);
+            if ((lit & segment) != 0)
+            {
+                litLayer.DrawGeometry(LitBrush, null, geometry);
+            }
+            else
+            {
+                unlitLayer.DrawGeometry(UnlitBrush, null, geometry);
+            }
         }
     }
 

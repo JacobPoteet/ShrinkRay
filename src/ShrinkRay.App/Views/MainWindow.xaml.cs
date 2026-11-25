@@ -6,6 +6,8 @@ using System.Windows.Interop;
 using System.Windows.Shell;
 using System.Windows.Threading;
 using ShrinkRay.App.ViewModels;
+using ShrinkRay.Theme;
+using ShrinkRay.Theme.Controls;
 
 namespace ShrinkRay.App.Views;
 
@@ -14,6 +16,8 @@ public partial class MainWindow : Window
 {
     private const int WmGetMinMaxInfo = 0x0024;
     private const uint MonitorDefaultToNearest = 2;
+
+    private static readonly TimeSpan SelfTestTime = TimeSpan.FromSeconds(1.4);
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly double _captionHeight;
@@ -25,6 +29,7 @@ public partial class MainWindow : Window
         ViewModel = viewModel;
         _timer.Tick += (_, _) => viewModel.Tick();
         Loaded += (_, _) => _timer.Start();
+        Loaded += (_, _) => SelfTest();
         Closed += (_, _) => _timer.Stop();
         Drop += OnDrop;
         DragOver += OnDragOver;
@@ -62,6 +67,24 @@ public partial class MainWindow : Window
 
     private static string? DroppedFolder(DragEventArgs e) =>
         e.Data.GetData(DataFormats.FileDrop) is string[] { Length: > 0 } paths && System.IO.Directory.Exists(paths[0]) ? paths[0] : null;
+
+    // Power on: every lamp and segment lights and the needles swing, then each takes up its reading.
+    private void SelfTest()
+    {
+        if (!MotionPolicy.IsMotionEnabled)
+        {
+            return;
+        }
+
+        PowerOn.SetIsTesting(Chassis, true);
+        var done = new DispatcherTimer { Interval = SelfTestTime };
+        done.Tick += (_, _) =>
+        {
+            done.Stop();
+            PowerOn.SetIsTesting(Chassis, false);
+        };
+        done.Start();
+    }
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
