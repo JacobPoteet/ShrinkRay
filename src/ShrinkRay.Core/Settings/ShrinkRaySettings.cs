@@ -42,6 +42,15 @@ public sealed class ShrinkRaySettings
     public TimeOnly EncodeWindowStart { get; set; } = DefaultEncodeWindowStart;
     public TimeOnly EncodeWindowEnd { get; set; } = DefaultEncodeWindowEnd;
 
+    /// <summary>
+    /// False from the moment first-run setup opens until the first-episode card is answered,
+    /// then true. Null in settings that setup never touched.
+    /// </summary>
+    public bool? FirstRunCompleted { get; set; }
+
+    /// <summary>Setup's cards are done and the next run is the trial: it stops after one episode.</summary>
+    public bool FirstEpisodePending { get; set; }
+
     public ShrinkRaySettings Clone()
     {
         var copy = (ShrinkRaySettings)MemberwiseClone();

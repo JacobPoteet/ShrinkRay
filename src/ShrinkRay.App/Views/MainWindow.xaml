@@ -24,157 +24,121 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="Visible" />
-        <views:InverseVisibilityConverter x:Key="Hidden" />
-        <views:EmptyToCollapsedConverter x:Key="NotEmpty" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="DeckStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-        <!-- A lamp with a silkscreen word, as printed on the panel -->
-        <DataTemplate x:Key="SilkWord">
-            <sr:TrackedText Text="{Binding}" Style="{StaticResource SR.Silk}" FontSize="11" Tracking="0.12"
-                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=sr:Lamp}}" />
-        </DataTemplate>
+            <!-- Option chips in the service panel: the lamp lights on the chosen one -->
+            <Style x:Key="OptionChip" TargetType="sr:SeasonChip">
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="Margin" Value="0,0,6,0" />
+                <Style.Triggers>
+                    <Trigger Property="IsChecked" Value="True">
+                        <Setter Property="Lamp" Value="Active" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
 
-        <Style x:Key="PanelLamp" TargetType="sr:Lamp">
-            <Setter Property="Diameter" Value="9" />
-            <Setter Property="Spacing" Value="7" />
-            <Setter Property="Foreground" Value="{DynamicResource SR.Ink}" />
-            <Setter Property="ContentTemplate" Value="{StaticResource SilkWord}" />
-            <Setter Property="AutomationProperties.Name" Value="{Binding Content, RelativeSource={RelativeSource Self}}" />
-        </Style>
+            <!-- Earlier and later keys for the encode window times -->
+            <Geometry x:Key="StepEarlier">M9,1.5 L2.5,6 L9,10.5 Z</Geometry>
+            <Geometry x:Key="StepLater">M3,1.5 L9.5,6 L3,10.5 Z</Geometry>
+            <Style x:Key="StepKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.5" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
 
-        <DataTemplate x:Key="LampItem" DataType="{x:Type vm:LampViewModel}">
-            <sr:Lamp Style="{StaticResource PanelLamp}" Content="{Binding Label}" State="{Binding State}" Blink="{Binding Blink}" />
-        </DataTemplate>
+            <Style x:Key="PlateLabel" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.SilkOnPlate}">
+                <Setter Property="FontSize" Value="10" />
+            </Style>
 
-        <!-- Small text keycap for Choose, Setup and friends -->
-        <Style x:Key="TextKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
-            <Setter Property="Width" Value="Auto" />
-            <Setter Property="MinWidth" Value="30" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="ContentTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <sr:TrackedText Text="{Binding}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                        Tracking="0.16" Foreground="{DynamicResource SR.Ink}" Margin="10,0" />
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.5" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+            <!-- The small lit H and M after the time-left digits, on their baseline -->
+            <Style x:Key="TimeUnit" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.Silk}">
+                <Setter Property="FontSize" Value="20" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Tracking" Value="0" />
+                <Setter Property="Margin" Value="7,0,0,2" />
+                <Setter Property="VerticalAlignment" Value="Bottom" />
+                <Setter Property="Foreground" Value="{DynamicResource SR.Phosphor}" />
+                <Setter Property="Effect" Value="{DynamicResource SR.PhosphorTextGlow}" />
+            </Style>
 
-        <!-- Option chips in the service panel: the lamp lights on the chosen one -->
-        <Style x:Key="OptionChip" TargetType="sr:SeasonChip">
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Lamp" Value="Active" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+            <!-- The light a lit readout throws on the plate behind it -->
+            <Style x:Key="Spill" TargetType="Rectangle">
+                <Setter Property="Fill" Value="{DynamicResource SR.PhosphorSpill}" />
+                <Setter Property="Margin" Value="-44,-28" />
+                <Setter Property="IsHitTestVisible" Value="False" />
+            </Style>
 
-        <!-- Earlier and later keys for the encode window times -->
-        <Geometry x:Key="StepEarlier">M9,1.5 L2.5,6 L9,10.5 Z</Geometry>
-        <Geometry x:Key="StepLater">M3,1.5 L9.5,6 L3,10.5 Z</Geometry>
-        <Style x:Key="StepKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.5" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+            <Style x:Key="Pixel" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Pixel}" />
 
-        <Style x:Key="PlateLabel" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.SilkOnPlate}">
-            <Setter Property="FontSize" Value="10" />
-        </Style>
-
-        <!-- The small lit H and M after the time-left digits, on their baseline -->
-        <Style x:Key="TimeUnit" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.Silk}">
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Tracking" Value="0" />
-            <Setter Property="Margin" Value="7,0,0,2" />
-            <Setter Property="VerticalAlignment" Value="Bottom" />
-            <Setter Property="Foreground" Value="{DynamicResource SR.Phosphor}" />
-            <Setter Property="Effect" Value="{DynamicResource SR.PhosphorTextGlow}" />
-        </Style>
-
-        <!-- The light a lit readout throws on the plate behind it -->
-        <Style x:Key="Spill" TargetType="Rectangle">
-            <Setter Property="Fill" Value="{DynamicResource SR.PhosphorSpill}" />
-            <Setter Property="Margin" Value="-44,-28" />
-            <Setter Property="IsHitTestVisible" Value="False" />
-        </Style>
-
-        <Style x:Key="Pixel" TargetType="TextBlock" BasedOn="{StaticResource SR.Text.Pixel}" />
-
-        <!-- One J-card line -->
-        <DataTemplate x:Key="TrackRow" DataType="{x:Type vm:TrackViewModel}">
-            <Grid Height="31" Background="Transparent" ToolTip="{Binding Detail}" ToolTipService.IsEnabled="{Binding Detail, Converter={StaticResource NotEmpty}}"
-                  AutomationProperties.Name="{Binding AutomationName}">
-                <Rectangle Fill="{DynamicResource SR.PhosphorRowTint}" HorizontalAlignment="Stretch" RenderTransformOrigin="0,0.5">
-                    <Rectangle.RenderTransform>
-                        <ScaleTransform ScaleX="{Binding Progress}" />
-                    </Rectangle.RenderTransform>
-                </Rectangle>
-                <Border BorderBrush="{DynamicResource SR.JCardRule}" BorderThickness="0,0,0,1" />
-                <Grid Margin="0,0,10,1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="10" />
-                        <ColumnDefinition Width="60" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="58" />
-                        <ColumnDefinition Width="80" />
-                    </Grid.ColumnDefinitions>
-                    <Rectangle x:Name="Stripe" Fill="#B4A98F" />
-                    <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Code}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                               FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="14" Foreground="#2F2A21" />
-                    <TextBlock Grid.Column="2" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                               FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Medium" FontSize="14" Foreground="#5B5344" />
-                    <TextBlock Grid.Column="3" Style="{StaticResource Pixel}" Text="{Binding SizeText}" HorizontalAlignment="Right"
-                               VerticalAlignment="Center" Foreground="#5B5344" />
-                    <sr:TrackedText x:Name="Status" Grid.Column="4" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                    FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12" Tracking="0.1" Foreground="#7A7160" />
-                    <!-- A file replaced while you watch gets its saving stamped on the card -->
-                    <sr:StampMark x:Name="Stamp" Grid.Column="4" IsPressing="{Binding IsStamping}" Visibility="Collapsed"
-                                  HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <sr:TrackedText Text="{Binding StatusText}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13"
-                                        Tracking="0.1" Foreground="#4D6B1E" />
-                    </sr:StampMark>
+            <!-- One J-card line -->
+            <DataTemplate x:Key="TrackRow" DataType="{x:Type vm:TrackViewModel}">
+                <Grid Height="31" Background="Transparent" ToolTip="{Binding Detail}" ToolTipService.IsEnabled="{Binding Detail, Converter={StaticResource NotEmpty}}"
+                      AutomationProperties.Name="{Binding AutomationName}">
+                    <Rectangle Fill="{DynamicResource SR.PhosphorRowTint}" HorizontalAlignment="Stretch" RenderTransformOrigin="0,0.5">
+                        <Rectangle.RenderTransform>
+                            <ScaleTransform ScaleX="{Binding Progress}" />
+                        </Rectangle.RenderTransform>
+                    </Rectangle>
+                    <Border BorderBrush="{DynamicResource SR.JCardRule}" BorderThickness="0,0,0,1" />
+                    <Grid Margin="0,0,10,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="80" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle x:Name="Stripe" Fill="#B4A98F" />
+                        <TextBlock Grid.Column="1" Margin="8,0,0,0" Text="{Binding Code}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="14" Foreground="#2F2A21" />
+                        <TextBlock Grid.Column="2" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Medium" FontSize="14" Foreground="#5B5344" />
+                        <TextBlock Grid.Column="3" Style="{StaticResource Pixel}" Text="{Binding SizeText}" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" Foreground="#5B5344" />
+                        <sr:TrackedText x:Name="Status" Grid.Column="4" Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12" Tracking="0.1" Foreground="#7A7160" />
+                        <!-- A file replaced while you watch gets its saving stamped on the card -->
+                        <sr:StampMark x:Name="Stamp" Grid.Column="4" IsPressing="{Binding IsStamping}" Visibility="Collapsed"
+                                      HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <sr:TrackedText Text="{Binding StatusText}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13"
+                                            Tracking="0.1" Foreground="#4D6B1E" />
+                        </sr:StampMark>
+                    </Grid>
                 </Grid>
-            </Grid>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding Kind}" Value="Shrunk">
-                    <Setter TargetName="Stripe" Property="Fill" Value="#7FA63A" />
-                    <Setter TargetName="Status" Property="Foreground" Value="#4D6B1E" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Kind}" Value="Encoding">
-                    <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.Phosphor}" />
-                    <Setter TargetName="Status" Property="Foreground" Value="#2F2A21" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Kind}" Value="Kept">
-                    <Setter TargetName="Stripe" Property="Fill" Value="#8F8670" />
-                    <Setter TargetName="Status" Property="Foreground" Value="#5B5344" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Kind}" Value="Skipped">
-                    <Setter TargetName="Stripe" Property="Fill" Value="#6D665A" />
-                    <Setter TargetName="Status" Property="Foreground" Value="#5B5344" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Kind}" Value="Failed">
-                    <Setter TargetName="Stripe" Property="Fill" Value="#2A2824" />
-                    <Setter TargetName="Status" Property="Foreground" Value="#2A2824" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsStamped}" Value="True">
-                    <Setter TargetName="Status" Property="Visibility" Value="Hidden" />
-                    <Setter TargetName="Stamp" Property="Visibility" Value="Visible" />
-                </DataTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding Kind}" Value="Shrunk">
+                        <Setter TargetName="Stripe" Property="Fill" Value="#7FA63A" />
+                        <Setter TargetName="Status" Property="Foreground" Value="#4D6B1E" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Kind}" Value="Encoding">
+                        <Setter TargetName="Stripe" Property="Fill" Value="{DynamicResource SR.Phosphor}" />
+                        <Setter TargetName="Status" Property="Foreground" Value="#2F2A21" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Kind}" Value="Kept">
+                        <Setter TargetName="Stripe" Property="Fill" Value="#8F8670" />
+                        <Setter TargetName="Status" Property="Foreground" Value="#5B5344" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Kind}" Value="Skipped">
+                        <Setter TargetName="Stripe" Property="Fill" Value="#6D665A" />
+                        <Setter TargetName="Status" Property="Foreground" Value="#5B5344" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Kind}" Value="Failed">
+                        <Setter TargetName="Stripe" Property="Fill" Value="#2A2824" />
+                        <Setter TargetName="Status" Property="Foreground" Value="#2A2824" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsStamped}" Value="True">
+                        <Setter TargetName="Status" Property="Visibility" Value="Hidden" />
+                        <Setter TargetName="Stamp" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Window.InputBindings>
@@ -439,6 +403,12 @@
                                          Command="{Binding SkipCommand}" AutomationProperties.Name="Skip this episode" ToolTip="Skip this episode" />
                         </Grid>
 
+                        <!-- Tour: the Encode key -->
+                        <sr:CoachMark x:Name="EncodeMark" Grid.Row="0" Grid.RowSpan="4" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="0,0,0,-8"
+                                      Pointer="Bottom" PointerOffset="66" Step="2 of 3" Text="{Binding TourEncodeText}"
+                                      NextCommand="{Binding SetupNextCommand}" SkipCommand="{Binding SkipTourCommand}"
+                                      Visibility="{Binding IsTourEncode, Converter={StaticResource Visible}}" />
+
                         <!-- Meters -->
                         <Grid Grid.Row="6">
                             <Grid.ColumnDefinitions>
@@ -511,6 +481,17 @@
                             </DockPanel>
                         </ContentControl>
                     </Grid>
+
+                    <!-- Tour: the library list -->
+                    <sr:CoachMark x:Name="LibraryMark" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,44,0,0"
+                                  Pointer="Left" PointerOffset="28" Step="1 of 3" Text="Pick a show."
+                                  NextCommand="{Binding SetupNextCommand}" SkipCommand="{Binding SkipTourCommand}"
+                                  Visibility="{Binding IsTourLibrary, Converter={StaticResource Visible}}" />
+                    <!-- Tour: the savings along the bottom -->
+                    <sr:CoachMark x:Name="SavingsMark" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="20,0,0,-18"
+                                  Pointer="Bottom" PointerOffset="80" Step="3 of 3" Text="Watch the space come back here."
+                                  NextLabel="Done" NextCommand="{Binding SetupNextCommand}"
+                                  Visibility="{Binding IsTourSavings, Converter={StaticResource Visible}}" />
                 </Grid>
 
                 <!-- ============ FOOTER ============ -->
@@ -573,6 +554,9 @@
                         </StackPanel>
                     </Grid>
                 </ContentControl>
+
+                <!-- ============ FIRST-RUN SETUP ============ -->
+                <views:SetupCards x:Name="SetupCards" Grid.Row="1" Grid.RowSpan="4" Margin="-22,0,-22,-18" />
             </Grid>
 
             <!-- ============ SERVICE PANEL ============ -->
@@ -592,6 +576,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -707,9 +692,17 @@
                                            Margin="0,0,10,0" Text="{Binding ScratchFolder}" ToolTip="{Binding ScratchFolder}" />
                             </DockPanel>
 
+                            <sr:TrackedText Grid.Row="9" Style="{StaticResource SR.Silk}" Text="Setup" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                                <Button Style="{StaticResource TextKey}" Content="Run setup again" Command="{Binding RunSetupAgainCommand}"
+                                        AutomationProperties.Name="Run setup again" />
+                                <Button Style="{StaticResource TextKey}" Content="Show the tour" Margin="10,0,0,0" Command="{Binding ShowTourCommand}"
+                                        AutomationProperties.Name="Show the tour" />
+                            </StackPanel>
+
                             <!-- What the header lamp watches, one lamp per tool -->
-                            <sr:TrackedText Grid.Row="9" Style="{StaticResource SR.Silk}" Text="System" VerticalAlignment="Top" Margin="0,14,0,0" />
-                            <ItemsControl Grid.Row="9" Grid.Column="1" Margin="0,12,0,4" Focusable="False" ItemsSource="{Binding SystemLamps}"
+                            <sr:TrackedText Grid.Row="10" Style="{StaticResource SR.Silk}" Text="System" VerticalAlignment="Top" Margin="0,14,0,0" />
+                            <ItemsControl Grid.Row="10" Grid.Column="1" Margin="0,12,0,4" Focusable="False" ItemsSource="{Binding SystemLamps}"
                                           ItemTemplate="{StaticResource LampItem}" AutomationProperties.Name="System status">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

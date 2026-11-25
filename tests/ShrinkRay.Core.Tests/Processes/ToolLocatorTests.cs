@@ -38,6 +38,26 @@ public class ToolLocatorTests
     }
 
     [Fact]
+    public void A_tool_on_the_saved_path_only_is_found_without_a_restart()
+    {
+        var path = ToolLocator.JoinPaths(@"C:\Windows", null, "", @"C:\Tools");
+
+        Assert.Equal(@"C:\Tools\ffprobe.exe", ToolLocator.Resolve("ffprobe.exe", path, [], Files.Contains));
+    }
+
+    [Fact]
+    public void Saved_paths_expand_their_variables()
+    {
+        var windows = Environment.GetEnvironmentVariable("SystemRoot")!;
+
+        Assert.Equal(windows + @"\System32", ToolLocator.JoinPaths(@"%SystemRoot%\System32"));
+    }
+
+    [Fact]
+    public void Winget_links_its_commands_under_local_appdata() =>
+        Assert.Equal(@"C:\Users\u\AppData\Local\Microsoft\WinGet\Links", ToolLocator.WingetLinks(@"C:\Users\u\AppData\Local"));
+
+    [Fact]
     public void Missing_everywhere_gives_null()
     {
         Assert.Null(ToolLocator.Resolve("ffmpeg.exe", @"C:\Tools", [], Files.Contains));

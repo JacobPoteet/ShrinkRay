@@ -62,6 +62,7 @@ dotnet run --project src/ShrinkRay.App -- --data scratch\main-check\data --still
 `--data` keeps settings, the journal, the probe cache and the ledger in that folder instead
 of `%LOCALAPPDATA%\ShrinkRay`. Build a test library under `scratch\fakelib` (gitignored) from
 copied clips, laid out as `Show\Season 01\Show - S01E01.mkv`, and choose it as the library.
+A fresh data folder opens first-run setup.
 
 Install the current checkout for Jacob, with no release or version bump:
 
@@ -87,6 +88,7 @@ an interface, so tests run against fakes. Folders match namespaces:
 | `Verification` | `OutputVerifier` (pass, keep original, or fail with reasons), `IDecodeChecker` |
 | `Swap` | `SwapJournal` state machine, `SwapExecutor`, `SwapRecovery`, `IFileSystem` |
 | `Settings` | `ShrinkRaySettings`, `SettingsStore` (`%LOCALAPPDATA%\ShrinkRay\settings.json`) |
+| `Setup` | `FirstRunFlow` (the first-run steps and their rules), `ScratchCheck`, `ToolInstall` |
 | `Processes` | `IProcessRunner`, `ProcessRunner`, `ProcessGate` (Pause), `ToolLocator`, and the ffprobe, HandBrakeCLI and ffmpeg wrappers |
 | `Pipeline` | `EpisodePipeline`, which runs one episode from probe to swap, and `EncodeQueue`, which runs a show's episodes one at a time |
 | `Library` | `LibraryScanner` and `ProbeCache`, `EpisodeName` parsing, `ShowSummary` and episode status, `SizeEstimate`, `ShrinkLedger` |
@@ -115,8 +117,10 @@ against an in-memory library, a scripted episode runner and a fake gate. `Compos
 the real services. Keep logic in Core or the view model; the window's code-behind handles
 chrome, drag and drop, the half-second tick and the power-on self-test only.
 
-Startup order matters: `StartAsync` runs journal recovery, then scans the library, and Encode
-stays off until recovery ends. Each run takes a snapshot of the settings, so the Quality row and the
+Startup order matters: `StartAsync` runs journal recovery, then opens first-run setup or scans
+the library, and Encode stays off until recovery ends and while setup or its tour is up. Setup
+runs when settings name no library, or when it was quit before the originals choice. The trial
+run after it stops after one episode (`EncodeQueue.StopAfterFirst`). Each run takes a snapshot of the settings, so the Quality row and the
 service panel lock while an encode runs.
 
 ### Theme

@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using System.Windows;
 using ShrinkRay.Core.Library;
 using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Processes;
@@ -25,7 +27,8 @@ public static class Composition
         return new DeckServices
         {
             Disk = new PhysicalLibraryDisk(),
-            Probe = new FfprobeMediaProbe(plainRunner, ToolLocator.ResolveOnThisMachine(settings.FfprobePath) ?? settings.FfprobePath),
+            // Resolved on each probe: setup can find ffprobe after the app has started.
+            Probe = new FfprobeMediaProbe(plainRunner, () => ToolLocator.ResolveOnThisMachine(settings.FfprobePath) ?? settings.FfprobePath),
             Cache = ProbeCache.Load(paths.ProbeCache),
             Journal = journal,
             Ledger = new ShrinkLedger(paths.Ledger),
@@ -39,8 +42,21 @@ public static class Composition
             SaveCache = cache => cache.Save(paths.ProbeCache),
             ApplyTheme = ThemeManager.Apply,
             ResolveTool = ToolLocator.ResolveOnThisMachine,
+            CopyText = CopyToClipboard,
             Dispatch = dispatch,
         };
+    }
+
+    private static void CopyToClipboard(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (COMException)
+        {
+            // Another program holds the clipboard. The command is still on the card to type.
+        }
     }
 
     /// <summary>Settings with each tool name swapped for the path ToolLocator found.</summary>

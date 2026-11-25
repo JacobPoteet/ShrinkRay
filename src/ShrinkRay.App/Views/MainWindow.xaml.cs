@@ -56,6 +56,18 @@ public partial class MainWindow : Window
             }
         };
 
+        // Each tour stop takes the keyboard as it appears.
+        foreach (var mark in new[] { LibraryMark, EncodeMark, SavingsMark })
+        {
+            mark.IsVisibleChanged += (_, _) =>
+            {
+                if (mark.IsVisible)
+                {
+                    Dispatcher.BeginInvoke(mark.FocusNext, DispatcherPriority.Input);
+                }
+            };
+        }
+
         // Open no larger than the work area. The deck scales down to fit a smaller window.
         var area = SystemParameters.WorkArea;
         Width = Math.Max(MinWidth, Math.Min(Width, area.Width));
@@ -90,7 +102,7 @@ public partial class MainWindow : Window
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = DroppedFolder(e) is not null && !ViewModel.IsEncoding ? DragDropEffects.Link : DragDropEffects.None;
+        e.Effects = DroppedFolder(e) is not null && ViewModel.CanDropFolder ? DragDropEffects.Link : DragDropEffects.None;
         e.Handled = true;
     }
 

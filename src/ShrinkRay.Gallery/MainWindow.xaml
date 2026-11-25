@@ -181,7 +181,7 @@
                             <TextBlock Style="{StaticResource Caption}" Text="Record key" HorizontalAlignment="Center" Margin="0,6,0,0" />
                         </StackPanel>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <ToggleButton Style="{StaticResource SR.ToggleSwitch}" Content="Off" VerticalAlignment="Center"
                                       AutomationProperties.Name="Example switch, off" />
                         <ToggleButton Style="{StaticResource SR.ToggleSwitch}" Content="On" IsChecked="True" VerticalAlignment="Center"
@@ -189,8 +189,8 @@
                         <sr:RotaryKnob Width="96" Height="90" Labels="20,22,24,26,28,30" SelectedIndex="2" RecommendedIndex="4"
                                        Caption="Quality CQ" />
                     </StackPanel>
-                    <TextBlock Style="{StaticResource Caption}" Margin="0,22,0,0"
-                               Text="Replace originals is on by default. It lives in settings, not on the panel." />
+                    <sr:CoachMark Margin="0,10,0,0" HorizontalAlignment="Left" Step="1 of 3" Text="Pick a show."
+                                  Pointer="Left" PointerOffset="14" />
                 </StackPanel>
             </ContentControl>
 

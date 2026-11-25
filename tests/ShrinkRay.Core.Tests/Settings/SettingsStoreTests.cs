@@ -98,6 +98,30 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.False(File.Exists(SettingsPath + ".tmp"));
     }
 
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void First_run_state_round_trips(bool? completed, bool pending)
+    {
+        SettingsStore.Save(SettingsPath, new ShrinkRaySettings { FirstRunCompleted = completed, FirstEpisodePending = pending });
+
+        var loaded = SettingsStore.Load(SettingsPath);
+
+        Assert.Equal(completed, loaded.FirstRunCompleted);
+        Assert.Equal(pending, loaded.FirstEpisodePending);
+    }
+
+    [Fact]
+    public void Settings_from_before_setup_have_never_been_asked()
+    {
+        var s = SettingsStore.FromJson("""{ "libraryRoot": "X:\\TV" }""");
+
+        Assert.Null(s.FirstRunCompleted);
+        Assert.False(s.FirstEpisodePending);
+    }
+
     [Fact]
     public void Saved_file_uses_readable_names_and_times()
     {

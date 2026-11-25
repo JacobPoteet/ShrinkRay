@@ -4,6 +4,7 @@ using ShrinkRay.Core.Library;
 using ShrinkRay.Core.Media;
 using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Settings;
+using ShrinkRay.Core.Setup;
 using ShrinkRay.Core.Swap;
 using ShrinkRay.Theme;
 using ShrinkRay.Theme.Controls;
@@ -16,8 +17,9 @@ public sealed partial class MainViewModel
     // ---- Startup ----
 
     /// <summary>
-    /// Runs journal recovery first, then scans the library and reloads the last tape. Encode
-    /// stays off until recovery has finished.
+    /// Runs journal recovery first. Then a first start opens setup, and any other start scans
+    /// the library and reloads the last tape. Encode stays off until recovery has finished, and
+    /// while setup is open.
     /// </summary>
     public async Task StartAsync()
     {
@@ -49,6 +51,13 @@ public sealed partial class MainViewModel
 
         RefreshSystemLamps();
 
+        if (FirstRunFlow.NeedsSetup(_settings))
+        {
+            // Setup scans the library itself, once the self-test has found the tools.
+            BeginSetup();
+            return;
+        }
+
         await ScanLibraryAsync(_prefs.LastShow);
     }
 
@@ -79,6 +88,8 @@ public sealed partial class MainViewModel
         var root = _settings.LibraryRoot;
         if (string.IsNullOrWhiteSpace(root) || !_s.DirectoryExists(root))
         {
+            // A scan this one cancelled no longer clears the flag itself.
+            _isScanning = false;
             RefreshLibraryText();
             return;
         }
@@ -221,6 +232,9 @@ public sealed partial class MainViewModel
         _ = ScanLibraryAsync(show ?? _loaded?.Name);
     }
 
+    /// <summary>A dropped folder is taken while idle, and during setup only on the library card.</summary>
+    public bool CanDropFolder => !IsEncoding && !_isFirstEpisodeCardOpen && (!_flow.IsRunning || IsLibraryCard);
+
     /// <summary>
     /// Handles a folder dropped on the window. A show already listed loads as a tape. Any other
     /// folder becomes the library, as Choose does: a show folder (or a season folder, which
@@ -229,7 +243,7 @@ public sealed partial class MainViewModel
     /// <returns>False when the drop was refused, such as during an encode.</returns>
     public bool DropFolder(string path)
     {
-        if (IsEncoding || !_s.DirectoryExists(path))
+        if (!CanDropFolder || !_s.DirectoryExists(path))
         {
             return false;
         }
@@ -240,7 +254,9 @@ public sealed partial class MainViewModel
             folder = showFolder;
         }
 
-        if (LibraryScanner.IsShowFolder(_s.Disk, folder)
+        // On setup's library card a drop always names the library, even a show already listed.
+        if (!IsLibraryCard
+            && LibraryScanner.IsShowFolder(_s.Disk, folder)
             && _scans.TryGetValue(Path.GetFileName(folder), out var scan)
             && string.Equals(scan.Folder.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase))
         {
@@ -382,7 +398,7 @@ public sealed partial class MainViewModel
             return;
         }
 
-        if (_loaded is null || _isRecovering)
+        if (_loaded is null || _isRecovering || IsDeckHeld)
         {
             RefreshTransport();
             return;
@@ -409,11 +425,18 @@ public sealed partial class MainViewModel
         _runCq = snapshot.CqForShow(_loaded.Name);
         Notice = "";
 
+        var trial = FirstRunFlow.IsFirstEpisodePending(_settings);
         var queue = new EncodeQueue(
             _s.CreateRunner(snapshot),
             _s.Gate,
             () => snapshot.IsInsideEncodeWindow(TimeOnly.FromDateTime(_s.Now())),
-            _s.Delay);
+            _s.Delay)
+        {
+            StopAfterFirst = trial,
+        };
+        _isTrialRun = trial;
+        _isTrialJudged = false;
+        _report = null;
         queue.EpisodeStarted += path => _s.Dispatch(() => OnEpisodeStarted(path));
         queue.Progress += (path, p) => _s.Dispatch(() => OnProgress(path, p));
         queue.EpisodeFinished += f => _s.Dispatch(() => OnEpisodeFinished(f));
@@ -421,6 +444,8 @@ public sealed partial class MainViewModel
         _estimator = new TimeLeftEstimator();
         _estimator.Rebase(_s.Now(), FramesLeft());
         _queue = queue;
+        // The trial run starts with its stop latched; the Stop card can take it back.
+        IsStopArmed = trial;
         RefreshTransport();
 
         CurrentRun = RunQueueAsync(queue, tracks.Select(t => t.Path).ToList());
@@ -569,6 +594,7 @@ public sealed partial class MainViewModel
         }
 
         _estimator?.Rebase(_s.Now(), FramesLeft());
+        JudgeTrial(track, finished);
         RefreshAll();
         if (track is not null && finished.Result?.Outcome == PipelineOutcome.Replaced)
         {
@@ -648,6 +674,7 @@ public sealed partial class MainViewModel
         BitrateMeterRest();
         RefreshAll();
         RefreshClosing();
+        FinishTrial();
 
         if (_isClosing)
         {
@@ -774,6 +801,8 @@ public sealed partial class MainViewModel
         Notice = "";
         RefreshSystemLamps();
         Raise(nameof(ScratchFolder));
+        CheckScratch();
+        RefreshSetupScratch();
     }
 
     private void StepWindow(bool start, int direction)
@@ -855,8 +884,11 @@ public sealed partial class MainViewModel
         EncodeCommand.Refresh();
     }
 
-    private void RefreshLibraryText() =>
+    private void RefreshLibraryText()
+    {
         Raise(nameof(MonitorMessage), nameof(LibraryTooltip));
+        RefreshSetupLibrary();
+    }
 
     private void RefreshDeck()
     {
@@ -904,6 +936,8 @@ public sealed partial class MainViewModel
         ChooseLibraryCommand.Refresh();
         ChooseScratchCommand.Refresh();
         RescanCommand.Refresh();
+        RunSetupAgainCommand.Refresh();
+        ShowTourCommand.Refresh();
         WindowStartEarlierCommand.Refresh();
         WindowStartLaterCommand.Refresh();
         WindowEndEarlierCommand.Refresh();
@@ -926,10 +960,6 @@ public sealed partial class MainViewModel
         {
             RunLamp.Show(IsFinishingSwap ? "Finishing swap" : _isStopArmed ? "Last episode" : "Stopping", LampState.Active, blink: true);
         }
-        else if (_isStopArmed && _queue is not null)
-        {
-            RunLamp.Show("Last episode", LampState.Active, blink: true);
-        }
         else if (state == QueueState.Paused)
         {
             RunLamp.Show("Paused", LampState.Active);
@@ -937,6 +967,14 @@ public sealed partial class MainViewModel
         else if (state == QueueState.WaitingForWindow)
         {
             RunLamp.Show("Waiting for window", LampState.Active, blink: true);
+        }
+        else if (_isStopArmed && _queue is not null)
+        {
+            RunLamp.Show("Last episode", LampState.Active, blink: true);
+        }
+        else if (_flow.IsCard)
+        {
+            RunLamp.Show("Setup", LampState.Active);
         }
         else if (_queue is not null)
         {

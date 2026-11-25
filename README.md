@@ -18,13 +18,14 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1
 
 ## How it works
 
+- The first start walks you through setup on the deck: it checks for the tools, asks for your library and a scratch folder, asks whether to replace originals or keep them for a trial, gives a three-stop tour, and stops after one episode so you can check it.
 - Choose a library folder, local or on a mapped network share, or drop a show folder on the window. Monitor A lists the shows that still have H.264 episodes.
 - Pick a show, set its quality in Setup if the recommended CQ is not what you want, and press Encode. ShrinkRay probes every file first, skips anything already in HEVC, and estimates the space you'll get back.
 - HandBrakeCLI encodes each episode with NVENC in a local scratch folder. ShrinkRay checks duration, streams and a full decode, and replaces the original only when every check passes and the file shrinks by at least 15 percent.
 
 To see every control in the theme, run the gallery: `dotnet run --project src/ShrinkRay.Gallery`.
 
-Requires Windows 10 or 11, an NVIDIA GPU with HEVC NVENC, HandBrakeCLI, and ffmpeg.
+Requires Windows 10 or 11, an NVIDIA GPU with HEVC NVENC, HandBrakeCLI, and ffmpeg. Setup shows the `winget install` command for a missing tool.
 
 ## License
 

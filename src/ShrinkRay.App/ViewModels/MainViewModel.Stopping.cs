@@ -20,7 +20,11 @@ public sealed partial class MainViewModel
     /// <summary>The card's second key, and today's Stop path: the journal records Cancelled and scratch is cleared.</summary>
     public RelayCommand StopNowCommand { get; private set; } = null!;
 
-    /// <summary>Escape: closes whichever card is open and changes nothing.</summary>
+    /// <summary>
+    /// Escape: closes whichever card is open. On the Stop and close cards that changes nothing; on
+    /// the first-episode card it is Done for now, on the tour it is Skip, and on a setup opened
+    /// again it is Cancel.
+    /// </summary>
     public RelayCommand DismissCardCommand { get; private set; } = null!;
 
     /// <summary>The tray's item: arms the stop after this episode, or takes it back when armed.</summary>
@@ -95,7 +99,8 @@ public sealed partial class MainViewModel
     {
         StopPrimaryCommand = new RelayCommand(StopPrimary, () => _isStopCardOpen);
         StopNowCommand = new RelayCommand(StopNow, () => _isStopCardOpen);
-        DismissCardCommand = new RelayCommand(Dismiss, () => _isStopCardOpen || _isCloseConfirmOpen);
+        DismissCardCommand = new RelayCommand(Dismiss,
+            () => _isStopCardOpen || _isCloseConfirmOpen || _isFirstEpisodeCardOpen || _flow.IsTour || CanCancelSetup);
         ToggleStopAfterCommand = new RelayCommand(ToggleStopAfter, () => IsEncoding && !_isClosing);
     }
 
@@ -189,9 +194,21 @@ public sealed partial class MainViewModel
         {
             IsStopCardOpen = false;
         }
-        else
+        else if (_isCloseConfirmOpen)
         {
             IsCloseConfirmOpen = false;
+        }
+        else if (_isFirstEpisodeCardOpen)
+        {
+            CloseFirstEpisodeCard();
+        }
+        else if (_flow.IsTour)
+        {
+            Move(_flow.Skip());
+        }
+        else if (CanCancelSetup)
+        {
+            CancelSetup();
         }
     }
 

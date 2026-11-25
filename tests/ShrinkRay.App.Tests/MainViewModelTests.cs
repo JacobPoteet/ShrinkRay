@@ -109,6 +109,7 @@ public class MainViewModelTests
     {
         var rig = Library();
         rig.Settings.LibraryRoot = "";
+        rig.Settings.FirstRunCompleted = true; // Past setup, with the library setting cleared.
         var vm = rig.Create();
 
         await vm.StartAsync();
@@ -1201,6 +1202,7 @@ public class MainViewModelTests
     {
         var rig = Library();
         rig.Settings.LibraryRoot = "";
+        rig.Settings.FirstRunCompleted = true; // Past setup, with the library setting cleared.
         var vm = rig.Create();
         await vm.StartAsync();
 
@@ -1261,6 +1263,7 @@ public class MainViewModelTests
         rig.Disk.AddFile(loose, DeckRig.Gigabyte);
         rig.Probe.Results[loose] = rig.Probe.Results[DeckRig.Episode("Scrubs", 1, 1)] with { FileName = loose };
         rig.Settings.LibraryRoot = "";
+        rig.Settings.FirstRunCompleted = true; // Past setup, with the library setting cleared.
         var vm = rig.Create();
         await vm.StartAsync();
 
