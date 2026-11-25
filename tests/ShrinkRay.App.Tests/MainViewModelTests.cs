@@ -335,8 +335,8 @@ public class MainViewModelTests
     {
         var rig = Library();
         var vm = await rig.StartedWith("Scrubs");
-        var changed = new List<string?>();
-        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        var changed = new System.Collections.Concurrent.ConcurrentQueue<string?>();
+        vm.PropertyChanged += (_, e) => changed.Enqueue(e.PropertyName);
 
         // Community is already in the ledger at 1 GB saved.
         Assert.Equal(DeckRig.Gigabyte, vm.LifetimeSavedBytes);
