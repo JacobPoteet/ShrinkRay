@@ -44,6 +44,10 @@ public sealed partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _scanCts;
     private ShowRowViewModel? _selectedShow;
     private ShowScan? _loaded;
+
+    // While another show is browsed during a run, the track list reads these instead of _tracks.
+    private ShowScan? _browsed;
+    private List<TrackViewModel>? _browseTracks;
     private int _selectedSeason;
     private int _cqIndex;
 
@@ -88,6 +92,7 @@ public sealed partial class MainViewModel : ObservableObject
         PauseCommand = new RelayCommand(TogglePause);
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
+        BackToRunCommand = new RelayCommand(BackToRun);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true);
@@ -119,6 +124,9 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand StopCommand { get; }
 
     public RelayCommand SkipCommand { get; }
+
+    /// <summary>Leaves the browsed show and shows the one that is encoding.</summary>
+    public RelayCommand BackToRunCommand { get; }
 
     public RelayCommand ChooseLibraryCommand { get; }
 
@@ -169,16 +177,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// The show under the cursor. Picking another one while the deck is idle loads it. During an
-    /// encode the deck keeps its show, and the cursor goes back to it.
+    /// encode the deck keeps its show on the tape, and the other show opens in the track list for
+    /// viewing only.
     /// </summary>
     public ShowRowViewModel? SelectedShow
     {
         get => _selectedShow;
         set
         {
-            if (IsEncoding && value is not null && !value.IsLoaded)
+            if (IsEncoding && value is not null)
             {
-                _s.Dispatch(() => Raise());
+                if (Set(ref _selectedShow, value))
+                {
+                    if (value.IsLoaded)
+                    {
+                        EndBrowse();
+                    }
+                    else
+                    {
+                        Browse(value);
+                    }
+                }
+
                 return;
             }
 
@@ -188,6 +208,15 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>The track list shows another show than the one on the tape. Viewing only: nothing of the run touches it.</summary>
+    public bool IsBrowsing => _browsed is not null;
+
+    /// <summary>The track list's heading: the browsed show's name, else Tracks.</summary>
+    public string TracksHeading => _browsed?.Name ?? "Tracks";
+
+    /// <summary>The back key's text while browsing, naming the show that is encoding.</summary>
+    public string BackText => IsBrowsing ? $"Back to {_loaded?.Name}" : "";
 
     /// <summary>The library's tooltip: its folder, and how many shows are hidden because there is nothing to do.</summary>
     public string LibraryTooltip

@@ -198,8 +198,11 @@ public class MainViewModelTests
 
         vm.SelectedShow = vm.Shows.Single(s => s.FolderName == "Bluey");
 
+        // The tape stays on Scrubs. The cursor stays on Bluey, which the track list shows for viewing.
         Assert.Equal("Scrubs", vm.LoadedName);
-        Assert.Equal("Scrubs", vm.SelectedShow?.FolderName);
+        Assert.Equal("Bluey", vm.SelectedShow?.FolderName);
+        Assert.True(vm.IsBrowsing);
+        Assert.Equal("Scrubs", rig.SavedPreferences?.LastShow ?? "Scrubs");
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
     }

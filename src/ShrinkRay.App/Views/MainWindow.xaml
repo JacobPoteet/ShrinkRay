@@ -396,8 +396,13 @@
                     <Grid Grid.Column="4">
                         <ContentControl Style="{StaticResource SR.Bezel}">
                             <DockPanel>
-                                <sr:TrackedText DockPanel.Dock="Top" Style="{StaticResource SR.Silk}" Text="Tracks" Margin="4,0,4,8" Height="20"
-                                                VerticalAlignment="Center" />
+                                <Grid DockPanel.Dock="Top" Margin="4,0,4,8" Height="20" ClipToBounds="True">
+                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="{Binding TracksHeading}" VerticalAlignment="Center" />
+                                </Grid>
+                                <!-- Browsing another show during a run: the tape and the run stay with the show that is encoding -->
+                                <Button DockPanel.Dock="Top" Style="{StaticResource TextKey}" Content="{Binding BackText}" HorizontalAlignment="Left"
+                                        Margin="0,0,0,8" Command="{Binding BackToRunCommand}" AutomationProperties.Name="{Binding BackText}"
+                                        Visibility="{Binding IsBrowsing, Converter={StaticResource Visible}}" />
                                 <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Seasons}" Margin="0,0,0,6" Focusable="False">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
