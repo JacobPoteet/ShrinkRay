@@ -75,4 +75,20 @@ public static class MarqueeMath
             ? (distance, 1 - (t / FadeSeconds))
             : (0, (t - FadeSeconds) / FadeSeconds);
     }
+
+    /// <summary>Width of the soft edge on each side of the viewport, in px.</summary>
+    public const double EdgeFadeWidth = 12;
+
+    /// <summary>
+    /// Where the soft edge ends, as a fraction of the viewport: the gradient stop offset.
+    /// Never past the middle, so a narrow viewport still has an opaque centre line.
+    /// </summary>
+    public static double EdgeStop(double viewport) =>
+        viewport > 0 ? Math.Min(0.5, EdgeFadeWidth / viewport) : 0.5;
+
+    /// <summary>
+    /// True once the text has scrolled away from its start, so the left edge fades too.
+    /// At rest the first letters stay crisp.
+    /// </summary>
+    public static bool FadesLeft(double offset) => offset > 0.5;
 }

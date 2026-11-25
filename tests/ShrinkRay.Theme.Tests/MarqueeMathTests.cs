@@ -88,4 +88,20 @@ public class MarqueeMathTests
             last = offset;
         }
     }
+
+    [Theory]
+    [InlineData(240, 0.05)]
+    [InlineData(24, 0.5)]
+    [InlineData(10, 0.5)]
+    [InlineData(0, 0.5)]
+    public void The_soft_edge_is_twelve_pixels_and_never_past_the_middle(double viewport, double stop) =>
+        Assert.Equal(stop, MarqueeMath.EdgeStop(viewport), 3);
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0.4, false)]
+    [InlineData(1, true)]
+    [InlineData(80, true)]
+    public void The_left_edge_fades_only_once_the_text_has_scrolled(double offset, bool fades) =>
+        Assert.Equal(fades, MarqueeMath.FadesLeft(offset));
 }
