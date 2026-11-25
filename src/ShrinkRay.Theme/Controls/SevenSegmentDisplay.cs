@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using ShrinkRay.Theme.Mechanics;
 
 namespace ShrinkRay.Theme.Controls;
@@ -8,7 +9,7 @@ namespace ShrinkRay.Theme.Controls;
 /// <summary>
 /// A seven-segment readout, drawn rather than set in a font. Shows digits, space, '-', 'S',
 /// 'E', ':' and '.'. Unlit segments stay faintly visible, like real glass, and the digits lean
-/// 6 degrees.
+/// 6 degrees. Lit segments are drawn on their own layer, so the glow comes from them alone.
 /// </summary>
 public class SevenSegmentDisplay : FrameworkElement
 {
@@ -40,12 +41,20 @@ public class SevenSegmentDisplay : FrameworkElement
     public static readonly DependencyProperty GlowProperty = DependencyProperty.Register(
         nameof(Glow), typeof(bool), typeof(SevenSegmentDisplay), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty GlowEffectProperty = DependencyProperty.Register(
+        nameof(GlowEffect), typeof(Effect), typeof(SevenSegmentDisplay),
+        new PropertyMetadata(null, (d, e) => ((SevenSegmentDisplay)d)._lit.Glow = (Effect?)e.NewValue));
+
+    private readonly LitLayer _lit = new();
+
     static SevenSegmentDisplay()
     {
         DefaultStyleKeyProperty.OverrideMetadata(typeof(SevenSegmentDisplay),
             new FrameworkPropertyMetadata(typeof(SevenSegmentDisplay)));
         SnapsToDevicePixelsProperty.OverrideMetadata(typeof(SevenSegmentDisplay), new FrameworkPropertyMetadata(true));
     }
+
+    public SevenSegmentDisplay() => AddVisualChild(_lit);
 
     public string Text
     {
@@ -91,6 +100,15 @@ public class SevenSegmentDisplay : FrameworkElement
         set => SetValue(GlowProperty, value);
     }
 
+    /// <summary>The effect on the lit layer. The theme sets it when <see cref="Glow"/> is on.</summary>
+    public Effect? GlowEffect
+    {
+        get => (Effect?)GetValue(GlowEffectProperty);
+        set => SetValue(GlowEffectProperty, value);
+    }
+
+    protected override int VisualChildrenCount => 1;
+
     private double DigitWidth => DigitHeight * SevenSegmentMath.DigitBoxWidth / SevenSegmentMath.DigitBoxHeight;
 
     private double MarkSize => System.Math.Max(2, System.Math.Round(DigitHeight * 0.125));
@@ -113,8 +131,13 @@ public class SevenSegmentDisplay : FrameworkElement
         return new Size(System.Math.Ceiling(width + LeanWidth), System.Math.Ceiling(DigitHeight));
     }
 
+    protected override Visual GetVisualChild(int index) =>
+        index == 0 ? _lit : throw new System.ArgumentOutOfRangeException(nameof(index));
+
     protected override void OnRender(DrawingContext dc)
     {
+        // Unlit segments go on the element itself and lit ones on the layer above, which carries the glow.
+        using var lit = _lit.RenderOpen();
         var cells = SevenSegmentMath.Layout(Text);
         if (cells.Count == 0)
         {
@@ -125,8 +148,11 @@ public class SevenSegmentDisplay : FrameworkElement
         var scale = h / SevenSegmentMath.DigitBoxHeight;
         var lean = LeanWidth;
         // Skewing about the middle pushes one corner lean/2 past the left edge either way.
-        dc.PushTransform(new TranslateTransform(lean / 2, 0));
-        dc.PushTransform(new SkewTransform(Skew, 0, 0, h / 2));
+        foreach (var layer in new[] { dc, lit })
+        {
+            layer.PushTransform(new TranslateTransform(lean / 2, 0));
+            layer.PushTransform(new SkewTransform(Skew, 0, 0, h / 2));
+        }
 
         var x = 0.0;
         var mark = MarkSize;
@@ -135,16 +161,16 @@ public class SevenSegmentDisplay : FrameworkElement
             switch (cell.Kind)
             {
                 case CellKind.Digit:
-                    DrawDigit(dc, cell.Lit, x, scale);
+                    DrawDigit(dc, lit, cell.Lit, x, scale);
                     x += DigitWidth;
                     break;
                 case CellKind.Dot:
-                    dc.DrawRectangle(LitBrush, null, new Rect(x, h * 0.96 - mark, mark, mark));
+                    lit.DrawRectangle(LitBrush, null, new Rect(x, h * 0.96 - mark, mark, mark));
                     x += mark;
                     break;
                 case CellKind.Colon:
-                    dc.DrawRectangle(LitBrush, null, new Rect(x, h * 0.30 - mark / 2, mark, mark));
-                    dc.DrawRectangle(LitBrush, null, new Rect(x, h * 0.70 - mark / 2, mark, mark));
+                    lit.DrawRectangle(LitBrush, null, new Rect(x, h * 0.30 - mark / 2, mark, mark));
+                    lit.DrawRectangle(LitBrush, null, new Rect(x, h * 0.70 - mark / 2, mark, mark));
                     x += mark;
                     break;
             }
@@ -152,8 +178,11 @@ public class SevenSegmentDisplay : FrameworkElement
             x += Spacing;
         }
 
-        dc.Pop();
-        dc.Pop();
+        foreach (var layer in new[] { dc, lit })
+        {
+            layer.Pop();
+            layer.Pop();
+        }
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => new SevenSegmentAutomationPeer(this);
@@ -167,7 +196,7 @@ public class SevenSegmentDisplay : FrameworkElement
         }
     }
 
-    private void DrawDigit(DrawingContext dc, Segments lit, double left, double scale)
+    private void DrawDigit(DrawingContext unlitLayer, DrawingContext litLayer, Segments lit, double left, double scale)
     {
         foreach (var segment in SevenSegmentMath.EachSegment)
         {
@@ -183,7 +212,23 @@ public class SevenSegmentDisplay : FrameworkElement
             }
 
             geometry.Freeze();
-            dc.DrawGeometry((lit & segment) != 0 ? LitBrush : UnlitBrush, null, geometry);
+            if ((lit & segment) != 0)
+            {
+                litLayer.DrawGeometry(LitBrush, null, geometry);
+            }
+            else
+            {
+                unlitLayer.DrawGeometry(UnlitBrush, null, geometry);
+            }
+        }
+    }
+
+    /// <summary>The lit segments. <see cref="Visual"/> keeps its effect setter protected, hence the subclass.</summary>
+    private sealed class LitLayer : DrawingVisual
+    {
+        public Effect? Glow
+        {
+            set => VisualEffect = value;
         }
     }
 

@@ -126,7 +126,7 @@
         <Setter Property="UnlitBrush" Value="{DynamicResource SR.PhosphorDim}" />
         <Style.Triggers>
             <Trigger Property="Glow" Value="True">
-                <Setter Property="Effect" Value="{DynamicResource SR.PhosphorStrongGlow}" />
+                <Setter Property="GlowEffect" Value="{DynamicResource SR.PhosphorStrongGlow}" />
             </Trigger>
         </Style.Triggers>
     </Style>
