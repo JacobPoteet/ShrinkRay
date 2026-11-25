@@ -11,10 +11,12 @@ namespace ShrinkRay.App;
 /// <summary>
 /// ShrinkRay. Options: <c>--data &lt;folder&gt;</c> keeps settings, journal and caches somewhere
 /// other than <c>%LOCALAPPDATA%\ShrinkRay</c> (for a test library), and <c>--still</c> holds
-/// reels, blink and flicker.
+/// reels, blink and flicker. One copy runs per data folder; starting another brings the first
+/// one forward.
 /// </summary>
 public partial class App : Application
 {
+    private SingleInstance? _instance;
     private TrayModel? _trayModel;
     private TrayIcon? _tray;
 
@@ -23,6 +25,7 @@ public partial class App : Application
     {
         _tray?.Dispose();
         _trayModel?.Dispose();
+        _instance?.Dispose();
         base.OnExit(e);
     }
 
@@ -44,6 +47,14 @@ public partial class App : Application
             }
         }
 
+        // Before anything reads the data folder: recovery would act on a running copy's encode.
+        _instance = SingleInstance.TryClaim(dataFolder);
+        if (_instance is null)
+        {
+            Shutdown();
+            return;
+        }
+
         var paths = new AppPaths(dataFolder);
         var settings = SettingsStore.Load(paths.Settings);
         var preferences = DeckPreferences.Load(paths.Preferences);
@@ -56,6 +67,7 @@ public partial class App : Application
         _trayModel = new TrayModel(viewModel);
         _tray = new TrayIcon(window, _trayModel);
         window.Show();
+        _instance.OnShowRequested(() => Dispatcher.BeginInvoke(_tray.Open));
 
         // Recovery runs inside StartAsync before the first scan, and Encode stays off until it ends.
         await viewModel.StartAsync();
