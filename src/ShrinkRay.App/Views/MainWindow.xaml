@@ -522,7 +522,7 @@
                     </Grid>
 
                     <!-- Tour: the library list -->
-                    <sr:CoachMark x:Name="LibraryMark" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,44,0,0"
+                    <sr:CoachMark x:Name="LibraryMark" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,72,0,0"
                                   Pointer="Left" PointerOffset="28" Step="1 of 3" Text="Pick a show."
                                   NextCommand="{Binding SetupNextCommand}" SkipCommand="{Binding SkipTourCommand}"
                                   Visibility="{Binding IsTourLibrary, Converter={StaticResource Visible}}" />
