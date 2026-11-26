@@ -6,6 +6,7 @@ using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Settings;
 using ShrinkRay.Core.Setup;
 using ShrinkRay.Core.Swap;
+using ShrinkRay.Core.Verification;
 using ShrinkRay.Theme;
 using ShrinkRay.Theme.Controls;
 using ShrinkRay.Theme.Mechanics;
@@ -466,8 +467,8 @@ public sealed partial class MainViewModel
         queue.Progress += (path, p) => _s.Dispatch(() => OnProgress(path, p));
         queue.EpisodeFinished += f => _s.Dispatch(() => OnEpisodeFinished(f));
         queue.StateChanged += _ => _s.Dispatch(RefreshTransport);
-        _estimator = new TimeLeftEstimator();
-        _estimator.Rebase(_s.Now(), FramesLeft());
+        _estimator = new TimeLeftEstimator(_rates.EncodeFps);
+        _estimator.Rebase(_s.Now(), FramesLeft(), OtherLeft());
         _queue = queue;
         // The trial run starts with its stop latched; the Stop card can take it back.
         IsStopArmed = trial;
@@ -520,9 +521,7 @@ public sealed partial class MainViewModel
     private void OnEpisodeStarted(string path)
     {
         _current = Find(path);
-        _progress = 0;
-        _transfer = null;
-        _fps = null;
+        ResetEpisodeProgress();
         _phase = EpisodePhase.Probing;
         BitrateMbps = 0;
         if (_current is null)
@@ -530,8 +529,10 @@ public sealed partial class MainViewModel
             return;
         }
 
-        _current.SetEncoding(0, Ratio, PhaseStatus(_phase));
-        _estimator?.Rebase(_s.Now(), FramesLeft());
+        _timing = TimingFor(_current);
+        _meter = new PhaseMeter(_current.Record.FrameCount ?? 0, _s.Now());
+        _current.SetEncoding(0, 0, Ratio);
+        _estimator?.Rebase(_s.Now(), FramesLeft(), OtherLeft());
         if (!IsBrowsing && _current.Record.Season != _selectedSeason)
         {
             ShowSeason(_current.Record.Season);
@@ -551,11 +552,18 @@ public sealed partial class MainViewModel
 
         if (progress.Phase != _phase)
         {
-            // The copy and the upload count up from zero; other phases show the encode.
-            _transfer = progress.Phase is EpisodePhase.Copying or EpisodePhase.Uploading ? 0 : null;
+            _step = 0;
+            if (_meter is { } meter)
+            {
+                _rates = meter.Enter(progress.Phase, _s.Now(), _rates);
+            }
         }
 
         _phase = progress.Phase;
+        if (progress.TotalBytes is { } total)
+        {
+            _meter?.Moving(total);
+        }
         if (progress.Encode is { } encode)
         {
             _progress = Math.Clamp(encode.Percent / 100, 0, 1);
@@ -574,14 +582,22 @@ public sealed partial class MainViewModel
             _fps = null;
         }
 
-        if (progress.Fraction is { } moved)
+        if (progress.Encode is not null)
         {
-            // The copy to scratch and the upload count bytes moved on the percent readout only.
-            _transfer = Math.Clamp(moved, 0, 1);
+            _step = _progress;
+        }
+        else if (progress.Fraction is { } done)
+        {
+            _step = Math.Clamp(done, 0, 1);
         }
 
-        _current.SetEncoding(_transfer ?? _progress, Ratio, _phase == EpisodePhase.Encoding ? null : PhaseStatus(_phase));
-        _estimator?.Sample(_s.Now(), FramesLeft(), _fps);
+        if (_timing is { } timing)
+        {
+            _overall = Math.Max(_overall, timing.Fraction(_phase, _step));
+        }
+
+        _current.SetEncoding(_overall, _progress, Ratio);
+        _estimator?.Sample(_s.Now(), FramesLeft(), _fps, OtherLeft());
         RefreshReadouts();
         RefreshTransport();
 
@@ -610,15 +626,14 @@ public sealed partial class MainViewModel
             }
         }
 
+        LearnFrom(finished);
         if (_current == track)
         {
             _current = null;
-            _progress = 0;
-            _transfer = null;
-            _fps = null;
+            ResetEpisodeProgress();
         }
 
-        _estimator?.Rebase(_s.Now(), FramesLeft());
+        _estimator?.Rebase(_s.Now(), FramesLeft(), OtherLeft());
         JudgeTrial(track, finished);
         RefreshAll();
         if (track is not null && finished.Result?.Outcome == PipelineOutcome.Replaced)
@@ -627,6 +642,33 @@ public sealed partial class MainViewModel
         }
 
         RefreshClosing();
+    }
+
+    private void ResetEpisodeProgress()
+    {
+        _progress = 0;
+        _overall = 0;
+        _step = 0;
+        _fps = null;
+        _timing = null;
+    }
+
+    /// <summary>Closes the last step of an episode that passed its checks, and saves what its steps taught.</summary>
+    private void LearnFrom(EpisodeFinished finished)
+    {
+        if (_meter is not { } meter)
+        {
+            return;
+        }
+
+        _meter = null;
+        if (finished.Result?.Verification is { } verification && verification.Outcome != VerificationOutcome.Fail
+            && finished.Result.Outcome is PipelineOutcome.Replaced or PipelineOutcome.KeptOriginal)
+        {
+            _rates = meter.Enter(EpisodePhase.Swapping, _s.Now(), _rates);
+        }
+
+        Try(() => _s.SaveRates(_rates), "The step speeds could not be saved");
     }
 
     // ---- Payoff ----
@@ -696,9 +738,8 @@ public sealed partial class MainViewModel
         }
 
         _current = null;
-        _progress = 0;
-        _transfer = null;
-        _fps = null;
+        _meter = null;
+        ResetEpisodeProgress();
         BitrateMeterRest();
         RefreshAll();
         RefreshClosing();
@@ -954,7 +995,12 @@ public sealed partial class MainViewModel
 
     private void RefreshTransport()
     {
-        _estimator?.SetFrozen(_queue?.State is QueueState.Paused or QueueState.WaitingForWindow, _s.Now());
+        var held = _queue?.State is QueueState.Paused or QueueState.WaitingForWindow;
+        _estimator?.SetFrozen(held, _s.Now());
+        if (held)
+        {
+            _meter?.Interrupt();
+        }
         Raise(nameof(IsEncoding), nameof(IsPaused), nameof(EncodeLamp), nameof(EncodeLampBlink), nameof(IsSpinning),
             nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits), nameof(HeadLamp));
         RefreshRunLamp();

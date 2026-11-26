@@ -49,7 +49,8 @@ public sealed class TimeLeftEstimator
     /// Takes a progress sample: the frames still to encode and, when known, the encode's speed.
     /// The anchor moves only when the fresh estimate is further off than the threshold.
     /// </summary>
-    public void Sample(DateTime now, long framesLeft, double? fps)
+    /// <param name="other">The time still to come outside the encode: copying, checking and uploading.</param>
+    public void Sample(DateTime now, long framesLeft, double? fps, TimeSpan other = default)
     {
         var clock = ClockAt(now);
         if (fps is > 1)
@@ -74,7 +75,7 @@ public sealed class TimeLeftEstimator
         // The anchor sticks once the countdown and a fresh estimate agree, so a bad first estimate
         // would stick too. One correction when the speed has settled keeps it honest.
         var settled = fps is > 1 && _samples == WarmupSamples;
-        Consider(clock, framesLeft, movesDownFreely: false, force: settled);
+        Consider(clock, framesLeft, other, movesDownFreely: false, force: settled);
     }
 
     /// <summary>
@@ -82,7 +83,8 @@ public sealed class TimeLeftEstimator
     /// is taken at once, since skipped and finished episodes leave the work. A higher one is taken
     /// only past the threshold.
     /// </summary>
-    public void Rebase(DateTime now, long framesLeft) => Consider(ClockAt(now), framesLeft, movesDownFreely: true);
+    public void Rebase(DateTime now, long framesLeft, TimeSpan other = default) =>
+        Consider(ClockAt(now), framesLeft, other, movesDownFreely: true);
 
     /// <summary>Freezes the countdown, or lets it run again from the same value.</summary>
     public void SetFrozen(bool frozen, DateTime now)
@@ -138,9 +140,10 @@ public sealed class TimeLeftEstimator
         return TimeSpan.FromTicks(now.Ticks) - frozen;
     }
 
-    private void Consider(TimeSpan clock, long framesLeft, bool movesDownFreely, bool force = false)
+    private void Consider(TimeSpan clock, long framesLeft, TimeSpan other, bool movesDownFreely, bool force = false)
     {
-        var fresh = framesLeft <= 0 ? TimeSpan.Zero : TimeSpan.FromSeconds(framesLeft / Speed);
+        var fresh = (framesLeft <= 0 ? TimeSpan.Zero : TimeSpan.FromSeconds(framesLeft / Speed))
+            + (other > TimeSpan.Zero ? other : TimeSpan.Zero);
         if (!_hasAnchor)
         {
             Anchor(clock, fresh);

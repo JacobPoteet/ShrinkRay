@@ -160,14 +160,41 @@ public sealed class FfmpegDecodeChecker : IDecodeChecker
         _ffmpegPath = ffmpegPath;
     }
 
-    public static IReadOnlyList<string> Arguments(string path) =>
-        ["-hide_banner", "-nostdin", "-v", "error", "-i", path, "-f", "null", "-"];
+    /// <param name="withProgress">Also writes ffmpeg's progress reports to stdout.</param>
+    public static IReadOnlyList<string> Arguments(string path, bool withProgress = false) =>
+    [
+        "-hide_banner", "-nostdin", "-v", "error",
+        .. withProgress ? ["-progress", "pipe:1", "-nostats"] : Array.Empty<string>(),
+        "-i", path, "-f", "null", "-",
+    ];
 
-    public async Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken)
+    public async Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken, IProgress<TimeSpan>? decoded = null)
     {
         var errorLines = 0;
-        var spec = new ProcessSpec(_ffmpegPath, Arguments(path), OnStandardErrorLine: _ => errorLines++);
+        var spec = new ProcessSpec(_ffmpegPath, Arguments(path, decoded is not null),
+            OnStandardOutputLine: decoded is null ? null : line =>
+            {
+                if (ParseDecodedTime(line) is { } time)
+                {
+                    decoded.Report(time);
+                }
+            },
+            OnStandardErrorLine: _ => errorLines++);
         var result = await _runner.RunAsync(spec, cancellationToken);
         return result.ExitCode == 0 && errorLines == 0;
+    }
+
+    /// <summary>
+    /// Reads <c>out_time_us=1234567</c> from ffmpeg's <c>-progress</c> output. Null for every
+    /// other line, and before the first frame, when ffmpeg writes <c>N/A</c>.
+    /// </summary>
+    public static TimeSpan? ParseDecodedTime(string line)
+    {
+        const string key = "out_time_us=";
+        return line.StartsWith(key, StringComparison.Ordinal)
+            && long.TryParse(line.AsSpan(key.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var microseconds)
+            && microseconds >= 0
+                ? TimeSpan.FromTicks(microseconds * (TimeSpan.TicksPerMillisecond / 1000))
+                : null;
     }
 }

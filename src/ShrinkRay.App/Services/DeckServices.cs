@@ -43,6 +43,11 @@ public sealed class DeckServices
 
     public Action<ProbeCache> SaveCache { get; init; } = _ => { };
 
+    /// <summary>How fast each step has gone on this machine, as last saved.</summary>
+    public PhaseRates Rates { get; init; } = new();
+
+    public Action<PhaseRates> SaveRates { get; init; } = _ => { };
+
     /// <summary>Applies a palette. The app passes <see cref="ThemeManager.Apply"/>.</summary>
     public Action<Phosphor, Chassis> ApplyTheme { get; init; } = (_, _) => { };
 

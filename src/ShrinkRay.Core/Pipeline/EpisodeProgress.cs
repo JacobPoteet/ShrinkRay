@@ -40,14 +40,16 @@ public static class EpisodePhases
 
 /// <param name="Encode">HandBrake's progress. Set only during <see cref="EpisodePhase.Encoding"/>, once HandBrake reports.</param>
 /// <param name="Fraction">
-/// How much of the file has moved, 0 to 1. Set only during <see cref="EpisodePhase.Copying"/> and
-/// <see cref="EpisodePhase.Uploading"/>, once bytes move.
+/// How far through the step, 0 to 1: the file moved during <see cref="EpisodePhase.Copying"/> and
+/// <see cref="EpisodePhase.Uploading"/>, and the file decoded during
+/// <see cref="EpisodePhase.Verifying"/>. Null in other phases, and until the step reports.
 /// </param>
-public sealed record EpisodeProgress(EpisodePhase Phase, EncodeProgress? Encode = null, double? Fraction = null)
+/// <param name="TotalBytes">The size of the file a copy or upload is moving.</param>
+public sealed record EpisodeProgress(EpisodePhase Phase, EncodeProgress? Encode = null, double? Fraction = null, long? TotalBytes = null)
 {
     /// <summary>A copy or upload report: <paramref name="bytes"/> of <paramref name="total"/> have moved.</summary>
     public static EpisodeProgress Transfer(EpisodePhase phase, long bytes, long total) =>
-        new(phase, Fraction: total > 0 ? Math.Clamp((double)bytes / total, 0, 1) : 1);
+        new(phase, Fraction: total > 0 ? Math.Clamp((double)bytes / total, 0, 1) : 1, TotalBytes: total);
 }
 
 /// <summary>Reports on the caller's thread, unlike <see cref="Progress{T}"/>, which posts and can reorder.</summary>

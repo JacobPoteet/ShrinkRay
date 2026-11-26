@@ -6,5 +6,6 @@ namespace ShrinkRay.Core.Verification;
 /// </summary>
 public interface IDecodeChecker
 {
-    Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken);
+    /// <param name="decoded">Told now and then how much of the file's running time has decoded.</param>
+    Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken, IProgress<TimeSpan>? decoded = null);
 }

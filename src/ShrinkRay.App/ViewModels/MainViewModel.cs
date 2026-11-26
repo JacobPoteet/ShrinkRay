@@ -60,10 +60,18 @@ public sealed partial class MainViewModel : ObservableObject
     private TimeLeftEstimator? _estimator;
     private int _runCq;
     private TrackViewModel? _current;
+    /// <summary>How far through the encode the current episode is, 0 to 1. The reels follow it.</summary>
     private double _progress;
 
-    /// <summary>Bytes moved during the copy or the upload, 0 to 1. Null in every other phase.</summary>
-    private double? _transfer;
+    /// <summary>How far through the whole current episode, 0 to 1. It only moves forward.</summary>
+    private double _overall;
+
+    /// <summary>How far through the current step, 0 to 1.</summary>
+    private double _step;
+
+    private EpisodeEstimate? _timing;
+    private PhaseMeter? _meter;
+    private PhaseRates _rates = new();
     private double? _fps;
     private EpisodePhase _phase;
 
@@ -94,6 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
         _settings = settings;
         _prefs = preferences;
         _defaultScratch = defaultScratch;
+        _rates = services.Rates;
         _scanner = new LibraryScanner(services.Disk, services.Probe, services.Cache);
 
         EncodeCommand = new RelayCommand(Encode, () => (_loaded is not null && !_isRecovering && !IsDeckHeld) || IsEncoding);
@@ -314,7 +323,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var s = row.Summary;
         var cq = _settings.CqForShow(row.FolderName);
-        var eta = SizeEstimate.EncodeTime(s.QueueableFrames);
+        var eta = TimeSpan.FromSeconds(EpisodeEstimate.For(s.QueueableFrames, s.QueueableBytes,
+            _settings.ReplaceOriginals ? (long)(s.QueueableBytes * SizeEstimate.RatioFor(cq)) : 0, _rates).TotalSeconds);
         var seasons = s.SeasonCount == 1 ? "1 season" : $"{s.SeasonCount} seasons";
         return $"{seasons}, {s.EpisodeCount} episodes\n"
             + $"{s.CodecLabel}, {s.QueueableCount} to do, {Format.Duration(eta).ToLowerInvariant()}\n"
@@ -390,7 +400,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string DeckAutomationName => _current is null
         ? (_loaded is null ? "Deck empty" : $"{_loaded.Name} loaded, idle")
-        : $"{Phase} {_loaded?.Name} {_current.Code}, {Math.Floor((_transfer ?? _progress) * 100)} percent";
+        : $"{Phase} {_loaded?.Name} {_current.Code}, {Math.Floor(_overall * 100)} percent";
 
     // ---- Readouts ----
 
@@ -407,17 +417,22 @@ public sealed partial class MainViewModel : ObservableObject
         ? Math.Min(999, Math.Round(f)).ToString("0", CultureInfo.InvariantCulture).PadLeft(3)
         : "  0";
 
-    public string PercentDigits => Math.Min(99.9, (_transfer ?? _progress) * 100).ToString("0.0", CultureInfo.InvariantCulture).PadLeft(4);
+    /// <summary>The whole episode: copy, encode, check and upload as one count.</summary>
+    public string PercentDigits => Math.Min(99.9, _overall * 100).ToString("0.0", CultureInfo.InvariantCulture).PadLeft(4);
 
-    /// <summary>The episode counter's tooltip: which episode, and the speed and tape time the counter left off.</summary>
+    /// <summary>The episode counter's tooltip: which episode and step, and the speed and tape time the counter left off.</summary>
     public string EpisodeDetail => _current is null
         ? "Percent of the current episode"
-        : $"{EpisodeDigits}, {FpsDigits.Trim()} frames per second, {TapeTimeDigits.Trim()} {TapeTotalText}";
+        : $"{EpisodeDigits}, {StepText}, {FpsDigits.Trim()} frames per second, {TapeTimeDigits.Trim()} {TapeTotalText}";
+
+    private string StepText => _phase is EpisodePhase.Copying or EpisodePhase.Encoding or EpisodePhase.Verifying or EpisodePhase.Uploading
+        ? $"{Phase.ToLowerInvariant()} {Math.Floor(_step * 100)}%"
+        : Phase.ToLowerInvariant();
 
     public string EpisodeCounterName => $"Episode {PercentDigits.Trim()} percent";
 
     /// <summary>The LED bar under the episode counter: the same 0 to 1 the percent reads.</summary>
-    public double EpisodeFraction => _transfer ?? _progress;
+    public double EpisodeFraction => _overall;
 
     /// <summary>The lamp on the tape path's encoder head, lit while NVENC is working.</summary>
     public LampState HeadLamp => IsSpinning && _phase == EpisodePhase.Encoding ? LampState.Active : LampState.Off;
@@ -430,7 +445,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string ShowLeftDetail => _loaded is null
         ? "Time left for the whole show"
-        : $"About {Format.Duration(TimeLeft).ToLowerInvariant()} left for {_tracks.Count(t => t.IsQueueable || t.Kind == TrackKind.Encoding)} episodes, at {Math.Round(SpeedFps)} frames per second";
+        : $"About {Format.Duration(TimeLeft).ToLowerInvariant()} left for {_tracks.Count(t => t.IsQueueable || t.Kind == TrackKind.Encoding)} episodes, copying and checking included, encoding at {Math.Round(SpeedFps)} frames per second";
 
     public string ShowLeftName => _loaded is null ? "Show time left, none" : $"Show time left, {Format.Duration(TimeLeft).ToLowerInvariant()}";
 
@@ -764,19 +779,28 @@ public sealed partial class MainViewModel : ObservableObject
         _ => "Swapping",
     };
 
-    /// <summary>The J-card status for a phase other than the encode, which shows its percent.</summary>
-    public static string PhaseStatus(EpisodePhase phase) => phase switch
-    {
-        EpisodePhase.Probing => "READ",
-        EpisodePhase.Copying => "COPY",
-        EpisodePhase.RestoringFonts => "FONTS",
-        EpisodePhase.Verifying => "CHECK",
-        EpisodePhase.Uploading => "UPLOAD",
-        _ => "SWAP",
-    };
+    /// <summary>The frame rate the time left is figured at: the run's smoothed speed, else the learned one.</summary>
+    private double SpeedFps => _estimator?.Speed ?? _rates.EncodeFps;
 
-    /// <summary>The frame rate the time left is figured at: the run's smoothed speed, else the measured one.</summary>
-    private double SpeedFps => _estimator?.Speed ?? SizeEstimate.MeasuredFps;
+    /// <summary>What an episode's steps are expected to take.</summary>
+    private EpisodeEstimate TimingFor(TrackViewModel t)
+    {
+        var replacing = (_runSettings is { } run && IsEncoding ? run : _settings).ReplaceOriginals;
+        return EpisodeEstimate.For(t.Record.FrameCount ?? 0, t.Record.SizeBytes,
+            replacing ? (long)(t.Record.SizeBytes * Ratio) : 0, _rates);
+    }
+
+    /// <summary>The copying, checking and uploading still to come for every episode to do.</summary>
+    private TimeSpan OtherLeft()
+    {
+        var seconds = _tracks.Where(t => t.IsQueueable).Sum(t => TimingFor(t).OtherSeconds);
+        if (_current is not null && _timing is { } timing)
+        {
+            seconds += timing.OtherSecondsLeft(_phase, _step);
+        }
+
+        return TimeSpan.FromSeconds(seconds);
+    }
 
     /// <summary>Frames still to encode for every episode to do, less what the current one has done.</summary>
     private long FramesLeft()
@@ -794,7 +818,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private int ShowLeftMinutes => Math.Min(99 * 60 + 59, _estimator is { } e
         ? e.DisplayMinutes(_s.Now())
-        : TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(FramesLeft())));
+        : TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(FramesLeft(), _rates.EncodeFps) + OtherLeft()));
 
     private long After(TrackViewModel t) => t.Kind switch
     {

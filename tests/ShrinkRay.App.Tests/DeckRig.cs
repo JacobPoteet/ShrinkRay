@@ -31,6 +31,7 @@ internal sealed class DeckRig
     public ShrinkRaySettings Settings { get; } = new() { LibraryRoot = Root, ScratchFolder = @"C:\Scratch" };
     public List<ShrinkRaySettings> RunSettings { get; } = [];
     public int SettingsSaves { get; private set; }
+    public List<PhaseRates> SavedRates { get; } = [];
     public DeckPreferences? SavedPreferences { get; private set; }
     public IReadOnlyList<RecoveryAction> RecoveryActions { get; set; } = [];
     public string? PickedFolder { get; set; }
@@ -121,6 +122,7 @@ internal sealed class DeckRig
                 return Task.FromResult(RecoveryActions);
             },
             SaveSettings = _ => SettingsSaves++,
+            SaveRates = SavedRates.Add,
             SavePreferences = p => SavedPreferences = p,
             ApplyTheme = (p, c) => Themes.Add((p, c)),
             ResolveTool = name => MissingTools.Contains(name) ? null : name,
@@ -248,6 +250,17 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
 
     private IProgress<EpisodeProgress>? _progress;
 
+    /// <summary>A held episode waits as soon as it starts, before it reports a copy or an encode.</summary>
+    public bool HoldAtStart { get; set; }
+
+    /// <summary>What an episode of <see cref="DeckRig.Add"/>'s defaults is expected to take, at CQ 28 and the default rates.</summary>
+    public static EpisodeEstimate Timing { get; } = EpisodeEstimate.For(
+        33_000, DeckRig.Gigabyte, (long)(DeckRig.Gigabyte * SizeEstimate.RatioFor(28)), new PhaseRates());
+
+    /// <summary>The percent readout for a fraction of the whole episode.</summary>
+    public static string Percent(double fraction) =>
+        Math.Min(99.9, fraction * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture).PadLeft(4);
+
     public ConcurrentQueue<string> Ran { get; } = new();
 
     /// <summary>The token each episode ran with, to tell a cancelled episode from one left to finish.</summary>
@@ -269,8 +282,12 @@ internal sealed class ScriptedRunner(DeckRig rig) : IEpisodeRunner
         Tokens[sourcePath] = cancellationToken;
         _progress = progress;
         progress?.Report(new EpisodeProgress(EpisodePhase.Probing));
-        progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
-        progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, 50, 170, 165, null)));
+        if (!HoldAtStart)
+        {
+            progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
+            progress?.Report(new EpisodeProgress(EpisodePhase.Encoding, new EncodeProgress(1, 1, 50, 170, 165, null)));
+        }
+
         if (Hold.TryGetValue(sourcePath, out var hold))
         {
             _held.Release();
