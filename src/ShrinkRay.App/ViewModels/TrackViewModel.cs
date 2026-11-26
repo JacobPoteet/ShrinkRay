@@ -210,7 +210,8 @@ public sealed class TrackViewModel : ObservableObject
         Progress = 0;
         StatusText = "KEPT";
         SizeText = Format.Gigabytes(OriginalBytes);
-        Detail = savings is { } s && !reason.Contains(Format.Percent(s), StringComparison.Ordinal)
+        // The verifier's reason for keeping one that saved too little opens with the figure itself.
+        Detail = savings is { } s && !reason.StartsWith("Saves ", StringComparison.Ordinal)
             ? $"Saves {Format.Percent(s)}. {reason}"
             : reason;
         Raise(nameof(AutomationName));
