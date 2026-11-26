@@ -128,6 +128,21 @@ public sealed class JsonLinesJournalStoreTests : IDisposable
     }
 
     [Fact]
+    public void A_files_stamp_round_trips_and_an_entry_without_one_still_reads()
+    {
+        var store = new JsonLinesJournalStore(JournalPath);
+        var stamp = new ShrinkRay.Core.Library.FileStamp(1234, new DateTime(2026, 11, 20, 4, 5, 6, 789, DateTimeKind.Utc).AddTicks(3));
+        store.Append(new JournalEntry(DateTimeOffset.UtcNow, @"X:\TV\Show\a.mkv", SwapState.KeptOriginal, "kept", stamp));
+        File.AppendAllText(JournalPath, "{\"timestamp\":\"2026-11-24T00:00:00+00:00\",\"path\":\"X:\\\\TV\\\\old.mkv\",\"state\":\"KeptOriginal\"}\n");
+
+        var entries = new JsonLinesJournalStore(JournalPath).ReadAll();
+
+        Assert.Equal(stamp, entries[0].Source);
+        Assert.Equal(DateTimeKind.Utc, entries[0].Source!.Value.LastWriteUtc.Kind);
+        Assert.Null(entries[1].Source);
+    }
+
+    [Fact]
     public void Torn_and_corrupt_lines_are_skipped()
     {
         var store = new JsonLinesJournalStore(JournalPath);

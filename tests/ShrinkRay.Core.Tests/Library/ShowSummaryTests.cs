@@ -1,4 +1,5 @@
 using ShrinkRay.Core.Library;
+using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Swap;
 
 namespace ShrinkRay.Core.Tests.Library;
@@ -7,16 +8,72 @@ public class ShowSummaryTests
 {
     private static EpisodeRecord Episode(int season, int episode, string codec = "h264", long size = 1000, double? fps = 25) =>
         new($@"X:\TV\Show\Season {season:00}\Show - S{season:00}E{episode:00}.mkv", season, episode, $"S{season:00}E{episode:00}", "",
-            size, 100, fps, codec, codec == "h264", codec == "h264" ? "" : "Already " + codec);
+            size, 100, fps, codec, codec == "h264", codec == "h264" ? "" : "Already " + codec, Written);
+
+    private static readonly DateTime Written = new(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTimeOffset Decided = new(2026, 11, 10, 0, 0, 0, TimeSpan.Zero);
+
+    private static JournalEntry Kept(string reason = "Saves 9.0%, below the 15.0% minimum", FileStamp? source = null) =>
+        new(Decided, "path", SwapState.KeptOriginal, reason, source);
+
+    private static EpisodeStatus Classify(EpisodeRecord episode, SwapState? state = null, bool inLedger = false) =>
+        EpisodeStatusRules.Classify(episode, state is { } s ? new JournalEntry(Decided, episode.Path, s) : null, inLedger, true);
+
+    [Fact]
+    public void A_kept_original_stays_kept_while_the_same_file_holds_the_name()
+    {
+        var kept = Kept(source: new FileStamp(1000, Written));
+
+        Assert.Equal(EpisodeStatus.Kept, EpisodeStatusRules.Classify(Episode(1, 1), kept, false, true));
+    }
+
+    [Theory]
+    [InlineData(2000, 0)] // Another size.
+    [InlineData(1000, 60)] // The same size, written again.
+    public void A_new_file_under_a_kept_name_queues_again(long size, int minutes)
+    {
+        var kept = Kept(source: new FileStamp(1000, Written));
+        var now = Episode(1, 1, size: size) with { ModifiedUtc = Written.AddMinutes(minutes) };
+
+        Assert.Equal(EpisodeStatus.Queued, EpisodeStatusRules.Classify(now, kept, false, true));
+    }
+
+    [Fact]
+    public void An_original_kept_because_replacing_was_off_queues_once_replacing_is_on()
+    {
+        var kept = Kept(EpisodePipeline.ReplaceOffReason + @" The verified encode is at C:\Scratch\x.mkv.", new FileStamp(1000, Written));
+
+        Assert.Equal(EpisodeStatus.Kept, EpisodeStatusRules.Classify(Episode(1, 1), kept, false, replacingOriginals: false));
+        Assert.Equal(EpisodeStatus.Queued, EpisodeStatusRules.Classify(Episode(1, 1), kept, false, replacingOriginals: true));
+    }
+
+    [Fact]
+    public void An_original_kept_for_saving_too_little_stays_kept_whether_replacing_is_on_or_off()
+    {
+        var kept = Kept(source: new FileStamp(1000, Written));
+
+        Assert.Equal(EpisodeStatus.Kept, EpisodeStatusRules.Classify(Episode(1, 1), kept, false, false));
+        Assert.Equal(EpisodeStatus.Kept, EpisodeStatusRules.Classify(Episode(1, 1), kept, false, true));
+    }
+
+    [Theory]
+    [InlineData(-1, EpisodeStatus.Kept)]
+    [InlineData(1, EpisodeStatus.Queued)]
+    public void A_journal_without_a_stamp_compares_the_files_write_time(int daysAfterTheDecision, EpisodeStatus expected)
+    {
+        var now = Episode(1, 1) with { ModifiedUtc = Decided.UtcDateTime.AddDays(daysAfterTheDecision) };
+
+        Assert.Equal(expected, EpisodeStatusRules.Classify(now, Kept(), false, true));
+    }
 
     [Fact]
     public void Ineligible_files_ShrinkRay_wrote_count_as_shrunk()
     {
         var hevc = Episode(1, 1, "hevc");
 
-        Assert.Equal(EpisodeStatus.Shrunk, EpisodeStatusRules.Classify(hevc, SwapState.OriginalDeleted, inLedger: false));
-        Assert.Equal(EpisodeStatus.Shrunk, EpisodeStatusRules.Classify(hevc, null, inLedger: true));
-        Assert.Equal(EpisodeStatus.Skipped, EpisodeStatusRules.Classify(hevc, null, inLedger: false));
+        Assert.Equal(EpisodeStatus.Shrunk, Classify(hevc, SwapState.OriginalDeleted));
+        Assert.Equal(EpisodeStatus.Shrunk, Classify(hevc, inLedger: true));
+        Assert.Equal(EpisodeStatus.Skipped, Classify(hevc));
     }
 
     [Theory]
@@ -27,7 +84,7 @@ public class ShowSummaryTests
     [InlineData(SwapState.OriginalDeleted, EpisodeStatus.Queued)]
     public void Eligible_files_follow_the_journal(SwapState? state, EpisodeStatus expected)
     {
-        Assert.Equal(expected, EpisodeStatusRules.Classify(Episode(1, 1), state, inLedger: false));
+        Assert.Equal(expected, Classify(Episode(1, 1), state));
     }
 
     [Fact]
@@ -35,7 +92,7 @@ public class ShowSummaryTests
     {
         var scan = new ShowScan("Show", @"X:\TV\Show", [Episode(1, 1), Episode(1, 2, "hevc", 400), Episode(2, 1, size: 3000)]);
 
-        var summary = ShowSummary.From(scan, e => EpisodeStatusRules.Classify(e, null, false));
+        var summary = ShowSummary.From(scan, e => Classify(e));
 
         Assert.Equal(2, summary.SeasonCount);
         Assert.Equal(3, summary.EpisodeCount);
@@ -53,8 +110,8 @@ public class ShowSummaryTests
     {
         var scan = new ShowScan("Show", @"X:\TV\Show", [Episode(1, 1, "hevc"), Episode(1, 2, "hevc")]);
 
-        var hevc = ShowSummary.From(scan, e => EpisodeStatusRules.Classify(e, null, false));
-        var shrunk = ShowSummary.From(scan, e => EpisodeStatusRules.Classify(e, null, e.Episode == 1));
+        var hevc = ShowSummary.From(scan, e => Classify(e));
+        var shrunk = ShowSummary.From(scan, e => Classify(e, inLedger: e.Episode == 1));
 
         Assert.Equal(HiddenReason.Hevc, hevc.Hidden);
         Assert.Equal("HEVC", hevc.CodecLabel);
@@ -66,7 +123,7 @@ public class ShowSummaryTests
     {
         var scan = new ShowScan("Show", @"X:\TV\Show", [Episode(1, 1)]);
 
-        var summary = ShowSummary.From(scan, e => EpisodeStatusRules.Classify(e, SwapState.KeptOriginal, false));
+        var summary = ShowSummary.From(scan, e => Classify(e, SwapState.KeptOriginal));
 
         Assert.False(summary.IsCandidate);
         Assert.Equal(HiddenReason.Other, summary.Hidden);

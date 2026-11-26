@@ -39,7 +39,7 @@ public class EpisodePhaseTests
         });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            h.Executor.SwapAsync(SwapHarness.Original, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, steps, cts.Token));
+            h.Executor.SwapAsync(SwapHarness.Original, h.Source, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, cts.Token, steps));
 
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(SwapHarness.Original));
         Assert.False(h.TempExists);
@@ -61,7 +61,7 @@ public class EpisodePhaseTests
             }
         });
 
-        var result = await h.Executor.SwapAsync(SwapHarness.Original, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, steps, cts.Token);
+        var result = await h.Executor.SwapAsync(SwapHarness.Original, h.Source, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, cts.Token, steps);
 
         Assert.Equal(SwapOutcome.Swapped, result.Outcome);
         Assert.Equal(SwapHarness.NewContent, h.Fs.Read(SwapHarness.Original));

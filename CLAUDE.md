@@ -99,6 +99,12 @@ The swap journal is the part that protects the library. Keep these properties wh
   step started; recovery reads the disk to learn whether it finished.
 - The swap order is fixed: copy to `name.shrinkray.tmp`, rename the original to
   `name.shrinkray.bak`, rename the temp to the original name, delete the backup.
+- The swap deletes only the file that was encoded. The pipeline takes the original's size and
+  write time before it reads it, and the swap compares them before the upload, before the
+  rename and again on the renamed backup. A mismatch ends the file `Cancelled`.
+- Recovery deletes a file under the original name only when the temp file is gone, which shows
+  ShrinkRay renamed it there. With backup, temp and original all present it reports
+  `NeedsReview`.
 - Recovery runs on startup, before any encode. Each branch orders its steps so a crash
   during recovery leaves a state the next run handles. When the disk matches no known
   state, recovery reports `NeedsReview` and changes nothing.
@@ -158,7 +164,8 @@ which may be mid-swap, and never touches `%LOCALAPPDATA%\ShrinkRay`.
 The app deletes originals on a live Plex library, so these hold everywhere:
 
 - Delete or overwrite an original only after its new file passes every check: duration,
-  stream counts, a full decode, and the minimum-savings threshold.
+  stream counts, a full decode, and the minimum-savings threshold. And only while it is still
+  the file that was encoded.
 - Keep the filename and the container. An `.mp4` stays `.mp4`, an `.mkv` stays `.mkv`.
 - Encode and verify in a local scratch folder. The share only ever receives a finished,
   verified file, written under a temporary name and renamed over the original.

@@ -1,3 +1,4 @@
+using ShrinkRay.Core.Library;
 using ShrinkRay.Core.Settings;
 using ShrinkRay.Core.Verification;
 
@@ -7,6 +8,12 @@ public enum SwapOutcome
 {
     Swapped,
     Failed,
+
+    /// <summary>
+    /// The file on the share is no longer the one that was encoded, so nothing was replaced and
+    /// the file is marked Cancelled.
+    /// </summary>
+    SourceChanged,
 }
 
 /// <param name="Message">Why it failed, or a warning about a swap that otherwise succeeded.</param>
@@ -16,9 +23,13 @@ public sealed record SwapResult(SwapOutcome Outcome, string? Message);
 /// Replaces an original on the share with its verified encode:
 /// copy to <c>name.shrinkray.tmp</c>, rename the original to <c>name.shrinkray.bak</c>,
 /// rename the temp file to the original name, delete the backup. Each step is journaled first.
+/// The original must still carry the size and write time it had when it was copied for encoding.
 /// </summary>
 public sealed class SwapExecutor
 {
+    public const string SourceChangedReason =
+        "The file changed on the share during the run. Nothing was replaced; the next run encodes the file as it is now.";
+
     private readonly IFileSystem _fs;
     private readonly SwapJournal _journal;
     private readonly SwapRecovery _recovery;
@@ -30,26 +41,8 @@ public sealed class SwapExecutor
         _recovery = recovery;
     }
 
-    /// <inheritdoc cref="SwapAsync(string, string, VerificationResult, ShrinkRaySettings, IProgress{SwapState}?, IProgress{long}?, CancellationToken)"/>
-    public Task<SwapResult> SwapAsync(
-        string originalPath,
-        string verifiedFilePath,
-        VerificationResult verification,
-        ShrinkRaySettings settings,
-        CancellationToken cancellationToken) =>
-        SwapAsync(originalPath, verifiedFilePath, verification, settings, null, null, cancellationToken);
-
-    /// <inheritdoc cref="SwapAsync(string, string, VerificationResult, ShrinkRaySettings, IProgress{SwapState}?, IProgress{long}?, CancellationToken)"/>
-    public Task<SwapResult> SwapAsync(
-        string originalPath,
-        string verifiedFilePath,
-        VerificationResult verification,
-        ShrinkRaySettings settings,
-        IProgress<SwapState>? steps,
-        CancellationToken cancellationToken) =>
-        SwapAsync(originalPath, verifiedFilePath, verification, settings, steps, null, cancellationToken);
-
     /// <param name="originalPath">The original file on the share. Its journal state must be Verified.</param>
+    /// <param name="source">The original's size and write time as it was copied for encoding.</param>
     /// <param name="verifiedFilePath">The verified encode in the scratch folder.</param>
     /// <param name="steps">Told each share step once the journal holds it, just before the step runs.</param>
     /// <param name="uploaded">Told the bytes of the temp file written so far during the upload.</param>
@@ -58,12 +51,13 @@ public sealed class SwapExecutor
     /// <exception cref="OperationCanceledException">Cancelled during the upload. The temp file is removed first.</exception>
     public async Task<SwapResult> SwapAsync(
         string originalPath,
+        FileStamp source,
         string verifiedFilePath,
         VerificationResult verification,
         ShrinkRaySettings settings,
-        IProgress<SwapState>? steps,
-        IProgress<long>? uploaded,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<SwapState>? steps = null,
+        IProgress<long>? uploaded = null)
     {
         if (!verification.Passed)
         {
@@ -96,6 +90,13 @@ public sealed class SwapExecutor
 
         try
         {
+            // Checked before the upload, so a changed file does not cost one.
+            if (_fs.GetStamp(originalPath) != source)
+            {
+                _journal.Record(originalPath, SwapState.Cancelled, SourceChangedReason);
+                return new SwapResult(SwapOutcome.SourceChanged, SourceChangedReason);
+            }
+
             _journal.Record(originalPath, SwapState.UploadedTemp);
             steps?.Report(SwapState.UploadedTemp);
             if (_fs.FileExists(temp))
@@ -112,9 +113,35 @@ public sealed class SwapExecutor
                 throw new IOException($"The uploaded temp file is {actual} bytes, expected {expected}.");
             }
 
+            // The upload takes a while, so the file is checked again before it is renamed.
+            if (!_fs.FileExists(originalPath) || _fs.GetStamp(originalPath) != source)
+            {
+                // Journaled first: a crash here leaves a stray temp file, which startup deletes.
+                _journal.Record(originalPath, SwapState.Cancelled, SourceChangedReason);
+                TryDelete(temp);
+                return new SwapResult(SwapOutcome.SourceChanged, SourceChangedReason);
+            }
+
             _journal.Record(originalPath, SwapState.OriginalRenamedAside);
             steps?.Report(SwapState.OriginalRenamedAside);
             _fs.MoveFile(originalPath, backup);
+
+            // The backup is the file this swap goes on to delete. Under its new name nothing else
+            // writes to it, so this last look cannot be overtaken.
+            if (_fs.GetStamp(backup) != source)
+            {
+                var action = await _recovery.ResolveAsync(originalPath, CancellationToken.None);
+                if (action.Kind != RecoveryKind.RolledBack)
+                {
+                    return new SwapResult(SwapOutcome.Failed, $"{SourceChangedReason} {action.Description}");
+                }
+
+                // The rollback settles as Failed, since a share step may not end Cancelled. The
+                // file has its name back and nothing went wrong, so it goes round to Cancelled.
+                _journal.Record(originalPath, SwapState.Queued);
+                _journal.Record(originalPath, SwapState.Cancelled, SourceChangedReason);
+                return new SwapResult(SwapOutcome.SourceChanged, SourceChangedReason);
+            }
 
             _journal.Record(originalPath, SwapState.Swapped);
             steps?.Report(SwapState.Swapped);
@@ -149,6 +176,18 @@ public sealed class SwapExecutor
         }
 
         return new SwapResult(SwapOutcome.Swapped, null);
+    }
+
+    private void TryDelete(string path)
+    {
+        try
+        {
+            _fs.DeleteFile(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Startup recovery deletes a temp file no swap is using.
+        }
     }
 
     private SwapResult Fail(string path, string message)

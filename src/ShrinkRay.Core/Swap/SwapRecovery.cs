@@ -174,9 +174,17 @@ public sealed class SwapRecovery
             return RolledBack(path, settled, $"Interrupted at {current}. The original was renamed back.");
         }
 
+        if (hasBackup && hasTemp)
+        {
+            // The temp file was never renamed into place, so whatever holds the original name came
+            // from somewhere else. It is not ShrinkRay's to delete.
+            return NeedsReview(path,
+                $"A file appeared under the original name at {current}, beside the backup and the temp file. Nothing was changed.");
+        }
+
         if (hasBackup)
         {
-            // Both names exist, so the temp file was already renamed into place.
+            // Both names exist and the temp file is gone, so it was renamed into place.
             if (current is not (SwapState.Swapped or SwapState.OriginalDeleted))
             {
                 return NeedsReview(path, $"Both the file and its backup exist at {current}, before the rename. Nothing was changed.");
@@ -185,13 +193,11 @@ public sealed class SwapRecovery
             if (await _finalCheck.VerifiesAsync(path, backup, cancellationToken))
             {
                 _journal.Record(path, SwapState.OriginalDeleted, "Recovery verified the new file and deleted the backup.");
-                DeleteIfPresent(temp, hasTemp);
                 _fs.DeleteFile(backup);
                 return new RecoveryAction(path, RecoveryKind.Completed, "The new file verified. The backup was deleted.");
             }
 
             // The file under the original name is the new encode, so removing it loses nothing.
-            DeleteIfPresent(temp, hasTemp);
             _fs.DeleteFile(path);
             _fs.MoveFile(backup, path);
             return RolledBack(path, SwapState.Failed, "The new file failed verification. The original was renamed back.");

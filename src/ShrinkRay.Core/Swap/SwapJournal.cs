@@ -1,11 +1,16 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ShrinkRay.Core.Library;
 
 namespace ShrinkRay.Core.Swap;
 
 /// <param name="Path">The original file's full path on the share.</param>
-public sealed record JournalEntry(DateTimeOffset Timestamp, string Path, SwapState State, string? Reason = null);
+/// <param name="Source">
+/// The file as the run read it, on an entry that keeps the original, so a new file under the
+/// same name is told apart. Null on other entries and on journals from version 0.1.0.
+/// </param>
+public sealed record JournalEntry(DateTimeOffset Timestamp, string Path, SwapState State, string? Reason = null, FileStamp? Source = null);
 
 /// <summary>Durable storage for journal entries, oldest first.</summary>
 public interface IJournalStore
@@ -247,7 +252,7 @@ public sealed class SwapJournal
     }
 
     /// <exception cref="InvalidOperationException">The state machine does not allow this transition.</exception>
-    public void Record(string path, SwapState state, string? reason = null)
+    public void Record(string path, SwapState state, string? reason = null, FileStamp? source = null)
     {
         lock (_gate)
         {
@@ -257,7 +262,7 @@ public sealed class SwapJournal
                 throw new InvalidOperationException($"Cannot move {path} from {from?.ToString() ?? "no state"} to {state}.");
             }
 
-            var entry = new JournalEntry(DateTimeOffset.UtcNow, path, state, reason);
+            var entry = new JournalEntry(DateTimeOffset.UtcNow, path, state, reason, source);
             _store.Append(entry);
             _latest[path] = entry;
         }

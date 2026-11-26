@@ -488,6 +488,57 @@ public class EpisodePipelineTests
     }
 
     [Fact]
+    public async Task A_file_replaced_during_the_run_is_not_swapped()
+    {
+        var rig = new Rig(Source(), Output());
+        var upgrade = new string('N', 90);
+        rig.Decoder.OnDecode = () => rig.Fs.Write(Episode, upgrade);
+
+        var result = await rig.RunAsync();
+
+        Assert.Equal(PipelineOutcome.SourceChanged, result.Outcome);
+        Assert.Equal(upgrade, rig.Fs.Read(Episode));
+        Assert.Equal(SwapState.Cancelled, rig.Journal.CurrentState(Episode));
+        Assert.DoesNotContain(rig.Fs.Files, f => f.StartsWith(Scratch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task A_file_replaced_during_the_copy_is_not_encoded()
+    {
+        var rig = new Rig(Source(), Output());
+        var written = false;
+
+        var result = await rig.Pipeline.RunAsync(Episode, new Inline(report =>
+        {
+            if (report.Fraction == 1 && report.Phase == EpisodePhase.Copying && !written)
+            {
+                written = true;
+                rig.Fs.Write(Episode, new string('N', 90));
+            }
+        }), CancellationToken.None);
+
+        Assert.Equal(PipelineOutcome.SourceChanged, result.Outcome);
+        Assert.Empty(rig.Encoder.Plans);
+        Assert.Equal(SwapState.Cancelled, rig.Journal.CurrentState(Episode));
+    }
+
+    [Fact]
+    public async Task A_kept_original_is_journaled_with_the_file_it_judged()
+    {
+        var rig = new Rig(Source(), Output(), encodedBytes: 38);
+        var stamp = rig.Fs.GetStamp(Episode);
+
+        await rig.RunAsync();
+
+        Assert.Equal(stamp, rig.Journal.Latest(Episode)!.Source);
+    }
+
+    private sealed class Inline(Action<EpisodeProgress> report) : IProgress<EpisodeProgress>
+    {
+        public void Report(EpisodeProgress value) => report(value);
+    }
+
+    [Fact]
     public async Task Missing_scratch_folder_is_refused()
     {
         var rig = new Rig(Source(), Output());

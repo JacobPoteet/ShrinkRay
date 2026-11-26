@@ -664,6 +664,7 @@ public sealed partial class MainViewModel : ObservableObject
             _settings.ReplaceOriginals = value;
             Save();
             Raise();
+            Reclassify();
         }
     }
 

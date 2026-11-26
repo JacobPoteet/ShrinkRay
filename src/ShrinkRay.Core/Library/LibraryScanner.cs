@@ -146,7 +146,8 @@ public sealed class LibraryScanner
             probe.FrameRate,
             probe.VideoCodec,
             probe.IsEligible,
-            probe.SkipMessage);
+            probe.SkipMessage,
+            stamp.LastWriteUtc);
     }
 
     private async Task<CachedProbe> ProbeAsync(string path, FileStamp stamp, CancellationToken cancellationToken)

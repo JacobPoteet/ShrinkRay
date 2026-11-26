@@ -203,8 +203,32 @@ public sealed partial class MainViewModel
         RefreshLibraryText();
     }
 
-    private EpisodeStatus Classify(EpisodeRecord episode) =>
-        EpisodeStatusRules.Classify(episode, _s.Journal.CurrentState(episode.Path), _s.Ledger.Get(episode.Path) is not null);
+    private EpisodeStatus Classify(EpisodeRecord episode) => EpisodeStatusRules.Classify(
+        episode, _s.Journal.Latest(episode.Path), _s.Ledger.Get(episode.Path) is not null, _settings.ReplaceOriginals);
+
+    /// <summary>
+    /// Reads every scanned episode's status again, after a change that moves it, such as
+    /// replacing originals turning on. Runs while idle.
+    /// </summary>
+    private void Reclassify()
+    {
+        foreach (var scan in _scans.Values.ToList())
+        {
+            AddScan(scan);
+        }
+
+        if (_loaded is null)
+        {
+            return;
+        }
+
+        _loaded = _scans.GetValueOrDefault(_loaded.Name) ?? _loaded;
+        var season = _selectedSeason;
+        _tracks.Clear();
+        _tracks.AddRange(_loaded.Episodes.Select(MakeTrack));
+        ListTracksFrom(_tracks, season);
+        RefreshAll();
+    }
 
     private void ChooseLibrary()
     {
@@ -648,6 +672,9 @@ public sealed partial class MainViewModel
                 break;
             case PipelineOutcome.Skipped:
                 track.SetSkipped(result.Message);
+                break;
+            case PipelineOutcome.SourceChanged:
+                track.SetChanged(result.Message);
                 break;
             default:
                 track.SetFailed(result.Message, _s.Now());

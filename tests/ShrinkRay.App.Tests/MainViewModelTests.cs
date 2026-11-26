@@ -238,6 +238,47 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task Turning_replacing_back_on_queues_the_episodes_kept_while_it_was_off()
+    {
+        var rig = Library();
+        rig.Settings.ReplaceOriginals = false;
+        var kept = DeckRig.Episode("Scrubs", 1, 2);
+        foreach (var state in new[] { SwapState.Queued, SwapState.CopiedToScratch, SwapState.Encoded, SwapState.Verified })
+        {
+            rig.Journal.Record(kept, state);
+        }
+
+        rig.Journal.Record(kept, SwapState.KeptOriginal, EpisodePipeline.ReplaceOffReason + " The verified encode is in scratch.",
+            rig.Disk.Stamp(kept));
+        var vm = await rig.StartedWith("Scrubs");
+        Assert.Equal(TrackKind.Kept, vm.Tracks.Single(t => t.Path == kept).Kind);
+
+        vm.ReplaceOriginals = true;
+
+        Assert.True(vm.Tracks.Single(t => t.Path == kept).IsQueueable);
+        Assert.Equal("Scrubs", vm.LoadedName);
+    }
+
+    [Fact]
+    public async Task A_file_that_changed_during_its_run_reads_changed_and_stays_queued()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+        var changed = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.Results[changed] = new PipelineResult(PipelineOutcome.SourceChanged, SwapExecutor.SourceChangedReason);
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        // The run ends on the show's last season, so open the first again.
+        vm.Seasons.Single(s => s.Number == 1).IsSelected = true;
+        var track = vm.Tracks.Single(t => t.Path == changed);
+        Assert.Equal(TrackKind.Queued, track.Kind);
+        Assert.Equal("CHANGED", track.StatusText);
+        Assert.Equal(SwapExecutor.SourceChangedReason, track.Detail);
+    }
+
+    [Fact]
     public async Task An_episode_skipped_or_stopped_last_time_reads_queued_not_failed()
     {
         var rig = Library();
