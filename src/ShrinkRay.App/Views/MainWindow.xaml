@@ -222,7 +222,8 @@
                                                    TextTrimming="CharacterEllipsis" Visibility="{Binding MonitorMessage, Converter={StaticResource NotEmpty}}" />
 
                                         <TextBlock DockPanel.Dock="Bottom" Margin="10,6,10,0" Opacity="0.55" Text="{Binding MonitorNotice}" TextWrapping="Wrap"
-                                                   MaxHeight="44" Visibility="{Binding MonitorNotice, Converter={StaticResource NotEmpty}}" />
+                                                   TextTrimming="CharacterEllipsis" MaxHeight="66" ToolTip="{Binding Notice}"
+                                                   Visibility="{Binding MonitorNotice, Converter={StaticResource NotEmpty}}" />
                                         <!-- The latest failure in the deck's show; the full reason is on hover -->
                                         <TextBlock DockPanel.Dock="Bottom" Margin="10,6,10,0" Opacity="0.9" Text="{Binding LastFailureText}"
                                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44"

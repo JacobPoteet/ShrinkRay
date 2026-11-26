@@ -62,7 +62,10 @@ public sealed class TrayIcon : IDisposable
             }
         };
 
+        _notify.BalloonTipClicked += (_, _) => Open();
+
         _model.Changed += OnModelChanged;
+        _model.Notified += OnNotified;
     }
 
     /// <summary>Shows the deck, restoring it if it is minimized, and brings it forward.</summary>
@@ -94,6 +97,7 @@ public sealed class TrayIcon : IDisposable
     public void Dispose()
     {
         _model.Changed -= OnModelChanged;
+        _model.Notified -= OnNotified;
         _notify.Visible = false;
         _notify.ContextMenuStrip?.Dispose();
         _notify.Dispose();
@@ -101,6 +105,14 @@ public sealed class TrayIcon : IDisposable
         {
             icon.Dispose();
         }
+    }
+
+    // Windows shows this as a notification. Clicking it opens the deck.
+    private void OnNotified(object? sender, ViewModels.RunReport report)
+    {
+        // A notification body holds 255 characters.
+        var text = report.Text.Length <= 255 ? report.Text : report.Text[..252] + "...";
+        _notify.ShowBalloonTip(10_000, report.Title, text, report.NeedsAttention ? WinForms.ToolTipIcon.Warning : WinForms.ToolTipIcon.Info);
     }
 
     private void OnModelChanged(object? sender, EventArgs e)

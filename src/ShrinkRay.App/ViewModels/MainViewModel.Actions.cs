@@ -484,7 +484,10 @@ public sealed partial class MainViewModel
             _s.Delay)
         {
             StopAfterFirst = trial,
+            Blocker = path => NotEnoughSpace(snapshot.ScratchFolder, path),
         };
+        _tally = new RunTally();
+        _stopAsked = false;
         _isTrialRun = trial;
         _isTrialJudged = false;
         _report = null;
@@ -656,6 +659,7 @@ public sealed partial class MainViewModel
         }
 
         LearnFrom(finished);
+        _tally.Add(finished, track?.OriginalBytes, track?.SavedBytes);
         if (_current == track)
         {
             _current = null;
@@ -755,6 +759,8 @@ public sealed partial class MainViewModel
 
     private void OnRunFinished()
     {
+        var halted = _queue?.HaltReason;
+        var asked = _stopAsked || _isStopArmed;
         _queue = null;
         _estimator = null;
         ResetStopping();
@@ -774,6 +780,7 @@ public sealed partial class MainViewModel
         SyncQualityChips();
         RefreshAll();
         RefreshClosing();
+        ReportRun(halted, asked);
         FinishTrial();
 
         if (_isClosing)

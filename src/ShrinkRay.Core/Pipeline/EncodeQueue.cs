@@ -35,6 +35,12 @@ public sealed record EpisodeFinished(string Path, EpisodeEnd End, PipelineResult
 /// </summary>
 public sealed class EncodeQueue
 {
+    /// <summary>
+    /// How many episodes may fail one after another before the run stops. A share that dropped or
+    /// a full disk would otherwise fail every episode left.
+    /// </summary>
+    public const int FailureLimit = 3;
+
     /// <summary>How often a queue outside the encode window checks the clock again.</summary>
     public static readonly TimeSpan WindowPoll = TimeSpan.FromSeconds(30);
 
@@ -52,6 +58,8 @@ public sealed class EncodeQueue
     private bool _stopAfterCurrent;
     private bool _stopCommitted;
     private bool _armFirst;
+    private int _failuresInARow;
+    private string _lastFailure = "";
 
     /// <param name="mayStart">False holds the next episode, such as outside the encode window.</param>
     /// <param name="delay">Waits between window checks. Tests pass a fake.</param>
@@ -95,6 +103,15 @@ public sealed class EncodeQueue
     /// </summary>
     public bool StopAfterFirst { get; set; }
 
+    /// <summary>
+    /// Asked before each episode starts. A reason ends the run before it, such as a scratch disk
+    /// too full to hold it. Called on the queue's thread. Set it before the run.
+    /// </summary>
+    public Func<string, string?>? Blocker { get; set; }
+
+    /// <summary>Why the last run ended itself with episodes left, or null when it did not.</summary>
+    public string? HaltReason { get; private set; }
+
     /// <summary>Runs every path in order. Returns when the list is done or Stop is pressed.</summary>
     /// <exception cref="InvalidOperationException">A run is already going.</exception>
     public Task RunAsync(IReadOnlyList<string> paths) =>
@@ -121,6 +138,8 @@ public sealed class EncodeQueue
             _stopAfterCurrent = false;
             _stopCommitted = false;
             _armFirst = StopAfterFirst;
+            _failuresInARow = 0;
+            HaltReason = null;
         }
 
         try
@@ -140,9 +159,25 @@ public sealed class EncodeQueue
                 // Reading the next show takes a while, so a pause or the window's end may have come.
                 // Checked again after the wait, so a request made while the queue waited never
                 // lets a whole new episode run.
-                if (!await WaitToStartAsync(token).ConfigureAwait(false) || StopAfterCurrentRequested()
-                    || !await RunEpisodeAsync(path, token).ConfigureAwait(false))
+                if (!await WaitToStartAsync(token).ConfigureAwait(false) || StopAfterCurrentRequested())
                 {
+                    break;
+                }
+
+                if (Blocker?.Invoke(path) is { } blocked)
+                {
+                    HaltReason = blocked;
+                    break;
+                }
+
+                if (!await RunEpisodeAsync(path, token).ConfigureAwait(false))
+                {
+                    break;
+                }
+
+                if (_failuresInARow >= FailureLimit && source.HasNext)
+                {
+                    HaltReason = $"{FailureLimit} episodes in a row failed, so the run stopped. The last one: {_lastFailure}";
                     break;
                 }
             }
@@ -311,6 +346,21 @@ public sealed class EncodeQueue
         }
     }
 
+    // Only an episode that got through its checks breaks a run of failures. One skipped, or
+    // changed on the share, says nothing either way.
+    private void Count(PipelineResult result)
+    {
+        if (result.Outcome == PipelineOutcome.Failed)
+        {
+            _failuresInARow++;
+            _lastFailure = result.Message;
+        }
+        else if (result.Outcome is PipelineOutcome.Replaced or PipelineOutcome.KeptOriginal)
+        {
+            _failuresInARow = 0;
+        }
+    }
+
     private static void CancelQuietly(CancellationTokenSource source)
     {
         try
@@ -387,6 +437,7 @@ public sealed class EncodeQueue
         try
         {
             var result = await Task.Run(() => _runner.RunAsync(path, progress, episode.Token), CancellationToken.None).ConfigureAwait(false);
+            Count(result);
             EpisodeFinished?.Invoke(new EpisodeFinished(path, EpisodeEnd.Finished, result));
             return true;
         }
@@ -402,7 +453,9 @@ public sealed class EncodeQueue
         }
         catch (Exception ex)
         {
-            EpisodeFinished?.Invoke(new EpisodeFinished(path, EpisodeEnd.Finished, new PipelineResult(PipelineOutcome.Failed, ex.Message)));
+            var failed = new PipelineResult(PipelineOutcome.Failed, ex.Message);
+            Count(failed);
+            EpisodeFinished?.Invoke(new EpisodeFinished(path, EpisodeEnd.Finished, failed));
             return true;
         }
         finally

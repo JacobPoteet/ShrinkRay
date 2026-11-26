@@ -149,6 +149,7 @@ public sealed partial class MainViewModel
             return;
         }
 
+        _stopAsked = true;
         _queue?.Stop();
         RefreshTransport();
     }
