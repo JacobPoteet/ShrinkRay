@@ -32,11 +32,15 @@ public sealed class TrayModel : IDisposable
     {
         _viewModel = viewModel;
         _viewModel.PropertyChanged += OnPropertyChanged;
+        _viewModel.RunEnded += OnRunEnded;
         Refresh();
     }
 
     /// <summary>Raised when <see cref="State"/> or <see cref="Tooltip"/> changed.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>A run ended on its own, and the tray should say so.</summary>
+    public event EventHandler<RunReport>? Notified;
 
     public TrayState State { get; private set; }
 
@@ -78,7 +82,13 @@ public sealed class TrayModel : IDisposable
         return text.Length <= MaxTooltipLength ? text : text[..(MaxTooltipLength - 3)] + "...";
     }
 
-    public void Dispose() => _viewModel.PropertyChanged -= OnPropertyChanged;
+    public void Dispose()
+    {
+        _viewModel.PropertyChanged -= OnPropertyChanged;
+        _viewModel.RunEnded -= OnRunEnded;
+    }
+
+    private void OnRunEnded(object? sender, RunReport report) => Notified?.Invoke(this, report);
 
     private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

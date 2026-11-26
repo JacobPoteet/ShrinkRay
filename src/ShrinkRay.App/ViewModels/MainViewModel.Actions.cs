@@ -1,3 +1,4 @@
+using ShrinkRay.App.Mvvm;
 using ShrinkRay.App.Services;
 using ShrinkRay.Core.Encode;
 using ShrinkRay.Core.Library;
@@ -126,6 +127,12 @@ public sealed partial class MainViewModel
             }
 
             SaveCache();
+
+            // A share that listed nothing may only be offline for a moment, so the queue waits.
+            if (folders.Count > 0 && !IsEncoding)
+            {
+                PruneQueue();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -169,9 +176,12 @@ public sealed partial class MainViewModel
             }
             else
             {
+                var name = scan.Name;
                 var row = new ShowRowViewModel(scan, summary)
                 {
                     IsLoaded = string.Equals(scan.Name, _loaded?.Name, StringComparison.OrdinalIgnoreCase),
+                    QueuePosition = _showQueue.PositionOf(name),
+                    QueueCommand = new RelayCommand(_ => ToggleQueued(name), _ => CanQueue(name)),
                 };
                 row.Detail = DetailFor(row);
                 var index = 0;
@@ -316,9 +326,7 @@ public sealed partial class MainViewModel
         ListTracksFrom(_tracks);
         Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
 
-        _cqIndex = NearestDetent(_settings.CqForShow(scan.Name));
-        Raise(nameof(CqIndex), nameof(Cq));
-        RefreshCqChips();
+        SyncQualityChips();
         _prefs = _prefs with { LastShow = scan.Name };
         SavePreferences();
         Notice = "";
@@ -361,6 +369,8 @@ public sealed partial class MainViewModel
         _browseTracks = row.Scan.Episodes.Select(MakeTrack).ToList();
         ListTracksFrom(_browseTracks);
         Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
+        SyncQualityChips();
+        RefreshQueue();
     }
 
     /// <summary>Goes back to listing the show on the tape.</summary>
@@ -375,6 +385,16 @@ public sealed partial class MainViewModel
         _browseTracks = null;
         ListTracksFrom(_tracks, _current?.Record.Season);
         Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
+        SyncQualityChips();
+        RefreshQueue();
+    }
+
+    /// <summary>Sets the Quality row to the show it is about.</summary>
+    private void SyncQualityChips()
+    {
+        _cqIndex = NearestDetent(_settings.CqForShow(ShownShow?.Name));
+        Raise(nameof(CqIndex), nameof(Cq), nameof(CqCaption), nameof(HasCqOverride), nameof(CanEditQuality), nameof(EstimateText));
+        RefreshCqChips();
     }
 
     private void BackToRun()
@@ -431,7 +451,9 @@ public sealed partial class MainViewModel
         }
 
         var tracks = _tracks.Where(t => t.IsQueueable).ToList();
-        if (tracks.Count == 0)
+        var queuedAfter = _showQueue.Items.Any(s => !string.Equals(s, _loaded.Name, StringComparison.OrdinalIgnoreCase));
+        var trial = FirstRunFlow.IsFirstEpisodePending(_settings);
+        if (tracks.Count == 0 && (trial || !queuedAfter))
         {
             Notice = "Nothing left to encode in this show.";
             RefreshTransport();
@@ -446,20 +468,26 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var snapshot = SettingsStore.Normalize(_settings);
-        _runSettings = snapshot;
-        _runCq = snapshot.CqForShow(_loaded.Name);
+        var snapshot = PrepareRun(_loaded.Name);
         Notice = "";
 
-        var trial = FirstRunFlow.IsFirstEpisodePending(_settings);
+        // The show on the tape is running now, so it no longer waits.
+        if (_showQueue.Remove(_loaded.Name))
+        {
+            SaveQueue();
+        }
+
         var queue = new EncodeQueue(
-            _s.CreateRunner(snapshot),
+            new CurrentRunner(() => _runner!),
             _s.Gate,
             () => snapshot.IsInsideEncodeWindow(TimeOnly.FromDateTime(_s.Now())),
             _s.Delay)
         {
             StopAfterFirst = trial,
+            Blocker = path => NotEnoughSpace(snapshot.ScratchFolder, path),
         };
+        _tally = new RunTally();
+        _stopAsked = false;
         _isTrialRun = trial;
         _isTrialJudged = false;
         _report = null;
@@ -473,15 +501,19 @@ public sealed partial class MainViewModel
         // The trial run starts with its stop latched; the Stop card can take it back.
         IsStopArmed = trial;
         RefreshTransport();
+        SyncQualityChips();
+        RefreshQueue();
 
-        CurrentRun = RunQueueAsync(queue, tracks.Select(t => t.Path).ToList());
+        // The trial stops after one episode, so it never reaches the queue.
+        var source = new ShowQueueSource(tracks.Select(t => t.Path), trial ? new ShowQueue() : _showQueue, OpenQueuedShowAsync);
+        CurrentRun = RunQueueAsync(queue, source);
     }
 
-    private async Task RunQueueAsync(EncodeQueue queue, IReadOnlyList<string> paths)
+    private async Task RunQueueAsync(EncodeQueue queue, IEpisodeSource source)
     {
         try
         {
-            await queue.RunAsync(paths).ConfigureAwait(false);
+            await queue.RunAsync(source).ConfigureAwait(false);
         }
         finally
         {
@@ -627,6 +659,7 @@ public sealed partial class MainViewModel
         }
 
         LearnFrom(finished);
+        _tally.Add(finished, track?.OriginalBytes, track?.SavedBytes);
         if (_current == track)
         {
             _current = null;
@@ -726,6 +759,8 @@ public sealed partial class MainViewModel
 
     private void OnRunFinished()
     {
+        var halted = _queue?.HaltReason;
+        var asked = _stopAsked || _isStopArmed || _isClosing;
         _queue = null;
         _estimator = null;
         ResetStopping();
@@ -741,8 +776,11 @@ public sealed partial class MainViewModel
         _meter = null;
         ResetEpisodeProgress();
         BitrateMeterRest();
+        _runner = null;
+        SyncQualityChips();
         RefreshAll();
         RefreshClosing();
+        ReportRun(halted, asked);
         FinishTrial();
 
         if (_isClosing)
@@ -763,8 +801,11 @@ public sealed partial class MainViewModel
         try
         {
             var scan = await Task.Run(() => _scanner.ScanShowAsync(folder, CancellationToken.None));
-            AddScan(scan);
-            SaveCache();
+            _s.Dispatch(() =>
+            {
+                AddScan(scan);
+                SaveCache();
+            });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -949,6 +990,7 @@ public sealed partial class MainViewModel
         RefreshWindow();
         RaiseLifetime();
         RefreshCqChips();
+        RefreshQueue();
         Raise(nameof(IsTapeLoaded), nameof(LoadedName), nameof(EstimateText), nameof(CanEditQuality));
         EncodeCommand.Refresh();
     }

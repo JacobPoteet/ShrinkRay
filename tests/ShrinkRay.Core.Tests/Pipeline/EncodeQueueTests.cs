@@ -127,6 +127,70 @@ public class EncodeQueueTests
         Assert.Contains(rig.Progress, p => p.Item1 == "a" && p.Item2.Phase == EpisodePhase.Encoding && p.Item2.Encode!.Percent == 50);
     }
 
+    private static async Task RunOutcomesAsync(Rig rig, string[] paths, params PipelineOutcome[] outcomes)
+    {
+        var run = rig.Queue.RunAsync(paths);
+        for (var i = 0; i < outcomes.Length; i++)
+        {
+            await rig.Runner.WaitForStartAsync();
+            rig.Runner.Finish(paths[i], outcomes[i]);
+        }
+
+        await run.WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task Three_failures_in_a_row_end_the_run_before_the_rest()
+    {
+        var rig = new Rig();
+        const PipelineOutcome fail = PipelineOutcome.Failed;
+
+        await RunOutcomesAsync(rig, ["a", "b", "c", "d"], fail, fail, fail);
+
+        Assert.Equal(["a", "b", "c"], rig.Runner.Started);
+        Assert.Contains("3 episodes in a row failed", rig.Queue.HaltReason);
+        Assert.EndsWith("Failed", rig.Queue.HaltReason);
+    }
+
+    [Fact]
+    public async Task A_good_episode_between_failures_starts_the_count_again()
+    {
+        var rig = new Rig();
+        const PipelineOutcome fail = PipelineOutcome.Failed;
+
+        await RunOutcomesAsync(rig, ["a", "b", "c", "d", "e"], fail, fail, PipelineOutcome.KeptOriginal, fail, fail);
+
+        Assert.Equal(5, rig.Runner.Started.Count);
+        Assert.Null(rig.Queue.HaltReason);
+    }
+
+    [Fact]
+    public async Task A_third_failure_on_the_last_episode_leaves_nothing_to_halt()
+    {
+        var rig = new Rig();
+        const PipelineOutcome fail = PipelineOutcome.Failed;
+
+        await RunOutcomesAsync(rig, ["a", "b", "c"], fail, fail, fail);
+
+        Assert.Null(rig.Queue.HaltReason);
+    }
+
+    [Fact]
+    public async Task A_blocker_ends_the_run_before_the_episode_it_names_and_the_next_run_forgets_it()
+    {
+        var rig = new Rig();
+        rig.Queue.Blocker = path => path == "b" ? "No room for b." : null;
+
+        await RunOutcomesAsync(rig, ["a", "b"], PipelineOutcome.Replaced);
+
+        Assert.Equal(["a"], rig.Runner.Started);
+        Assert.Equal("No room for b.", rig.Queue.HaltReason);
+
+        rig.Queue.Blocker = null;
+        await RunOutcomesAsync(rig, ["c"], PipelineOutcome.Replaced);
+        Assert.Null(rig.Queue.HaltReason);
+    }
+
     [Fact]
     public async Task Skip_abandons_the_current_episode_and_moves_on()
     {

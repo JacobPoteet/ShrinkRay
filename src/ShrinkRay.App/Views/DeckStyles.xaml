@@ -28,6 +28,45 @@
         <sr:Lamp Style="{StaticResource PanelLamp}" Content="{Binding Label}" State="{Binding State}" Blink="{Binding Blink}" />
     </DataTemplate>
 
+    <!-- A row's menu: a plain moulded card with silkscreen items -->
+    <Style x:Key="DeckMenu" TargetType="ContextMenu">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border CornerRadius="5" Padding="4" Background="{DynamicResource SR.BezelFill}"
+                            BorderBrush="{DynamicResource SR.AbsLo}" BorderThickness="1">
+                        <ItemsPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DeckMenuItem" TargetType="MenuItem">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="Face" CornerRadius="3" Padding="12,6" Background="Transparent">
+                        <sr:TrackedText Text="{TemplateBinding Header}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold"
+                                        FontSize="12" Tracking="0.16" Foreground="{DynamicResource SR.Ink}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Face" Property="Background" Value="{DynamicResource SR.KeyCap}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Small text keycap for Choose, Setup and friends -->
     <Style x:Key="TextKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
         <Setter Property="Width" Value="Auto" />

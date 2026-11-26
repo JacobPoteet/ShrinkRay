@@ -223,21 +223,28 @@ public class BrowseTests
     }
 
     [Fact]
-    public async Task Browsing_never_changes_the_quality_row_or_the_settings()
+    public async Task The_quality_row_sets_the_browsed_show_and_never_the_one_encoding()
     {
         var (rig, vm, first) = await EncodingScrubsAsync();
         var saves = rig.SettingsSaves;
-        var cq = vm.Cq;
-        var caption = vm.CqCaption;
+        Assert.False(vm.CanEditQuality);
 
         Browse(vm, "Sintel");
 
-        Assert.False(vm.CanEditQuality);
-        Assert.Equal(cq, vm.Cq);
-        Assert.Equal(caption, vm.CqCaption);
-        Assert.StartsWith("Scrubs", vm.CqCaption);
+        // Browsing alone saves nothing.
+        Assert.True(vm.CanEditQuality);
+        Assert.StartsWith("Sintel", vm.CqCaption);
         Assert.Equal(saves, rig.SettingsSaves);
-        Assert.Empty(rig.Settings.ShowCqOverrides);
+
+        vm.CqIndex = MainViewModel.CqDetents.ToList().IndexOf(24);
+        Assert.Equal(24, Assert.Single(rig.Settings.ShowCqOverrides, o => o.Key == "Sintel").Value);
+
+        BackToScrubs(vm);
+        Assert.False(vm.CanEditQuality);
+        Assert.Equal(28, vm.Cq);
+        Assert.StartsWith("Scrubs", vm.CqCaption);
+        vm.CqIndex = 0;
+        Assert.DoesNotContain("Scrubs", rig.Settings.ShowCqOverrides.Keys);
         await FinishAsync(rig, vm, first);
     }
 

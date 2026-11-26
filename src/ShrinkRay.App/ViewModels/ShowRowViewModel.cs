@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Windows.Input;
 using ShrinkRay.App.Mvvm;
 using ShrinkRay.Core.Library;
 
@@ -10,6 +12,7 @@ public sealed class ShowRowViewModel : ObservableObject
     private ShowScan _scan;
     private bool _isLoaded;
     private string _detail = "";
+    private int? _queuePosition;
 
     public ShowRowViewModel(ShowScan scan, ShowSummary summary)
     {
@@ -41,9 +44,35 @@ public sealed class ShowRowViewModel : ObservableObject
         }
     }
 
-    public string AutomationName => _detail.Length > 0
-        ? $"{_scan.Name}, {SizeText} gigabytes. {_detail.Replace("\n", " ")}"
-        : $"{_scan.Name}, {SizeText} gigabytes";
+    public string AutomationName
+    {
+        get
+        {
+            var queued = _queuePosition is { } place ? $", queued number {place}" : "";
+            return _detail.Length > 0
+                ? $"{_scan.Name}, {SizeText} gigabytes{queued}. {_detail.Replace("\n", " ")}"
+                : $"{_scan.Name}, {SizeText} gigabytes{queued}";
+        }
+    }
+
+    /// <summary>The show's place in the queue, counting from 1, or null when it is not queued.</summary>
+    public int? QueuePosition
+    {
+        get => _queuePosition;
+        set
+        {
+            if (Set(ref _queuePosition, value))
+            {
+                Raise(nameof(Mark), nameof(QueueText), nameof(AutomationName));
+            }
+        }
+    }
+
+    /// <summary>What the row's menu offers.</summary>
+    public string QueueText => _queuePosition is null ? "Add to queue" : "Remove from queue";
+
+    /// <summary>Puts the show in the queue or takes it out. The deck sets it.</summary>
+    public ICommand? QueueCommand { get; init; }
 
     public bool IsLoaded
     {
@@ -57,8 +86,8 @@ public sealed class ShowRowViewModel : ObservableObject
         }
     }
 
-    /// <summary>A star marks the show in the deck.</summary>
-    public string Mark => _isLoaded ? "*" : "";
+    /// <summary>A star marks the show in the deck, and a number a show's place in the queue.</summary>
+    public string Mark => (_isLoaded ? "*" : "") + (_queuePosition?.ToString(CultureInfo.InvariantCulture) ?? "");
 
     public void Update(ShowScan scan, ShowSummary summary)
     {
