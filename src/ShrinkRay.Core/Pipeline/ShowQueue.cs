@@ -97,6 +97,12 @@ public sealed class ShowQueue
     private int IndexOf(string show) => _shows.FindIndex(s => string.Equals(s, show, StringComparison.OrdinalIgnoreCase));
 }
 
+/// <summary>
+/// A queued show could not be read for a reason that would stop the rest too, such as a share
+/// that dropped. The run ends with this message, and the show stays queued.
+/// </summary>
+public sealed class ShowUnavailableException(string message) : Exception(message);
+
 /// <summary>Hands an <see cref="EncodeQueue"/> its episodes one at a time.</summary>
 public interface IEpisodeSource
 {

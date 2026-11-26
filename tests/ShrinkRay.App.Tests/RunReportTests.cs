@@ -83,6 +83,25 @@ public class RunReportTests
     }
 
     [Fact]
+    public async Task Closing_the_window_mid_run_sends_no_notification()
+    {
+        var rig = Library(3);
+        rig.Runner.Hold[Episode(2)] = new TaskCompletionSource();
+        var vm = await rig.StartedWith("Scrubs");
+        using var tray = new TrayModel(vm);
+        var reports = new List<RunReport>();
+        tray.Notified += (_, report) => reports.Add(report);
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        vm.RequestClose();
+        vm.ConfirmCloseCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Empty(reports);
+    }
+
+    [Fact]
     public async Task A_run_stopped_from_the_deck_sums_up_without_a_notification()
     {
         var rig = Library(3);

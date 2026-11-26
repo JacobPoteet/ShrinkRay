@@ -169,6 +169,12 @@ internal sealed class FakeDisk : ILibraryDisk
 
     public List<string> Listed { get; } = [];
 
+    /// <summary>The share dropped: nothing is there.</summary>
+    public bool Offline { get; set; }
+
+    /// <summary>Runs as a folder is listed, such as a click that lands mid-scan.</summary>
+    public Action<string>? OnEnumerate { get; set; }
+
     public void AddFile(string path, long size)
     {
         _files[path] = new FileStamp(size, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
@@ -178,7 +184,7 @@ internal sealed class FakeDisk : ILibraryDisk
         }
     }
 
-    public bool DirectoryExists(string path) => _folders.Contains(path.TrimEnd('\\'));
+    public bool DirectoryExists(string path) => !Offline && _folders.Contains(path.TrimEnd('\\'));
 
     public IEnumerable<string> EnumerateDirectories(string path)
     {
@@ -190,8 +196,14 @@ internal sealed class FakeDisk : ILibraryDisk
         return _folders.Where(f => string.Equals(Path.GetDirectoryName(f), path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
-    public IEnumerable<string> EnumerateFiles(string path) =>
-        _files.Keys.Where(f => string.Equals(Path.GetDirectoryName(f), path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)).ToList();
+    public IEnumerable<string> EnumerateFiles(string path)
+    {
+        OnEnumerate?.Invoke(path.TrimEnd('\\'));
+        return Files(path);
+    }
+
+    private List<string> Files(string path) =>
+        Offline ? [] : _files.Keys.Where(f => string.Equals(Path.GetDirectoryName(f), path.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)).ToList();
 
     public FileStamp? Stamp(string path) => _files.TryGetValue(path, out var stamp) ? stamp : null;
 }

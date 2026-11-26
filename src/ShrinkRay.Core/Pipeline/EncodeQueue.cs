@@ -333,8 +333,8 @@ public sealed class EncodeQueue
         }
     }
 
-    /// <returns>Null when the source has nothing more, or Stop cut the read short.</returns>
-    private static async Task<string?> NextAsync(IEpisodeSource source, CancellationToken token)
+    /// <returns>Null when the source has nothing more or cannot go on, or Stop cut the read short.</returns>
+    private async Task<string?> NextAsync(IEpisodeSource source, CancellationToken token)
     {
         try
         {
@@ -342,6 +342,11 @@ public sealed class EncodeQueue
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
+            return null;
+        }
+        catch (ShowUnavailableException ex)
+        {
+            HaltReason = ex.Message;
             return null;
         }
     }

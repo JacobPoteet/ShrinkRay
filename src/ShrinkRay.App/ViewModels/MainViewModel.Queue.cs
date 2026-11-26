@@ -136,9 +136,11 @@ public sealed partial class MainViewModel
     /// Reads a queued show as its turn comes and puts it on the tape. Called from the queue's
     /// thread. Empty when the show left the queue meanwhile or has nothing to do.
     /// </summary>
+    /// <exception cref="ShowUnavailableException">The library cannot be reached.</exception>
     private async Task<IReadOnlyList<string>> OpenQueuedShowAsync(string show, CancellationToken cancellationToken)
     {
-        var folder = await OnDeck(() => _showQueue.Contains(show) ? _scans.GetValueOrDefault(show)?.Folder : null).ConfigureAwait(false);
+        var (folder, root) = await OnDeck(() => (_showQueue.Contains(show) ? FolderFor(show) : null, _settings.LibraryRoot))
+            .ConfigureAwait(false);
         if (folder is null)
         {
             return [];
@@ -155,14 +157,40 @@ public sealed partial class MainViewModel
             return [];
         }
 
-        return await OnDeck(() => SwitchTape(scan)).ConfigureAwait(false);
+        // A share that dropped lists nothing, which must not empty the queue show by show.
+        if (scan.Episodes.Count == 0 && !_s.DirectoryExists(root))
+        {
+            throw new ShowUnavailableException(
+                $"The library could not be reached when {show}'s turn came, so the run stopped. It stays queued.");
+        }
+
+        return await OnDeck(() => SwitchTape(scan, cancellationToken)).ConfigureAwait(false);
     }
 
-    private IReadOnlyList<string> SwitchTape(ShowScan scan)
+    /// <summary>
+    /// A show's folder: from its scan, or from the library when a scan still running has not
+    /// reached it yet.
+    /// </summary>
+    private string FolderFor(string show)
     {
+        if (_scans.TryGetValue(show, out var scan))
+        {
+            return scan.Folder;
+        }
+
+        var root = _settings.LibraryRoot.TrimEnd('\\');
+        return string.Equals(Path.GetFileName(root), show, StringComparison.OrdinalIgnoreCase)
+            ? _settings.LibraryRoot
+            : Path.Combine(_settings.LibraryRoot, show);
+    }
+
+    private IReadOnlyList<string> SwitchTape(ShowScan scan, CancellationToken cancellationToken)
+    {
+        // A Stop that landed while the show was being read leaves it queued, and the tape as it is.
+        cancellationToken.ThrowIfCancellationRequested();
         SaveCache();
         AddScan(scan);
-        if (!_showQueue.Contains(scan.Name) || _isClosing)
+        if (!_showQueue.Contains(scan.Name))
         {
             return [];
         }

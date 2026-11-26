@@ -760,7 +760,7 @@ public sealed partial class MainViewModel
     private void OnRunFinished()
     {
         var halted = _queue?.HaltReason;
-        var asked = _stopAsked || _isStopArmed;
+        var asked = _stopAsked || _isStopArmed || _isClosing;
         _queue = null;
         _estimator = null;
         ResetStopping();

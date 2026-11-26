@@ -190,6 +190,68 @@ public class QueueTests
     }
 
     [Fact]
+    public async Task A_stop_while_the_next_show_is_read_keeps_it_queued_and_the_tape_in_place()
+    {
+        var (rig, vm) = await HoldingAsync(DeckRig.Episode("Scrubs", 1, 2), "Sintel");
+        rig.Disk.OnEnumerate = path =>
+        {
+            if (path.EndsWith("Sintel", StringComparison.OrdinalIgnoreCase))
+            {
+                rig.Disk.OnEnumerate = null;
+                rig.OnUiThread(() => vm.StopCommand.Execute(null));
+            }
+        };
+
+        rig.Runner.Hold[DeckRig.Episode("Scrubs", 1, 2)].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.DoesNotContain(First("Sintel"), rig.Runner.Ran);
+        Assert.Equal(["Sintel"], vm.QueuedShows);
+        Assert.Equal("Scrubs", vm.LoadedName);
+    }
+
+    [Fact]
+    public async Task A_library_that_drops_before_a_queued_show_stops_the_run_and_keeps_the_queue()
+    {
+        var (rig, vm) = await HoldingAsync(DeckRig.Episode("Scrubs", 1, 2), "Sintel", "Bluey");
+        rig.Disk.Offline = true;
+
+        rig.Runner.Hold[DeckRig.Episode("Scrubs", 1, 2)].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        Assert.Equal(["Sintel", "Bluey"], vm.QueuedShows);
+        Assert.DoesNotContain(First("Sintel"), rig.Runner.Ran);
+        Assert.StartsWith("The library could not be reached when Sintel's turn came", vm.Notice);
+    }
+
+    [Fact]
+    public async Task A_queued_show_the_scan_has_not_reached_yet_is_still_read()
+    {
+        var rig = Library();
+        var vm = rig.Create(new DeckPreferences { LastShow = "Scrubs", Queue = ["Sintel"] });
+        var scanned = new TaskCompletionSource();
+        var release = new ManualResetEventSlim();
+        rig.Disk.OnEnumerate = path =>
+        {
+            // The scan reads the loaded show first, then stalls on the next one.
+            if (path.EndsWith("Bluey", StringComparison.OrdinalIgnoreCase))
+            {
+                scanned.TrySetResult();
+                release.Wait(Timeout);
+            }
+        };
+        var start = vm.StartAsync();
+        await scanned.Task.WaitAsync(Timeout);
+
+        vm.EncodeCommand.Execute(null);
+        await vm.CurrentRun.WaitAsync(Timeout);
+        release.Set();
+        await start.WaitAsync(Timeout);
+
+        Assert.Contains(First("Sintel"), rig.Runner.Ran);
+    }
+
+    [Fact]
     public async Task The_queue_is_saved_and_waits_for_encode_after_a_restart()
     {
         var rig = Library();
