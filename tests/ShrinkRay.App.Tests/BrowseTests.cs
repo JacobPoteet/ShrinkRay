@@ -1,3 +1,4 @@
+using ShrinkRay.Core.Pipeline;
 using ShrinkRay.App.Tray;
 using ShrinkRay.App.ViewModels;
 using ShrinkRay.Core.Library;
@@ -106,7 +107,7 @@ public class BrowseTests
 
         rig.Runner.Report(73);
 
-        Assert.Equal("73.0", vm.PercentDigits.Trim());
+        Assert.Equal(ScriptedRunner.Percent(ScriptedRunner.Timing.Fraction(EpisodePhase.Encoding, 0.73)), vm.PercentDigits);
         Assert.Equal(rows, vm.Tracks.ToList());
         Assert.Equal(statuses, vm.Tracks.Select(t => (t.Kind, t.StatusText, t.Progress)).ToList());
         Assert.Equal("Sintel", vm.TracksHeading);

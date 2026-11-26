@@ -105,7 +105,7 @@ public class PayoffTests
     {
         var (rig, vm, second) = await AfterTheFirstAsync();
 
-        Assert.Equal(0.5, vm.EpisodeFraction);
+        Assert.Equal(ScriptedRunner.Timing.Fraction(EpisodePhase.Encoding, 0.5), vm.EpisodeFraction, 6);
         Assert.Equal(LampState.Active, vm.HeadLamp);
 
         vm.PauseCommand.Execute(null);
@@ -113,7 +113,7 @@ public class PayoffTests
         vm.PauseCommand.Execute(null);
 
         rig.Runner.Report(EpisodePhase.Verifying);
-        Assert.Equal(1, vm.EpisodeFraction);
+        Assert.Equal(ScriptedRunner.Timing.Fraction(EpisodePhase.Verifying, 0), vm.EpisodeFraction, 6);
         Assert.Equal(LampState.Off, vm.HeadLamp);
 
         await FinishAsync(rig, vm, second);

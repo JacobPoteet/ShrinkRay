@@ -228,7 +228,10 @@ public sealed class EpisodePipeline : IEpisodeRunner
 
         _journal.Record(sourcePath, SwapState.Verified);
         progress?.Report(new EpisodeProgress(EpisodePhase.Verifying));
-        var decoded = await _decoder.DecodesCleanlyAsync(candidate, ct);
+        var decoding = progress is null || output.DurationSeconds is not (> 0 and var length) ? null
+            : new InlineProgress<TimeSpan>(done => progress.Report(
+                new EpisodeProgress(EpisodePhase.Verifying, Fraction: Math.Clamp(done.TotalSeconds / length, 0, 1))));
+        var decoded = await _decoder.DecodesCleanlyAsync(candidate, ct, decoding);
         var verification = OutputVerifier.Verify(
             new VerificationInput(source, output, _fs.GetFileSize(localSource), _fs.GetFileSize(candidate), decoded),
             _settings);

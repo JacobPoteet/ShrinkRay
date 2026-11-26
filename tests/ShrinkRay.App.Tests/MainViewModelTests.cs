@@ -583,22 +583,23 @@ public class MainViewModelTests
         Assert.True(vm.IsEncoding);
         Assert.True(vm.IsSpinning);
         Assert.Equal("S01E01", vm.EpisodeDigits);
-        Assert.Equal("50.0", vm.PercentDigits);
+        var percent = ScriptedRunner.Percent(ScriptedRunner.Timing.Fraction(EpisodePhase.Encoding, 0.5));
+        Assert.Equal(percent, vm.PercentDigits);
         Assert.Equal("170", vm.FpsDigits);
         Assert.Equal("11:00", vm.TapeTimeDigits);
         Assert.Equal("/ 22:00", vm.TapeTotalText);
-        Assert.Equal("S01E01, 170 frames per second, 11:00 / 22:00", vm.EpisodeDetail);
-        Assert.Equal("Episode 50.0 percent", vm.EpisodeCounterName);
+        Assert.Equal("S01E01, encoding 50%, 170 frames per second, 11:00 / 22:00", vm.EpisodeDetail);
+        Assert.Equal($"Episode {percent.Trim()} percent", vm.EpisodeCounterName);
         Assert.Equal(0.5, vm.SourcePack);
         Assert.Equal(LampState.Red, vm.EncodeLamp);
         Assert.Equal("Encoding", vm.RunLamp.Label);
         Assert.Equal(TrackKind.Encoding, vm.Tracks[0].Kind);
-        Assert.Equal("50%", vm.Tracks[0].StatusText);
+        Assert.Equal("39%", vm.Tracks[0].StatusText);
         Assert.Equal(LampState.Active, vm.Seasons[0].Lamp);
         Assert.False(vm.CanEditQuality);
 
         // The start-of-run figure holds: the fresh estimate is under 3 minutes off, so it does not move.
-        Assert.Equal((" 0", "10"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
+        Assert.Equal((" 0", "16"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
         Assert.False(vm.DropFolder(DeckRig.Root + @"\Bluey"));
 
         rig.Runner.Hold[first].SetResult();
@@ -716,7 +717,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task The_run_lamp_and_track_follow_the_reported_phase()
+    public async Task The_run_lamp_follows_the_reported_phase_while_the_percent_counts_the_whole_episode()
     {
         var rig = Library();
         var first = DeckRig.Episode("Scrubs", 1, 1);
@@ -724,34 +725,28 @@ public class MainViewModelTests
         var vm = await rig.StartedWith("Scrubs");
         vm.EncodeCommand.Execute(null);
         await rig.Runner.WaitUntilHeldAsync();
+        var timing = ScriptedRunner.Timing;
         Assert.Equal("Encoding", vm.RunLamp.Label);
-        Assert.Equal("50%", vm.Tracks[0].StatusText);
-
-        // The phase comes from the report, not from the percent.
-        rig.Runner.Report(EpisodePhase.Copying);
-        Assert.Equal("Copying", vm.RunLamp.Label);
-        Assert.Equal("COPY", vm.Tracks[0].StatusText);
-        Assert.Equal("  0", vm.FpsDigits);
-
-        rig.Runner.Report(42);
-        Assert.Equal("Encoding", vm.RunLamp.Label);
-        Assert.Equal("42%", vm.Tracks[0].StatusText);
-        Assert.Equal("170", vm.FpsDigits);
+        Assert.Equal(ScriptedRunner.Percent(timing.Fraction(EpisodePhase.Encoding, 0.5)), vm.PercentDigits);
+        Assert.Equal("39%", vm.Tracks[0].StatusText);
+        Assert.Contains("encoding 50%", vm.EpisodeDetail);
 
         rig.Runner.Report(EpisodePhase.Verifying);
         Assert.Equal("Checking", vm.RunLamp.Label);
-        Assert.Equal("CHECK", vm.Tracks[0].StatusText);
         Assert.Equal("  0", vm.FpsDigits);
-        Assert.Equal("99.9", vm.PercentDigits);
+        Assert.Equal(ScriptedRunner.Percent(timing.Fraction(EpisodePhase.Verifying, 0)), vm.PercentDigits);
         Assert.Equal(0, vm.SourcePack);
+
+        rig.Runner.Report(EpisodePhase.Verifying, 0.5);
+        Assert.Equal(ScriptedRunner.Percent(timing.Fraction(EpisodePhase.Verifying, 0.5)), vm.PercentDigits);
+        Assert.Contains("checking 50%", vm.EpisodeDetail);
 
         rig.Runner.Report(EpisodePhase.Uploading);
         Assert.Equal("Uploading", vm.RunLamp.Label);
-        Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
-
         rig.Runner.Report(EpisodePhase.Swapping);
         Assert.Equal("Swapping", vm.RunLamp.Label);
-        Assert.Equal("SWAP", vm.Tracks[0].StatusText);
+        Assert.Equal("99.9", vm.PercentDigits);
+        Assert.Equal("99%", vm.Tracks[0].StatusText);
 
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
@@ -759,39 +754,68 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task The_copy_counts_on_the_percent_while_the_reels_wait_at_the_start()
+    public async Task The_percent_only_moves_forward_from_the_copy_to_the_swap()
     {
         var rig = Library();
         var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.HoldAtStart = true;
         rig.Runner.Hold[first] = new TaskCompletionSource();
         var vm = await rig.StartedWith("Scrubs");
         vm.EncodeCommand.Execute(null);
         await rig.Runner.WaitUntilHeldAsync();
+        var seen = new List<double> { vm.EpisodeFraction };
+        void Note() => seen.Add(vm.EpisodeFraction);
 
         rig.Runner.Report(EpisodePhase.Copying);
-        Assert.Equal(" 0.0", vm.PercentDigits);
+        Note();
         rig.Runner.Report(EpisodePhase.Copying, 0.4);
+        Note();
 
-        Assert.Equal("40.0", vm.PercentDigits);
-        Assert.Equal(0.4, vm.Tracks[0].Progress, 3);
-        Assert.Equal("COPY", vm.Tracks[0].StatusText);
-        Assert.Contains("40 percent", vm.DeckAutomationName);
+        // The reels, the tape time and the output size wait while the copy counts.
+        Assert.Equal(ScriptedRunner.Percent(ScriptedRunner.Timing.Fraction(EpisodePhase.Copying, 0.4)), vm.PercentDigits);
         Assert.Equal(0, vm.OutputPack);
         Assert.Equal(1, vm.SourcePack);
         Assert.Equal(" 0:00", vm.TapeTimeDigits);
+        Assert.Equal("0.00", vm.Tracks[0].SizeText);
         Assert.EndsWith("0.00 GB so far", vm.OutputDetail);
 
-        // The encode shows its own percent once the copy is done.
         rig.Runner.Report(EpisodePhase.Copying, 1);
-        rig.Runner.Report(42);
-        Assert.Equal("42.0", vm.PercentDigits);
+        Note();
+        foreach (var percent in new[] { 0.0, 50, 100 })
+        {
+            rig.Runner.Report(percent);
+            Note();
+        }
+
+        var wound = vm.OutputPack;
+        var size = vm.Tracks[0].SizeText;
+        rig.Runner.Report(EpisodePhase.Verifying);
+        Note();
+        rig.Runner.Report(EpisodePhase.Verifying, 1);
+        Note();
+        rig.Runner.Report(EpisodePhase.Uploading);
+        Note();
+        rig.Runner.Report(EpisodePhase.Uploading, 0.4);
+        Note();
+
+        // Past the encode the reels stay wound and the row keeps the encoded size.
+        Assert.True(wound > 0);
+        Assert.Equal(wound, vm.OutputPack);
+        Assert.Equal(size, vm.Tracks[0].SizeText);
+        Assert.Equal("22:00", vm.TapeTimeDigits);
+        rig.Runner.Report(EpisodePhase.Swapping);
+        Note();
+
+        Assert.Equal(0, seen[0]);
+        Assert.Equal(1, seen[^1]);
+        Assert.Equal(seen.Order(), seen);
 
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
     }
 
     [Fact]
-    public async Task The_upload_counts_on_the_percent_while_the_reels_stay_wound_to_the_end()
+    public async Task The_needle_keeps_the_encodes_bitrate_during_the_check_and_upload()
     {
         var rig = Library();
         var first = DeckRig.Episode("Scrubs", 1, 1);
@@ -801,35 +825,58 @@ public class MainViewModelTests
         await rig.Runner.WaitUntilHeldAsync();
 
         rig.Runner.Report(EpisodePhase.Verifying);
-        var wound = vm.OutputPack;
-        var output = vm.OutputDetail;
         var encoded = Path.Combine(EpisodePipeline.WorkFolder(@"C:\Scratch", first), "encoded.mkv");
         rig.Sizes[encoded] = 165_000_000;
         vm.Tick();
         Assert.Equal(1.0, vm.BitrateMbps, 2);
 
-        rig.Runner.Report(EpisodePhase.Uploading);
-        Assert.Equal(" 0.0", vm.PercentDigits);
         rig.Runner.Report(EpisodePhase.Uploading, 0.4);
-
-        Assert.Equal("40.0", vm.PercentDigits);
-        Assert.Equal(0.4, vm.Tracks[0].Progress, 3);
-        Assert.Equal("UPLOAD", vm.Tracks[0].StatusText);
-        Assert.True(wound > 0);
-        Assert.Equal(wound, vm.OutputPack);
-        Assert.Equal(0, vm.SourcePack);
-        Assert.Equal("22:00", vm.TapeTimeDigits);
-        Assert.Equal(output, vm.OutputDetail);
-
-        // The needle keeps the encode's bitrate.
         vm.Tick();
         Assert.Equal(1.0, vm.BitrateMbps, 2);
 
-        rig.Runner.Report(EpisodePhase.Swapping);
-        Assert.Equal("99.9", vm.PercentDigits);
-
         rig.Runner.Hold[first].SetResult();
         await vm.CurrentRun.WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task A_finished_episode_teaches_the_rates_and_saves_them()
+    {
+        var rig = Library();
+        var first = DeckRig.Episode("Scrubs", 1, 1);
+        rig.Runner.HoldAtStart = true;
+        rig.Runner.Hold[first] = new TaskCompletionSource();
+        rig.Runner.Results[first] = new PipelineResult(PipelineOutcome.Replaced, "Replaced",
+            new VerificationResult(VerificationOutcome.Pass, [], 0.64));
+        var vm = await rig.StartedWith("Scrubs");
+        vm.EncodeCommand.Execute(null);
+        await rig.Runner.WaitUntilHeldAsync();
+
+        // 33,000 frames encoded in 400 s and checked in 100 s.
+        rig.Runner.Report(0.0);
+        rig.Now = rig.Now.AddSeconds(400);
+        rig.Runner.Report(EpisodePhase.Verifying);
+        rig.Now = rig.Now.AddSeconds(100);
+        rig.Runner.Hold[first].SetResult();
+        await vm.CurrentRun.WaitAsync(Timeout);
+
+        var saved = rig.SavedRates[0];
+        Assert.Equal((165 + 82.5) / 2, saved.EncodeFps, 6);
+        Assert.Equal((460 + 330.0) / 2, saved.CheckFps, 6);
+    }
+
+    [Fact]
+    public async Task Show_left_counts_the_copying_checking_and_uploading_too()
+    {
+        var rig = Library();
+        var vm = await rig.StartedWith("Scrubs");
+        var other = new[] { 1, 1, 2 }.Sum(gigabytes => EpisodeEstimate.For(33_000, gigabytes * DeckRig.Gigabyte,
+            (long)(gigabytes * DeckRig.Gigabyte * SizeEstimate.RatioFor(28)), new PhaseRates()).OtherSeconds);
+        var expected = TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(99_000) + TimeSpan.FromSeconds(other));
+
+        var shown = (int.Parse(vm.ShowLeftHourDigits.Trim()) * 60) + int.Parse(vm.ShowLeftMinuteDigits);
+
+        Assert.Equal(expected, shown);
+        Assert.True(expected > TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(99_000)));
     }
 
     // ---- Closing ----
@@ -1205,8 +1252,9 @@ public class MainViewModelTests
         var rig = Library();
         var vm = await rig.StartedWith("Scrubs");
 
-        // Three episodes of 33,000 frames at the measured 165 frames per second: 10 minutes.
-        Assert.Equal((" 0", "10"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
+        // Three episodes of 33,000 frames at 165 frames per second are 10 minutes of encoding, and
+        // copying, checking and uploading them add a little over 5 more.
+        Assert.Equal((" 0", "16"), (vm.ShowLeftHourDigits, vm.ShowLeftMinuteDigits));
         Assert.Contains("3 episodes", vm.ShowLeftDetail);
 
         vm.EncodeCommand.Execute(null);

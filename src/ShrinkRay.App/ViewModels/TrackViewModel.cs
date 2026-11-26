@@ -178,14 +178,15 @@ public sealed class TrackViewModel : ObservableObject
         Raise(nameof(AutomationName));
     }
 
-    /// <param name="ratio">Expected output size over source size, for the growing size figure.</param>
-    /// <param name="status">A word for a phase other than the encode, such as COPY. Null shows the percent.</param>
-    public void SetEncoding(double progress, double ratio, string? status = null)
+    /// <param name="progress">How far through the whole episode, 0 to 1: the tinted bar and the percent.</param>
+    /// <param name="encoded">How far through the encode, 0 to 1, for the growing size figure.</param>
+    /// <param name="ratio">Expected output size over source size.</param>
+    public void SetEncoding(double progress, double encoded, double ratio)
     {
         Kind = TrackKind.Encoding;
         Progress = Math.Clamp(progress, 0, 1);
-        StatusText = status ?? ((int)Math.Floor(Progress * 100)).ToString(CultureInfo.InvariantCulture) + "%";
-        SizeText = Format.Gigabytes((long)(OriginalBytes * ratio * Progress));
+        StatusText = Math.Min(99, (int)Math.Floor(Progress * 100)).ToString(CultureInfo.InvariantCulture) + "%";
+        SizeText = Format.Gigabytes((long)(OriginalBytes * ratio * Math.Clamp(encoded, 0, 1)));
         Detail = "Working on it now.";
         Raise(nameof(AutomationName));
     }

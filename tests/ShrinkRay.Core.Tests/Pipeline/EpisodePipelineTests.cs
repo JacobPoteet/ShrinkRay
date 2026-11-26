@@ -127,6 +127,7 @@ public class EpisodePipelineTests
 
         var transfers = rig.Reports.Where(r => r.Fraction is not null).ToList();
         Assert.All(transfers, r => Assert.Contains(r.Phase, new[] { EpisodePhase.Copying, EpisodePhase.Uploading }));
+        Assert.All(transfers, r => Assert.True(r.TotalBytes > 0));
         Assert.All(transfers, r => Assert.InRange(r.Fraction!.Value, 0, 1));
         Assert.Equal(1, transfers.Last(r => r.Phase == EpisodePhase.Copying).Fraction);
         Assert.Equal(1, transfers.Last(r => r.Phase == EpisodePhase.Uploading).Fraction);
@@ -136,6 +137,18 @@ public class EpisodePipelineTests
         Assert.Null(rig.Reports[copyStart].Fraction);
         var uploadStart = rig.Reports.FindIndex(r => r.Phase == EpisodePhase.Uploading);
         Assert.Null(rig.Reports[uploadStart].Fraction);
+    }
+
+    [Fact]
+    public async Task The_check_reports_how_much_of_the_running_time_has_decoded()
+    {
+        var rig = new Rig(Source(), Output());
+        rig.Decoder.Decoded.AddRange([TimeSpan.FromSeconds(350), TimeSpan.FromSeconds(1401)]);
+
+        await rig.RunAsync();
+
+        var checks = rig.Reports.Where(r => r.Phase == EpisodePhase.Verifying).Select(r => r.Fraction).ToList();
+        Assert.Equal([null, 0.25, 1], checks);
     }
 
     [Fact]
@@ -660,9 +673,17 @@ public class EpisodePipelineTests
         /// <summary>Runs during the check, such as a Stop that lands as the upload begins.</summary>
         public Action? OnDecode { get; set; }
 
-        public Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken)
+        /// <summary>The running times it reports while it decodes.</summary>
+        public List<TimeSpan> Decoded { get; } = [];
+
+        public Task<bool> DecodesCleanlyAsync(string path, CancellationToken cancellationToken, IProgress<TimeSpan>? decoded = null)
         {
             OnDecode?.Invoke();
+            foreach (var time in Decoded)
+            {
+                decoded?.Report(time);
+            }
+
             return Task.FromResult(Clean);
         }
     }

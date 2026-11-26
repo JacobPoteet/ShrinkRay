@@ -40,6 +40,8 @@ public static class Composition
             SaveSettings = settings => SettingsStore.Save(paths.Settings, settings),
             SavePreferences = prefs => prefs.Save(paths.Preferences),
             SaveCache = cache => cache.Save(paths.ProbeCache),
+            Rates = PhaseRates.Load(paths.Rates),
+            SaveRates = rates => rates.Save(paths.Rates),
             ApplyTheme = ThemeManager.Apply,
             ResolveTool = ToolLocator.ResolveOnThisMachine,
             CopyText = CopyToClipboard,

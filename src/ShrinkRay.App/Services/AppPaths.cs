@@ -27,6 +27,9 @@ public sealed class AppPaths
     /// <summary>Versioned, so a change to the eligibility rules can start a fresh cache.</summary>
     public string ProbeCache => Path.Combine(DataFolder, "probe-cache-v1.json");
 
+    /// <summary>How fast each step has gone, so the progress readouts learn this machine.</summary>
+    public string Rates => Path.Combine(DataFolder, "rates.json");
+
     /// <summary>The scratch folder used until the user picks one.</summary>
     public string DefaultScratch => Path.Combine(DataFolder, "Scratch");
 }
