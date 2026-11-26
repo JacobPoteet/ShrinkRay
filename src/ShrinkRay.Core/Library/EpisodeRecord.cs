@@ -5,6 +5,7 @@ namespace ShrinkRay.Core.Library;
 /// <param name="Code">Such as <c>S01E03</c>, or the file name when it carries no episode number.</param>
 /// <param name="VideoCodec">ffprobe's codec name for the main video stream, such as <c>h264</c>.</param>
 /// <param name="SkipMessage">Why the file cannot be encoded. Empty when it can.</param>
+/// <param name="ModifiedUtc">The file's last write time when scanned. Null when unknown.</param>
 public sealed record EpisodeRecord(
     string Path,
     int Season,
@@ -16,7 +17,8 @@ public sealed record EpisodeRecord(
     double? FrameRate,
     string VideoCodec,
     bool IsEligible,
-    string SkipMessage)
+    string SkipMessage,
+    DateTime? ModifiedUtc = null)
 {
     /// <summary>Frames to encode, from duration and frame rate. Null when either is unknown.</summary>
     public long? FrameCount => DurationSeconds is { } d && FrameRate is { } r && d > 0 && r > 0

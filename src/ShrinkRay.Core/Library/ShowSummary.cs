@@ -1,3 +1,4 @@
+using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Swap;
 
 namespace ShrinkRay.Core.Library;
@@ -23,25 +24,45 @@ public enum EpisodeStatus
 
 public static class EpisodeStatusRules
 {
-    /// <param name="journalState">The swap journal's latest state for the file.</param>
+    /// <param name="journal">The swap journal's latest entry for the file.</param>
     /// <param name="inLedger">True when the ledger records ShrinkRay replacing the file.</param>
-    public static EpisodeStatus Classify(EpisodeRecord episode, SwapState? journalState, bool inLedger)
+    /// <param name="replacingOriginals">True when a run now would replace originals.</param>
+    public static EpisodeStatus Classify(EpisodeRecord episode, JournalEntry? journal, bool inLedger, bool replacingOriginals)
     {
         if (!episode.IsEligible)
         {
             // An HEVC file ShrinkRay wrote counts as shrunk; any other ineligible file is skipped.
-            return inLedger || journalState == SwapState.OriginalDeleted ? EpisodeStatus.Shrunk : EpisodeStatus.Skipped;
+            return inLedger || journal?.State == SwapState.OriginalDeleted ? EpisodeStatus.Shrunk : EpisodeStatus.Skipped;
         }
 
-        return journalState switch
+        return journal?.State switch
         {
-            SwapState.KeptOriginal => EpisodeStatus.Kept,
+            SwapState.KeptOriginal when StillKept(episode, journal, replacingOriginals) => EpisodeStatus.Kept,
             SwapState.Failed => EpisodeStatus.Failed,
 
             // Skip or Stop is the user's call, not a failure. The file waits for the next run.
-            SwapState.Cancelled => EpisodeStatus.Queued,
             _ => EpisodeStatus.Queued,
         };
+    }
+
+    /// <summary>
+    /// Whether a decision to keep an original still holds. It lapses when another file has taken
+    /// the name, and, for an original kept only because replacing was off, once replacing is on.
+    /// </summary>
+    private static bool StillKept(EpisodeRecord episode, JournalEntry kept, bool replacingOriginals)
+    {
+        if (replacingOriginals && kept.Reason?.StartsWith(EpisodePipeline.ReplaceOffReason, StringComparison.Ordinal) == true)
+        {
+            return false;
+        }
+
+        if (kept.Source is { } source)
+        {
+            return source.Size == episode.SizeBytes && (episode.ModifiedUtc is not { } modified || source.LastWriteUtc == modified);
+        }
+
+        // A journal from version 0.1.0 holds no stamp. A file written since the decision is a new one.
+        return episode.ModifiedUtc is not { } written || written <= kept.Timestamp.UtcDateTime;
     }
 
     /// <summary>Queued and failed episodes go on the next run.</summary>

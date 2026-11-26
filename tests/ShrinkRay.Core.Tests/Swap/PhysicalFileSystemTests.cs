@@ -37,6 +37,26 @@ public sealed class PhysicalFileSystemTests : IDisposable
     }
 
     [Fact]
+    public void A_stamp_survives_a_rename_and_changes_when_the_file_is_written()
+    {
+        var fs = new PhysicalFileSystem();
+        var source = Source();
+        File.SetLastWriteTimeUtc(source, new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc));
+        var stamp = fs.GetStamp(source);
+        var renamed = Path.Combine(_folder, "source.mkv.shrinkray.bak");
+
+        fs.MoveFile(source, renamed);
+
+        Assert.Equal(stamp, fs.GetStamp(renamed));
+        Assert.Equal(Size, stamp.Size);
+
+        // Rewritten at the same size, as an upgrade of the same length would be.
+        File.WriteAllBytes(renamed, new byte[Size]);
+        Assert.NotEqual(stamp, fs.GetStamp(renamed));
+        Assert.Throws<FileNotFoundException>(() => fs.GetStamp(source));
+    }
+
+    [Fact]
     public async Task Copy_reports_the_bytes_as_they_move_and_ends_on_the_full_size()
     {
         var source = Source();

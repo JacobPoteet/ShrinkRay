@@ -15,6 +15,9 @@ public enum PipelineOutcome
     KeptOriginal,
     Skipped,
     Failed,
+
+    /// <summary>The file changed on the share during the run, so nothing was replaced. It goes on the next run.</summary>
+    SourceChanged,
 }
 
 /// <param name="KeptEncodePath">The verified encode left in scratch because replacing originals is off.</param>
@@ -170,6 +173,9 @@ public sealed class EpisodePipeline : IEpisodeRunner
     private async Task<PipelineResult> RunStepsAsync(string sourcePath, string work, IProgress<EpisodeProgress>? progress, CancellationToken ct)
     {
         progress?.Report(new EpisodeProgress(EpisodePhase.Probing));
+
+        // Taken before anything reads the file. The swap only deletes a file that still matches it.
+        var stamp = _fs.GetStamp(sourcePath);
         var source = await _probe.ProbeAsync(sourcePath, ct);
         var eligibility = Eligibility.Evaluate(source);
         if (!eligibility.IsEligible)
@@ -189,6 +195,13 @@ public sealed class EpisodePipeline : IEpisodeRunner
         _journal.Record(sourcePath, SwapState.CopiedToScratch);
         progress?.Report(new EpisodeProgress(EpisodePhase.Copying));
         await _fs.CopyFileAsync(sourcePath, localSource, Transfer(progress, EpisodePhase.Copying, sourcePath), ct);
+        if (_fs.GetStamp(sourcePath) != stamp || _fs.GetFileSize(localSource) != stamp.Size)
+        {
+            // Noticed now, so a changed file does not cost an encode.
+            _journal.Record(sourcePath, SwapState.Cancelled, SwapExecutor.SourceChangedReason);
+            RemoveWorkIfSettled(sourcePath, work);
+            return new PipelineResult(PipelineOutcome.SourceChanged, SwapExecutor.SourceChangedReason);
+        }
 
         // The caption check decodes the first frames, so it reads the local copy rather than the share.
         source = await _probe.DetectClosedCaptionsAsync(localSource, source, ct);
@@ -235,7 +248,7 @@ public sealed class EpisodePipeline : IEpisodeRunner
             case VerificationOutcome.KeepOriginal:
             {
                 var reason = string.Join("; ", verification.Reasons);
-                _journal.Record(sourcePath, SwapState.KeptOriginal, reason);
+                _journal.Record(sourcePath, SwapState.KeptOriginal, reason, stamp);
                 RemoveWorkIfSettled(sourcePath, work);
                 return new PipelineResult(PipelineOutcome.KeptOriginal, reason, verification);
             }
@@ -244,7 +257,7 @@ public sealed class EpisodePipeline : IEpisodeRunner
         if (!_settings.ReplaceOriginals)
         {
             var message = $"{ReplaceOffReason} The verified encode is at {candidate}.";
-            _journal.Record(sourcePath, SwapState.KeptOriginal, message);
+            _journal.Record(sourcePath, SwapState.KeptOriginal, message, stamp);
             return new PipelineResult(PipelineOutcome.KeptOriginal, message, verification, candidate);
         }
 
@@ -260,12 +273,13 @@ public sealed class EpisodePipeline : IEpisodeRunner
             }
         });
         var uploaded = Transfer(progress, EpisodePhase.Uploading, candidate);
-        var swap = await _swap.SwapAsync(sourcePath, candidate, verification, _settings, steps, uploaded, ct);
+        var swap = await _swap.SwapAsync(sourcePath, stamp, candidate, verification, _settings, ct, steps, uploaded);
         if (swap.Outcome != SwapOutcome.Swapped)
         {
-            // Only once the swap has rolled back to Failed. A rollback that failed leaves the file mid-swap.
+            // Only once the swap has settled the file. A rollback that failed leaves it mid-swap.
             RemoveWorkIfSettled(sourcePath, work);
-            return new PipelineResult(PipelineOutcome.Failed, swap.Message ?? "Swap failed", verification);
+            var outcome = swap.Outcome == SwapOutcome.SourceChanged ? PipelineOutcome.SourceChanged : PipelineOutcome.Failed;
+            return new PipelineResult(outcome, swap.Message ?? "Swap failed", verification);
         }
 
         TryDeleteWork(work);

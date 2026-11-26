@@ -46,7 +46,7 @@ public class SwapExecutorTests
         var observer = new ObservingFileSystem(h.Fs, log, h.Store);
         var executor = new SwapExecutor(observer, h.Journal, h.Recovery);
 
-        await executor.SwapAsync(Original, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, CancellationToken.None);
+        await executor.SwapAsync(Original, h.Source, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, CancellationToken.None);
 
         Assert.Equal(
             [
@@ -65,7 +65,7 @@ public class SwapExecutorTests
         var keep = new VerificationResult(VerificationOutcome.KeepOriginal, ["Saves 5.0%"], 0.05);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            h.Executor.SwapAsync(Original, SwapHarness.Encoded, keep, h.Settings, CancellationToken.None));
+            h.Executor.SwapAsync(Original, h.Source, SwapHarness.Encoded, keep, h.Settings, CancellationToken.None));
 
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
         Assert.Equal(SwapState.Verified, h.State);
@@ -78,7 +78,7 @@ public class SwapExecutorTests
         var settings = new ShrinkRaySettings { ReplaceOriginals = false };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            h.Executor.SwapAsync(Original, SwapHarness.Encoded, SwapHarness.Passed, settings, CancellationToken.None));
+            h.Executor.SwapAsync(Original, h.Source, SwapHarness.Encoded, SwapHarness.Passed, settings, CancellationToken.None));
 
         Assert.Equal(SwapHarness.OriginalContent, h.Fs.Read(Original));
         Assert.False(h.TempExists);
@@ -184,7 +184,7 @@ public class SwapExecutorTests
         var shortCopy = new ShortCopyFileSystem(h.Fs);
         var executor = new SwapExecutor(shortCopy, h.Journal, new SwapRecovery(shortCopy, h.Journal, h.Check));
 
-        var result = await executor.SwapAsync(Original, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, CancellationToken.None);
+        var result = await executor.SwapAsync(Original, h.Source, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, CancellationToken.None);
 
         Assert.Equal(SwapOutcome.Failed, result.Outcome);
         Assert.Contains("expected", result.Message);
@@ -199,7 +199,7 @@ public class SwapExecutorTests
         var stubborn = new UndeletableBackupFileSystem(h.Fs);
         var executor = new SwapExecutor(stubborn, h.Journal, h.Recovery);
 
-        var result = await executor.SwapAsync(Original, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, CancellationToken.None);
+        var result = await executor.SwapAsync(Original, h.Source, SwapHarness.Encoded, SwapHarness.Passed, h.Settings, CancellationToken.None);
 
         Assert.Equal(SwapOutcome.Swapped, result.Outcome);
         Assert.Contains("backup was not deleted", result.Message);
@@ -217,6 +217,7 @@ public class SwapExecutorTests
     {
         public virtual bool FileExists(string path) => inner.FileExists(path);
         public virtual long GetFileSize(string path) => inner.GetFileSize(path);
+        public virtual ShrinkRay.Core.Library.FileStamp GetStamp(string path) => inner.GetStamp(path);
         public virtual void MoveFile(string source, string destination) => inner.MoveFile(source, destination);
         public virtual void DeleteFile(string path) => inner.DeleteFile(path);
         public virtual Task CopyFileAsync(string source, string destination, IProgress<long>? progress, CancellationToken cancellationToken) =>

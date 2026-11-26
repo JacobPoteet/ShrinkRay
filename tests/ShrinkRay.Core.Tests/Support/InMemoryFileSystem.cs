@@ -1,3 +1,4 @@
+using ShrinkRay.Core.Library;
 using ShrinkRay.Core.Swap;
 
 namespace ShrinkRay.Core.Tests.Support;
@@ -59,14 +60,24 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
 {
     private readonly Dictionary<string, byte[]> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _directories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTime> _written = new(StringComparer.OrdinalIgnoreCase);
     private readonly CrashSwitch _crash = crash ?? new CrashSwitch();
+    private int _writes;
 
     /// <summary>Throws this once from the next MoveFile whose source matches, like a file Plex holds open.</summary>
     public (string Source, Exception Error)? FailNextMoveFrom { get; set; }
 
+    /// <summary>Runs just before a move, such as another program writing to the file about to be renamed.</summary>
+    public Action<string, string>? BeforeMove { get; set; }
+
     public IReadOnlyCollection<string> Files => _files.Keys;
 
-    public void Write(string path, string content) => _files[path] = System.Text.Encoding.UTF8.GetBytes(content);
+    /// <summary>Writes a file as another program would, with a write time later than any before it.</summary>
+    public void Write(string path, string content)
+    {
+        _files[path] = System.Text.Encoding.UTF8.GetBytes(content);
+        Touch(path);
+    }
 
     public string Read(string path) => System.Text.Encoding.UTF8.GetString(_files[path]);
 
@@ -74,6 +85,10 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
 
     public long GetFileSize(string path) =>
         _files.TryGetValue(path, out var data) ? data.Length : throw new FileNotFoundException(path);
+
+    public FileStamp GetStamp(string path) => new(GetFileSize(path), _written[path]);
+
+    private void Touch(string path) => _written[path] = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(++_writes);
 
     public void MoveFile(string source, string destination)
     {
@@ -83,6 +98,7 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
             throw failure.Error;
         }
 
+        BeforeMove?.Invoke(source, destination);
         _crash.Tick($"move {source}");
         if (!_files.Remove(source, out var data))
         {
@@ -96,6 +112,9 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
         }
 
         _files[destination] = data;
+
+        // A rename keeps the write time.
+        _written[destination] = _written[source];
     }
 
     public void DeleteFile(string path)
@@ -121,10 +140,12 @@ public sealed class InMemoryFileSystem(CrashSwitch? crash = null) : IFileSystem
         {
             // Power lost halfway through the copy.
             _files[destination] = data[..(data.Length / 2)];
+            Touch(destination);
             throw new SimulatedCrashException($"copy {source}");
         }
 
         _files[destination] = data.ToArray();
+        Touch(destination);
         progress?.Report(data.Length);
         return Task.CompletedTask;
     }

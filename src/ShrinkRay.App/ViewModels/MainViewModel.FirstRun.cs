@@ -416,6 +416,7 @@ public sealed partial class MainViewModel
         _settings.FirstEpisodePending = true;
         Save();
         Raise(nameof(ReplaceOriginals));
+        Reclassify();
         Advance();
 
         // The smallest show goes in the deck, so the first test is short.
@@ -478,6 +479,8 @@ public sealed partial class MainViewModel
             { Outcome: PipelineOutcome.KeptOriginal } => new("Original kept", "", "",
                 $"{track.Code} saved too little, so the original stays. The next run tries another episode and stops again. {result.Message}",
                 "", Proven: false),
+            { Outcome: PipelineOutcome.SourceChanged } => new("File changed", "", "",
+                $"{track.Code}: {result.Message} It stops after one episode again.", "", Proven: false),
             _ => new("First episode failed", "", "",
                 $"{track.Code}: {result.Message.TrimEnd('.')}. The next run tries again and stops after one episode.", "", Proven: false),
         };

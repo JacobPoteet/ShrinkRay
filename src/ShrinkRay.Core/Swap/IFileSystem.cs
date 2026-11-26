@@ -1,3 +1,5 @@
+using ShrinkRay.Core.Library;
+
 namespace ShrinkRay.Core.Swap;
 
 /// <summary>Every file operation the engine performs, so tests can run against an in-memory fake.</summary>
@@ -6,6 +8,10 @@ public interface IFileSystem
     bool FileExists(string path);
 
     long GetFileSize(string path);
+
+    /// <summary>A file's size and last write time, which together tell whether it is still the same file.</summary>
+    /// <exception cref="FileNotFoundException">The file is not there.</exception>
+    FileStamp GetStamp(string path);
 
     /// <summary>Renames a file. Never overwrites: throws <see cref="IOException"/> if the destination exists.</summary>
     void MoveFile(string source, string destination);
@@ -41,6 +47,12 @@ public sealed class PhysicalFileSystem : IFileSystem
     public bool FileExists(string path) => File.Exists(path);
 
     public long GetFileSize(string path) => new FileInfo(path).Length;
+
+    public FileStamp GetStamp(string path)
+    {
+        var info = new FileInfo(path);
+        return new FileStamp(info.Length, info.LastWriteTimeUtc);
+    }
 
     public void MoveFile(string source, string destination) => File.Move(source, destination, overwrite: false);
 

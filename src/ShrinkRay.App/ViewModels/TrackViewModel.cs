@@ -169,6 +169,15 @@ public sealed class TrackViewModel : ObservableObject
         Raise(nameof(AutomationName));
     }
 
+    /// <summary>The file changed during its run, so it waits for the next one. The row says why.</summary>
+    public void SetChanged(string reason)
+    {
+        SetQueued();
+        StatusText = "CHANGED";
+        Detail = reason;
+        Raise(nameof(AutomationName));
+    }
+
     /// <param name="ratio">Expected output size over source size, for the growing size figure.</param>
     /// <param name="status">A word for a phase other than the encode, such as COPY. Null shows the percent.</param>
     public void SetEncoding(double progress, double ratio, string? status = null)

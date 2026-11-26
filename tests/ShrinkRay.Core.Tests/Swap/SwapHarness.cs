@@ -1,3 +1,4 @@
+using ShrinkRay.Core.Library;
 using ShrinkRay.Core.Settings;
 using ShrinkRay.Core.Swap;
 using ShrinkRay.Core.Tests.Support;
@@ -31,6 +32,7 @@ internal sealed class SwapHarness
         Store = new InMemoryJournalStore(Crash);
         Fs.Write(Original, OriginalContent);
         Fs.Write(Encoded, NewContent);
+        Source = Fs.GetStamp(Original);
         Start();
         if (verified)
         {
@@ -48,8 +50,11 @@ internal sealed class SwapHarness
         Start();
     }
 
+    /// <summary>The original as it was when the encode copied it.</summary>
+    public FileStamp Source { get; }
+
     public Task<SwapResult> SwapAsync(CancellationToken cancellationToken = default) =>
-        Executor.SwapAsync(Original, Encoded, Passed, Settings, cancellationToken);
+        Executor.SwapAsync(Original, Source, Encoded, Passed, Settings, cancellationToken);
 
     public Task<IReadOnlyList<RecoveryAction>> RecoverAsync() =>
         Recovery.RecoverAsync([ShowFolder], CancellationToken.None);

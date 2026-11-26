@@ -164,7 +164,10 @@
                                     BorderBrush="{DynamicResource SR.PhosphorDim}" Visibility="Collapsed" />
                             <Border x:Name="Track" CornerRadius="10" Background="{DynamicResource SR.ToggleTrack}" />
                             <sr:InsetShadow CornerRadius="10" Blur="4" OffsetY="2" Color="#CC000000" />
-                            <Ellipse Width="16" Height="16" Margin="2,0,0,0" HorizontalAlignment="Left"
+                            <!-- Where the knob rests follows IsChecked through a setter. The slide only
+                                 plays on top and ends at nothing, so a render that never runs the
+                                 clock still shows the switch's real state. -->
+                            <Ellipse x:Name="Knob" Width="16" Height="16" Margin="2,0,0,0" HorizontalAlignment="Left"
                                      Fill="{DynamicResource SR.ToggleKnob}">
                                 <Ellipse.RenderTransform>
                                     <TranslateTransform x:Name="Thumb" />
@@ -177,17 +180,20 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Track" Property="Background" Value="{DynamicResource SR.ToggleTrackOn}" />
                             <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Knob" Property="Margin" Value="20,0,0,0" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="X" To="18" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="X" From="-18" To="0"
+                                                         Duration="0:0:0.12" FillBehavior="Stop" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
                             <Trigger.ExitActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="X" To="0" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="Thumb" Storyboard.TargetProperty="X" From="18" To="0"
+                                                         Duration="0:0:0.12" FillBehavior="Stop" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>

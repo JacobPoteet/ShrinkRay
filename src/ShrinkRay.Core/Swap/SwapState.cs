@@ -36,7 +36,8 @@ public enum SwapState
     /// <summary>
     /// Skip or Stop abandoned the file before its swap began, or during the upload and the temp
     /// file was removed. Startup recovery also ends here a file that ShrinkRay died under during
-    /// a local step. The original was never touched; the next run starts the file over.
+    /// a local step, and a run ends here a file that changed on the share while it was being
+    /// encoded. The file on the share is as it was; the next run starts it over.
     /// </summary>
     Cancelled,
 }
