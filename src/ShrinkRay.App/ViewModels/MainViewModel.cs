@@ -124,6 +124,9 @@ public sealed partial class MainViewModel : ObservableObject
         CreateCloseCommands();
         CreateStopCommands();
         CreateFirstRunCommands();
+        CreateLibraryCommands();
+        OpenLogCommand = new RelayCommand(() => _s.OpenLog());
+        LearnSizes();
 
         SystemLamps = [GpuLamp, HandBrakeLamp, FfmpegLamp, LibraryLamp, ScratchLamp];
         _cqIndex = NearestDetent(_settings.Cq);
@@ -157,6 +160,8 @@ public sealed partial class MainViewModel : ObservableObject
     public RelayCommand CloseSettingsCommand { get; }
 
     public RelayCommand RescanCommand { get; }
+
+    public RelayCommand OpenLogCommand { get; }
 
     public RelayCommand WindowStartEarlierCommand { get; }
 
@@ -307,7 +312,12 @@ public sealed partial class MainViewModel : ObservableObject
                 return _scanStatus;
             }
 
-            return Shows.Count == 0 ? "NOTHING LEFT TO SHRINK" : "";
+            if (Shows.Count == 0)
+            {
+                return "NOTHING LEFT TO SHRINK";
+            }
+
+            return VisibleShows.Count == 0 ? "NO SHOW MATCHES" : "";
         }
     }
 
@@ -325,12 +335,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var s = row.Summary;
         var cq = _settings.CqForShow(row.FolderName);
+        var ratio = RatioFor(row.FolderName, cq);
         var eta = TimeSpan.FromSeconds(EpisodeEstimate.For(s.QueueableFrames, s.QueueableBytes,
-            _settings.ReplaceOriginals ? (long)(s.QueueableBytes * SizeEstimate.RatioFor(cq)) : 0, _rates).TotalSeconds);
+            _settings.ReplaceOriginals ? (long)(s.QueueableBytes * ratio) : 0, _rates).TotalSeconds);
+        var own = _sizes.EpisodesBehind(row.FolderName);
+        var basis = own == 0 ? "" : $", going by {own} of its episodes";
         var seasons = s.SeasonCount == 1 ? "1 season" : $"{s.SeasonCount} seasons";
         return $"{seasons}, {s.EpisodeCount} episodes\n"
             + $"{s.CodecLabel}, {s.QueueableCount} to do, {Format.Duration(eta).ToLowerInvariant()}\n"
-            + $"Saves about {Format.WholeGigabytes(s.ProjectedSavings(cq))} of {Format.WholeGigabytes(s.TotalBytes)} GB at CQ {cq}";
+            + $"Saves about {Format.WholeGigabytes(s.ProjectedSavingsAt(ratio))} of {Format.WholeGigabytes(s.TotalBytes)} GB at CQ {cq}{basis}";
     }
 
     // ---- Deck ----
@@ -547,7 +560,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>True when the show the Quality row sets has its own CQ rather than the default.</summary>
     public bool HasCqOverride => ShownShow is { } show && _settings.ShowCqOverrides.ContainsKey(show.Name);
 
-    public string EstimateText => $"Est −{Format.Percent(SizeEstimate.SavingsFor(Cq))} per ep";
+    public string EstimateText => $"Est −{Format.Percent(1 - RatioFor(ShownShow?.Name, Cq))} per ep";
 
     /// <summary>The line under the Quality chips: which show they set, and what that saves.</summary>
     public string CqCaption => ShownShow is { } show
@@ -710,6 +723,23 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    public bool KeepLosslessAudio
+    {
+        get => _settings.KeepLosslessAudio;
+        set
+        {
+            if (_settings.KeepLosslessAudio == value || IsEncoding)
+            {
+                Raise();
+                return;
+            }
+
+            _settings.KeepLosslessAudio = value;
+            Save();
+            Raise();
+        }
+    }
+
     public bool EncodeWindowEnabled
     {
         get => _settings.EncodeWindowEnabled;
@@ -768,7 +798,7 @@ public sealed partial class MainViewModel : ObservableObject
         set => SetChassisIf(value, Chassis.Graphite);
     }
 
-    private double Ratio => SizeEstimate.RatioFor(IsEncoding ? _runCq : Cq);
+    private double Ratio => RatioFor(_loaded?.Name, IsEncoding ? _runCq : Cq);
 
     private TrackViewModel? NextQueued => _tracks.FirstOrDefault(t => t.IsQueueable);
 

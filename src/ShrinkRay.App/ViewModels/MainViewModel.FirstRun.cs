@@ -116,7 +116,8 @@ public sealed partial class MainViewModel
 
     public string LibraryChooseLabel => IsLibraryAsking ? "Choose" : "Choose another";
 
-    private long ProjectedSavings => _scans.Values.Sum(s => ShowSummary.From(s, Classify).ProjectedSavings(_settings.CqForShow(s.Name)));
+    private long ProjectedSavings => _scans.Values.Sum(s =>
+        ShowSummary.From(s, Classify).ProjectedSavingsAt(RatioFor(s.Name, _settings.CqForShow(s.Name))));
 
     /// <summary>The space the library would give back, for the card's big digits.</summary>
     public string PayoffDigits => Format.WholeGigabytes(IsLibraryFound ? ProjectedSavings : 0);

@@ -106,8 +106,11 @@ public sealed record ShowSummary(
         : EfficientCount > 0 ? HiddenReason.Hevc
         : HiddenReason.Other;
 
-    /// <summary>Bytes the queueable episodes would give back at <paramref name="cq"/>.</summary>
-    public long ProjectedSavings(int cq) => (long)(QueueableBytes * (1 - SizeEstimate.RatioFor(cq)));
+    /// <summary>Bytes the queueable episodes would give back at <paramref name="cq"/>, on the measured curve.</summary>
+    public long ProjectedSavings(int cq) => ProjectedSavingsAt(SizeEstimate.RatioFor(cq));
+
+    /// <summary>Bytes the queueable episodes would give back if each came out at <paramref name="ratio"/> of its size.</summary>
+    public long ProjectedSavingsAt(double ratio) => (long)(QueueableBytes * (1 - ratio));
 
     public static ShowSummary From(ShowScan scan, Func<EpisodeRecord, EpisodeStatus> classify)
     {

@@ -91,7 +91,8 @@ an interface, so tests run against fakes. Folders match namespaces:
 | `Setup` | `FirstRunFlow` (the first-run steps and their rules), `ScratchCheck`, `ToolInstall` |
 | `Processes` | `IProcessRunner`, `ProcessRunner`, `ProcessGate` (Pause), `ToolLocator`, and the ffprobe, HandBrakeCLI and ffmpeg wrappers |
 | `Pipeline` | `EpisodePipeline`, which runs one episode from probe to swap, and `EncodeQueue`, which runs a show's episodes one at a time |
-| `Library` | `LibraryScanner` and `ProbeCache`, `EpisodeName` parsing, `ShowSummary` and episode status, `SizeEstimate`, `ShrinkLedger` |
+| `Library` | `LibraryScanner` and `ProbeCache`, `EpisodeName` parsing, `ShowSummary` and episode status, `SizeEstimate` and the ledger-fed `SizeModel`, `ShrinkLedger` |
+| `Diagnostics` | `FileLog`, the app's `shrinkray.log`. It holds library paths, so it never leaves the machine |
 
 The swap journal is the part that protects the library. Keep these properties when you change it:
 

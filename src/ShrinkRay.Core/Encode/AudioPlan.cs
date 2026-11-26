@@ -37,7 +37,8 @@ public static class AudioPlanner
 
     public const string AacEncoder = "av_aac";
 
-    public static IReadOnlyList<AudioTrackPlan> Plan(MediaInfo source)
+    /// <param name="keepLossless">Copy lossless tracks as they are instead of turning them into AAC.</param>
+    public static IReadOnlyList<AudioTrackPlan> Plan(MediaInfo source, bool keepLossless = false)
     {
         var plans = new List<AudioTrackPlan>();
         var trackNumber = 0;
@@ -46,7 +47,7 @@ public static class AudioPlanner
             trackNumber++;
             var codec = stream.CodecName ?? "";
             var channels = stream.Channels is > 0 ? stream.Channels.Value : 2;
-            var (action, encoder) = Choose(codec, stream.Profile);
+            var (action, encoder) = Choose(codec, stream.Profile, keepLossless);
             plans.Add(new AudioTrackPlan(
                 trackNumber,
                 stream.Index,
@@ -62,10 +63,16 @@ public static class AudioPlanner
 
     /// <summary>
     /// Copies the lossy codecs HandBrake can pass through. Everything else, lossless tracks
-    /// (flac, pcm_*, truehd, DTS-HD MA) and lossy codecs HandBrake cannot copy, becomes AAC.
+    /// (flac, alac, pcm_*, truehd, DTS-HD MA) and lossy codecs HandBrake cannot copy, becomes
+    /// AAC. With <paramref name="keepLossless"/> the lossless tracks are copied too.
     /// </summary>
-    public static (AudioAction Action, string Encoder) Choose(string codec, string? profile)
+    public static (AudioAction Action, string Encoder) Choose(string codec, string? profile, bool keepLossless = false)
     {
+        if (keepLossless && LosslessCopy(codec, profile) is { } lossless)
+        {
+            return (AudioAction.Passthrough, lossless);
+        }
+
         if (IsDtsHdMa(codec, profile))
         {
             return (AudioAction.EncodeAac, AacEncoder);
@@ -94,6 +101,27 @@ public static class AudioPlanner
         7 => "6point1",
         _ => "7point1",
     };
+
+    /// <summary>True for a lossless track the plan can copy as it is.</summary>
+    public static bool IsLossless(string? codec, string? profile) => LosslessCopy(codec ?? "", profile) is not null;
+
+    // HandBrake drops a track whose codec does not match its passthrough, so each names its own.
+    private static string? LosslessCopy(string codec, string? profile)
+    {
+        if (IsDtsHdMa(codec, profile))
+        {
+            return "copy:dtshd";
+        }
+
+        return codec.ToLowerInvariant() switch
+        {
+            "flac" => "copy:flac",
+            "truehd" => "copy:truehd",
+            "alac" => "copy:alac",
+            var c when c.StartsWith("pcm_", StringComparison.Ordinal) => "copy:pcm",
+            _ => null,
+        };
+    }
 
     // ffprobe reports "DTS-HD MA", and newer builds "DTS-HD MA + DTS:X".
     private static bool IsDtsHdMa(string codec, string? profile) =>

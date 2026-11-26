@@ -41,11 +41,16 @@ public sealed partial class MainViewModel
         {
             var actions = await _s.Recover(SettingsStore.Normalize(_settings), CancellationToken.None);
             _recoveryReviews = actions.Count(a => a.Kind == RecoveryKind.NeedsReview);
+            foreach (var action in actions)
+            {
+                _s.Log($"Recovery, {action.Kind}: {action.Path}\n{action.Description}");
+            }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _recoveryFailed = true;
             Notice = "Recovery could not finish: " + ex.Message;
+            _s.Log("Recovery could not finish: " + ex);
         }
         finally
         {
@@ -85,6 +90,7 @@ public sealed partial class MainViewModel
         _scans.Clear();
         _hidden.Clear();
         Shows.Clear();
+        VisibleShows.Clear();
         SelectedShow = null;
         RefreshSystemLamps();
 
@@ -211,6 +217,12 @@ public sealed partial class MainViewModel
             }
         }
 
+        foreach (var row in Shows.Where(r => string.Equals(r.FolderName, scan.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            row.ShownSavings = SortBySavings ? SavingsFor(row) : null;
+        }
+
+        Arrange();
         RefreshLibraryText();
     }
 
@@ -263,6 +275,7 @@ public sealed partial class MainViewModel
         }
 
         Save();
+        LearnSizes();
         Raise(nameof(LibraryRoot));
         var show = LibraryScanner.IsShowFolder(_s.Disk, _settings.LibraryRoot) ? Path.GetFileName(_settings.LibraryRoot.TrimEnd('\\')) : null;
         _ = ScanLibraryAsync(show ?? _loaded?.Name);
@@ -504,6 +517,8 @@ public sealed partial class MainViewModel
         SyncQualityChips();
         RefreshQueue();
 
+        LogShow(_loaded.Name, tracks.Count);
+
         // The trial stops after one episode, so it never reaches the queue.
         var source = new ShowQueueSource(tracks.Select(t => t.Path), trial ? new ShowQueue() : _showQueue, OpenQueuedShowAsync);
         CurrentRun = RunQueueAsync(queue, source);
@@ -658,6 +673,7 @@ public sealed partial class MainViewModel
             }
         }
 
+        LogEpisode(finished);
         LearnFrom(finished);
         _tally.Add(finished, track?.OriginalBytes, track?.SavedBytes);
         if (_current == track)
@@ -739,6 +755,8 @@ public sealed partial class MainViewModel
             case PipelineOutcome.Replaced:
                 var newBytes = _s.FileSize(track.Path) ?? (long)(track.OriginalBytes * Ratio);
                 _s.Ledger.Record(new LedgerEntry(track.Path, track.OriginalBytes, newBytes, _runCq, DateTimeOffset.Now));
+                LearnSizes();
+                RefreshShowDetails();
                 track.SetShrunk(newBytes);
                 RaiseLifetime();
                 break;
@@ -898,6 +916,14 @@ public sealed partial class MainViewModel
 
     // ---- Settings ----
 
+    private void LogShow(string show, int episodes) => _s.Log(
+        $"Run: {show}, {episodes} to do, CQ {_runCq}, {(_runSettings?.ReplaceOriginals == true ? "replacing originals" : "keeping originals")}"
+        + (_runSettings?.KeepLosslessAudio == true ? ", keeping lossless audio" : ""));
+
+    private void LogEpisode(EpisodeFinished finished) => _s.Log(finished.Result is { } result
+        ? $"{result.Outcome}: {finished.Path}\n{result.Message}"
+        : $"{finished.End} from the deck: {finished.Path}");
+
     private void ChooseScratch()
     {
         var folder = _s.FolderPicker?.PickFolder("Choose a local scratch folder", _settings.ScratchFolder);
@@ -976,6 +1002,7 @@ public sealed partial class MainViewModel
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Notice = $"{what}: {ex.Message}";
+            _s.Log($"{what}: {ex.Message}");
         }
     }
 
@@ -1032,7 +1059,10 @@ public sealed partial class MainViewModel
         foreach (var row in Shows)
         {
             row.Detail = DetailFor(row);
+            row.ShownSavings = SortBySavings ? SavingsFor(row) : null;
         }
+
+        Arrange();
     }
 
     private void RefreshTransport()

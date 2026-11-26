@@ -9,6 +9,31 @@
     <BooleanToVisibilityConverter x:Key="Visible" />
     <views:InverseVisibilityConverter x:Key="Hidden" />
     <views:EmptyToCollapsedConverter x:Key="NotEmpty" />
+    <views:FilledToCollapsedConverter x:Key="Empty" />
+
+    <!-- Typed on monitor A: the phosphor text and a block caret over the glass, with a rule under it -->
+    <Style x:Key="CrtSearch" TargetType="TextBox">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Foreground" Value="{DynamicResource SR.Phosphor}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource SR.Phosphor}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource SR.PhosphorDim}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Rule" Background="{TemplateBinding Background}" BorderThickness="0,0,0,2"
+                            BorderBrush="{DynamicResource SR.PhosphorDim}">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Rule" Property="BorderBrush" Value="{DynamicResource SR.Phosphor}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!-- A lamp with a silkscreen word, as printed on the panel -->
     <DataTemplate x:Key="SilkWord">

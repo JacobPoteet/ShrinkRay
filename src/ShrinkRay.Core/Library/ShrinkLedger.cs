@@ -72,6 +72,15 @@ public sealed class ShrinkLedger
         }
     }
 
+    /// <summary>Every replaced file's latest entry.</summary>
+    public IReadOnlyList<LedgerEntry> All()
+    {
+        lock (_gate)
+        {
+            return _latest.Values.ToList();
+        }
+    }
+
     /// <summary>
     /// The bytes given back across every file ShrinkRay has ever replaced: the sum of each
     /// entry's saving, counting a file once, at its latest entry.

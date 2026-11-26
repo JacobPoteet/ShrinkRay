@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
+using ShrinkRay.Core.Diagnostics;
 using ShrinkRay.Core.Library;
 using ShrinkRay.Core.Pipeline;
 using ShrinkRay.Core.Processes;
@@ -13,13 +15,15 @@ namespace ShrinkRay.App.Services;
 public static class Composition
 {
     /// <param name="settings">The loaded settings. Scans use its ffprobe path.</param>
-    public static DeckServices Create(AppPaths paths, ShrinkRaySettings settings, Action<Action> dispatch)
+    /// <param name="log">The log the app already writes to. Null opens the data folder's.</param>
+    public static DeckServices Create(AppPaths paths, ShrinkRaySettings settings, Action<Action> dispatch, FileLog? log = null)
     {
+        var journalLog = log ?? new FileLog(paths.Log);
         var gate = new ProcessGate();
 
         // One job for the app's lifetime. Both runners hold it, so it lives until ShrinkRay exits.
         var job = ChildProcessJob.TryCreate();
-        var runner = new ProcessRunner(gate, job);
+        var runner = new LoggingProcessRunner(new ProcessRunner(gate, job), journalLog.Write);
         var plainRunner = new ProcessRunner(job: job);
         var fs = new PhysicalFileSystem();
         var journal = new SwapJournal(new JsonLinesJournalStore(paths.Journal));
@@ -36,7 +40,9 @@ public static class Composition
             Gpu = new NvidiaSmiMonitor(plainRunner),
             FolderPicker = new WpfFolderPicker(),
             CreateRunner = settings => CreateRunner(settings, runner, fs, journal),
-            Recover = (settings, ct) => RecoverAsync(settings, plainRunner, fs, journal, ct),
+            Recover = (settings, ct) => RecoverAsync(settings, new LoggingProcessRunner(plainRunner, journalLog.Write), fs, journal, ct),
+            Log = journalLog.Write,
+            OpenLog = () => ShowInExplorer(paths.Log),
             SaveSettings = settings => SettingsStore.Save(paths.Settings, settings),
             SavePreferences = prefs => prefs.Save(paths.Preferences),
             SaveCache = cache => cache.Save(paths.ProbeCache),
@@ -47,6 +53,20 @@ public static class Composition
             CopyText = CopyToClipboard,
             Dispatch = dispatch,
         };
+    }
+
+    private static void ShowInExplorer(string path)
+    {
+        // Explorer selects the file, or opens the folder when nothing has been logged yet.
+        var argument = File.Exists(path) ? $"/select,\"{path}\"" : $"\"{Path.GetDirectoryName(path)}\"";
+        try
+        {
+            using var explorer = Process.Start(new ProcessStartInfo("explorer.exe", argument));
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // No Explorer to show it in. The file is still where the data folder says.
+        }
     }
 
     private static void CopyToClipboard(string text)

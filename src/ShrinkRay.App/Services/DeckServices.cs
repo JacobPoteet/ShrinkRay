@@ -101,6 +101,12 @@ public sealed class DeckServices
         }
     };
 
+    /// <summary>Adds a line to the log.</summary>
+    public Action<string> Log { get; init; } = _ => { };
+
+    /// <summary>Shows the log file in Explorer.</summary>
+    public Action OpenLog { get; init; } = () => { };
+
     /// <summary>Puts text on the clipboard.</summary>
     public Action<string> CopyText { get; init; } = _ => { };
 
