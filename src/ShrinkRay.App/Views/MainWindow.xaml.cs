@@ -156,6 +156,9 @@ public partial class MainWindow : Window
         }
     }
 
+    // A right click opens a show's menu without picking the show, which would load it or browse it.
+    private void OnShowRightDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
+
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void OnMaximize(object sender, RoutedEventArgs e) =>

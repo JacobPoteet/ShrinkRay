@@ -103,6 +103,7 @@ public sealed partial class MainViewModel : ObservableObject
         _prefs = preferences;
         _defaultScratch = defaultScratch;
         _rates = services.Rates;
+        _showQueue = new ShowQueue(preferences.Queue);
         _scanner = new LibraryScanner(services.Disk, services.Probe, services.Cache);
 
         EncodeCommand = new RelayCommand(Encode, () => (_loaded is not null && !_isRecovering && !IsDeckHeld) || IsEncoding);
@@ -110,6 +111,7 @@ public sealed partial class MainViewModel : ObservableObject
         StopCommand = new RelayCommand(Stop);
         SkipCommand = new RelayCommand(Skip);
         BackToRunCommand = new RelayCommand(BackToRun);
+        ToggleQueueCommand = new RelayCommand(() => { if (ShownShow is { } show) { ToggleQueued(show.Name); } }, () => CanQueueShown);
         ChooseLibraryCommand = new RelayCommand(ChooseLibrary, () => !IsEncoding);
         ChooseScratchCommand = new RelayCommand(ChooseScratch, () => !IsEncoding);
         OpenSettingsCommand = new RelayCommand(() => IsSettingsOpen = true, () => !IsDeckHeld);
@@ -445,7 +447,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string ShowLeftDetail => _loaded is null
         ? "Time left for the whole show"
-        : $"About {Format.Duration(TimeLeft).ToLowerInvariant()} left for {_tracks.Count(t => t.IsQueueable || t.Kind == TrackKind.Encoding)} episodes, copying and checking included, encoding at {Math.Round(SpeedFps)} frames per second";
+        : $"About {Format.Duration(TimeLeft).ToLowerInvariant()} left for {_tracks.Count(t => t.IsQueueable || t.Kind == TrackKind.Encoding)} episodes, copying and checking included, encoding at {Math.Round(SpeedFps)} frames per second"
+            + (HasQueue ? $". Then {QueueCount} queued, about {Format.Duration(QueueTime).ToLowerInvariant()}" : "");
 
     public string ShowLeftName => _loaded is null ? "Show time left, none" : $"Show time left, {Format.Duration(TimeLeft).ToLowerInvariant()}";
 
@@ -489,7 +492,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The Quality row's choices in the service panel, one per detent.</summary>
     public ObservableCollection<CqChipViewModel> CqChips { get; } = [];
 
-    /// <summary>The chosen detent. Picking one saves a CQ override for the show in the deck.</summary>
+    /// <summary>
+    /// The chosen detent. Picking one saves a CQ override for the show in the deck, or during a
+    /// run for the browsed show, which takes it when its turn comes.
+    /// </summary>
     public int CqIndex
     {
         get => _cqIndex;
@@ -501,16 +507,16 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            if (_loaded is not null && !IsEncoding)
+            if (CanEditQuality && ShownShow is { } show)
             {
                 var cq = CqDetents[value];
                 if (cq == _settings.Cq)
                 {
-                    _settings.ShowCqOverrides.Remove(_loaded.Name);
+                    _settings.ShowCqOverrides.Remove(show.Name);
                 }
                 else
                 {
-                    _settings.ShowCqOverrides[_loaded.Name] = cq;
+                    _settings.ShowCqOverrides[show.Name] = cq;
                 }
 
                 Save();
@@ -519,13 +525,17 @@ public sealed partial class MainViewModel : ObservableObject
             RefreshDeck();
             RefreshCqChips();
             RefreshShowDetails();
+            RefreshQueue();
         }
     }
 
     public int Cq => CqDetents[_cqIndex];
 
-    /// <summary>True while a show is in the deck and nothing runs, so the Quality row can change.</summary>
-    public bool CanEditQuality => _loaded is not null && !IsEncoding;
+    /// <summary>
+    /// The Quality row can change for a show in the deck while nothing runs, and during a run for
+    /// another show being browsed. The show being encoded keeps the quality it started with.
+    /// </summary>
+    public bool CanEditQuality => ShownShow is not null && (!IsEncoding || IsBrowsing);
 
     /// <summary>
     /// The detent marked as recommended: the deck's default CQ, which shows without an override
@@ -534,15 +544,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public int RecommendedCqIndex => NearestDetent(_settings.Cq);
 
-    /// <summary>True when the show in the deck has its own CQ rather than the default.</summary>
-    public bool HasCqOverride => _loaded is not null && _settings.ShowCqOverrides.ContainsKey(_loaded.Name);
+    /// <summary>True when the show the Quality row sets has its own CQ rather than the default.</summary>
+    public bool HasCqOverride => ShownShow is { } show && _settings.ShowCqOverrides.ContainsKey(show.Name);
 
     public string EstimateText => $"Est −{Format.Percent(SizeEstimate.SavingsFor(Cq))} per ep";
 
     /// <summary>The line under the Quality chips: which show they set, and what that saves.</summary>
-    public string CqCaption => _loaded is null
-        ? "Pick a show to set its quality"
-        : $"{_loaded.Name} · {EstimateText}";
+    public string CqCaption => ShownShow is { } show
+        ? $"{show.Name} · {EstimateText}"
+        : "Pick a show to set its quality";
 
     // ---- J-card ----
 

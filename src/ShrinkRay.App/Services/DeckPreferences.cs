@@ -21,6 +21,9 @@ public sealed record DeckPreferences
     /// <summary>The show folder name last loaded, reloaded on the next start.</summary>
     public string? LastShow { get; init; }
 
+    /// <summary>The shows waiting to run after the one on the tape, by folder name, next first.</summary>
+    public IReadOnlyList<string>? Queue { get; init; }
+
     public static DeckPreferences Load(string path)
     {
         try

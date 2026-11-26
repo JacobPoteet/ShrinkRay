@@ -127,6 +127,11 @@ One copy runs per data folder. `SingleInstance` claims it before anything reads 
 second copy's recovery would act on the first one's encode. A refused copy brings the first one
 forward and exits.
 
+Encode runs the show on the tape, then each show in the queue (`ShowQueue`, saved in
+`deck.json`). A queued show is read when its turn comes and gets its own settings snapshot and
+engine, so its CQ can change until then. The episode percent and Show left count every step,
+weighted by `PhaseRates`, which learn this machine's speeds and are saved in `rates.json`.
+
 Startup order matters: `StartAsync` runs journal recovery, then opens first-run setup or scans
 the library, and Encode stays off until recovery ends and while setup or its tour is up. Setup
 runs when settings name no library, or when it was quit before the originals choice. The trial

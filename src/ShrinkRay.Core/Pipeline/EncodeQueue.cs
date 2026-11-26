@@ -91,13 +91,22 @@ public sealed class EncodeQueue
     /// <summary>
     /// Arms <see cref="StopAfterCurrent"/> as the first episode starts, so the run ends after it.
     /// <see cref="ContinueAfterCurrent"/> takes it back, before or during that episode.
-    /// Set it before <see cref="RunAsync"/>.
+    /// Set it before <see cref="RunAsync(IEpisodeSource)"/>.
     /// </summary>
     public bool StopAfterFirst { get; set; }
 
     /// <summary>Runs every path in order. Returns when the list is done or Stop is pressed.</summary>
     /// <exception cref="InvalidOperationException">A run is already going.</exception>
-    public async Task RunAsync(IReadOnlyList<string> paths)
+    public Task RunAsync(IReadOnlyList<string> paths) =>
+        RunAsync(new ShowQueueSource(paths, new ShowQueue(), (_, _) => Task.FromResult<IReadOnlyList<string>>([])));
+
+    /// <summary>
+    /// Runs each episode the source hands out. Returns when it has no more or Stop is pressed.
+    /// The source is asked only once an episode may start, so what waits behind it can change
+    /// until then.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A run is already going.</exception>
+    public async Task RunAsync(IEpisodeSource source)
     {
         CancellationToken token;
         lock (_lock)
@@ -116,16 +125,23 @@ public sealed class EncodeQueue
 
         try
         {
-            foreach (var path in paths)
+            while (source.HasNext)
             {
                 if (StopAfterCurrentRequested() || !await WaitToStartAsync(token).ConfigureAwait(false))
                 {
                     break;
                 }
 
+                if (StopAfterCurrentRequested() || await NextAsync(source, token).ConfigureAwait(false) is not { } path)
+                {
+                    break;
+                }
+
+                // Reading the next show takes a while, so a pause or the window's end may have come.
                 // Checked again after the wait, so a request made while the queue waited never
                 // lets a whole new episode run.
-                if (StopAfterCurrentRequested() || !await RunEpisodeAsync(path, token).ConfigureAwait(false))
+                if (!await WaitToStartAsync(token).ConfigureAwait(false) || StopAfterCurrentRequested()
+                    || !await RunEpisodeAsync(path, token).ConfigureAwait(false))
                 {
                     break;
                 }
@@ -279,6 +295,19 @@ public sealed class EncodeQueue
 
             _stopAfterCurrent = false;
             return true;
+        }
+    }
+
+    /// <returns>Null when the source has nothing more, or Stop cut the read short.</returns>
+    private static async Task<string?> NextAsync(IEpisodeSource source, CancellationToken token)
+    {
+        try
+        {
+            return await source.NextAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return null;
         }
     }
 
