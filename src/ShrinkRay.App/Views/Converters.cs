@@ -14,6 +14,16 @@ public sealed class InverseVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>Text collapses the element, and empty text shows it, as a placeholder does.</summary>
+public sealed class FilledToCollapsedConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        string.IsNullOrEmpty(value as string) ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>Empty text collapses the element. Bound to a bool, empty text gives false.</summary>
 public sealed class EmptyToCollapsedConverter : IValueConverter
 {

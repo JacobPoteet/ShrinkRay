@@ -3,6 +3,7 @@ using ShrinkRay.App.Services;
 using ShrinkRay.App.Tray;
 using ShrinkRay.App.ViewModels;
 using ShrinkRay.App.Views;
+using ShrinkRay.Core.Diagnostics;
 using ShrinkRay.Core.Settings;
 using ShrinkRay.Theme;
 
@@ -27,6 +28,34 @@ public partial class App : Application
         _trayModel?.Dispose();
         _instance?.Dispose();
         base.OnExit(e);
+    }
+
+    // Anything unexpected is written down before the app goes. It closes rather than carries on,
+    // since the swap journal makes the next start safe and a half-working deck would not be.
+    private void LogCrashes(FileLog log)
+    {
+        var closing = false;
+        DispatcherUnhandledException += (_, e) =>
+        {
+            log.Write("Crash: " + e.Exception);
+            e.Handled = true;
+            if (closing)
+            {
+                return;
+            }
+
+            closing = true;
+            MessageBox.Show(
+                $"ShrinkRay hit an error and has to close. The next start puts any half-finished swap right.\n\nThe details are in {log.FilePath}",
+                "ShrinkRay", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => log.Write("Crash: " + e.ExceptionObject);
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            log.Write("A background task failed: " + e.Exception);
+            e.SetObserved();
+        };
     }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -56,11 +85,14 @@ public partial class App : Application
         }
 
         var paths = new AppPaths(dataFolder);
+        var log = new FileLog(paths.Log);
+        LogCrashes(log);
+        log.Write($"ShrinkRay {typeof(App).Assembly.GetName().Version?.ToString(3)} started");
         var settings = SettingsStore.Load(paths.Settings);
         var preferences = DeckPreferences.Load(paths.Preferences);
         ThemeManager.Apply(preferences.Phosphor, preferences.Chassis);
 
-        var services = Composition.Create(paths, settings, action => Dispatcher.BeginInvoke(action));
+        var services = Composition.Create(paths, settings, action => Dispatcher.BeginInvoke(action), log);
         var viewModel = new MainViewModel(services, settings, preferences, paths.DefaultScratch);
         var window = new MainWindow(viewModel);
         MainWindow = window;

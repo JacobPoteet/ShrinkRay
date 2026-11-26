@@ -109,6 +109,7 @@ public sealed partial class MainViewModel
         }
 
         var summary = _tally.Describe();
+        _s.Log($"Run ended: {summary}." + (halted is null ? "" : $" {halted}"));
         Notice = halted is null
             ? $"Run {(asked ? "stopped" : "done")}: {summary}."
             : $"{halted.TrimEnd('.')}. So far: {summary}.";

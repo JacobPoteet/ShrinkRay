@@ -32,6 +32,7 @@ internal sealed class DeckRig
     public List<ShrinkRaySettings> RunSettings { get; } = [];
     public int SettingsSaves { get; private set; }
     public List<PhaseRates> SavedRates { get; } = [];
+    public ConcurrentQueue<string> Logged { get; } = new();
     public DeckPreferences? SavedPreferences { get; private set; }
     public IReadOnlyList<RecoveryAction> RecoveryActions { get; set; } = [];
     public string? PickedFolder { get; set; }
@@ -123,6 +124,7 @@ internal sealed class DeckRig
             },
             SaveSettings = _ => SettingsSaves++,
             SaveRates = SavedRates.Add,
+            Log = Logged.Enqueue,
             SavePreferences = p => SavedPreferences = p,
             ApplyTheme = (p, c) => Themes.Add((p, c)),
             ResolveTool = name => MissingTools.Contains(name) ? null : name,

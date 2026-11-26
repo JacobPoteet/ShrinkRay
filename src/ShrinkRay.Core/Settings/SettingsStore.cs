@@ -86,6 +86,7 @@ public static class SettingsStore
             MinimumSavings = file.MinimumSavings ?? ShrinkRaySettings.DefaultMinimumSavings,
             ReplaceOriginals = file.ReplaceOriginals ?? true,
             RestoreFonts = file.RestoreFonts ?? true,
+            KeepLosslessAudio = file.KeepLosslessAudio ?? false,
             EncodeWindowEnabled = file.EncodeWindowEnabled ?? false,
             EncodeWindowStart = TimeOr(file.EncodeWindowStart, ShrinkRaySettings.DefaultEncodeWindowStart),
             EncodeWindowEnd = TimeOr(file.EncodeWindowEnd, ShrinkRaySettings.DefaultEncodeWindowEnd),
@@ -112,6 +113,7 @@ public static class SettingsStore
             MinimumSavings = s.MinimumSavings,
             ReplaceOriginals = s.ReplaceOriginals,
             RestoreFonts = s.RestoreFonts,
+            KeepLosslessAudio = s.KeepLosslessAudio,
             EncodeWindowEnabled = s.EncodeWindowEnabled,
             EncodeWindowStart = s.EncodeWindowStart.ToString(TimeFormat, CultureInfo.InvariantCulture),
             EncodeWindowEnd = s.EncodeWindowEnd.ToString(TimeFormat, CultureInfo.InvariantCulture),
@@ -180,6 +182,7 @@ public static class SettingsStore
         public double? MinimumSavings { get; set; }
         public bool? ReplaceOriginals { get; set; }
         public bool? RestoreFonts { get; set; }
+        public bool? KeepLosslessAudio { get; set; }
         public bool? EncodeWindowEnabled { get; set; }
         public string? EncodeWindowStart { get; set; }
         public string? EncodeWindowEnd { get; set; }

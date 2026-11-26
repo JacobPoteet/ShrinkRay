@@ -38,6 +38,9 @@ public sealed class ShrinkRaySettings
     public bool ReplaceOriginals { get; set; } = true;
     public bool RestoreFonts { get; set; } = true;
 
+    /// <summary>Copy FLAC, TrueHD, DTS-HD MA, ALAC and PCM tracks as they are, rather than to AAC.</summary>
+    public bool KeepLosslessAudio { get; set; }
+
     public bool EncodeWindowEnabled { get; set; }
     public TimeOnly EncodeWindowStart { get; set; } = DefaultEncodeWindowStart;
     public TimeOnly EncodeWindowEnd { get; set; } = DefaultEncodeWindowEnd;

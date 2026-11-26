@@ -65,6 +65,12 @@ public static class OutputVerifier
 
         CompareCount(failures, "Audio streams", source.AudioStreams.Count(), output.AudioStreams.Count());
 
+        // HandBrake can fall back to AAC without failing, which would lose what the user asked to keep.
+        if (settings.KeepLosslessAudio)
+        {
+            CompareLossless(failures, source.AudioStreams.ToList(), output.AudioStreams.ToList());
+        }
+
         // MP4 output keeps text subtitles only, so bitmap tracks dropped by the plan are expected.
         // Captions carried in the video come out as exactly one extra track in either container:
         // --all-subtitles takes them in MKV and the plan names them in MP4.
@@ -110,6 +116,20 @@ public static class OutputVerifier
         }
 
         return new VerificationResult(VerificationOutcome.Pass, [], savings);
+    }
+
+    private static void CompareLossless(List<string> failures, List<MediaStream> source, List<MediaStream> output)
+    {
+        for (var i = 0; i < Math.Min(source.Count, output.Count); i++)
+        {
+            var (was, now) = (source[i], output[i]);
+            if (AudioPlanner.IsLossless(was.CodecName, was.Profile)
+                && (!string.Equals(was.CodecName, now.CodecName, StringComparison.OrdinalIgnoreCase)
+                    || !AudioPlanner.IsLossless(now.CodecName, now.Profile)))
+            {
+                failures.Add($"Audio track {i + 1}: lossless {was.CodecName} came out as {now.CodecName ?? "unknown"}");
+            }
+        }
     }
 
     private static void CompareCount(List<string> failures, string what, int expected, int actual)

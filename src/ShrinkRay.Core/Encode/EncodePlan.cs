@@ -41,7 +41,7 @@ public static class EncodePlanner
         }
 
         var container = eligibility.Container;
-        var audio = AudioPlanner.Plan(source);
+        var audio = AudioPlanner.Plan(source, settings.KeepLosslessAudio);
         var allSubtitles = container == ContainerKind.Mkv;
         var subtitleTracks = allSubtitles ? Array.Empty<int>() : Mp4SubtitleTracks(source);
 

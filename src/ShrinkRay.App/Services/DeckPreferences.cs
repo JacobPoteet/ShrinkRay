@@ -24,6 +24,9 @@ public sealed record DeckPreferences
     /// <summary>The shows waiting to run after the one on the tape, by folder name, next first.</summary>
     public IReadOnlyList<string>? Queue { get; init; }
 
+    /// <summary>The library lists the most to save first, rather than by name.</summary>
+    public bool SortBySavings { get; init; }
+
     public static DeckPreferences Load(string path)
     {
         try

@@ -213,10 +213,28 @@
 
                         <ContentControl Style="{StaticResource SR.Bezel}">
                             <DockPanel>
-                                <sr:TrackedText DockPanel.Dock="Top" Style="{StaticResource SR.Silk}" Text="Library" Margin="4,0,0,8" Height="20"
-                                                VerticalAlignment="Center" ToolTip="{Binding LibraryTooltip}" />
+                                <DockPanel DockPanel.Dock="Top" Margin="4,0,0,8" Height="29">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="{Binding SortText}"
+                                            Command="{Binding ToggleSortCommand}" AutomationProperties.Name="{Binding SortName}"
+                                            ToolTip="{Binding SortName}" />
+                                    <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center"
+                                                    HorizontalAlignment="Left" ToolTip="{Binding LibraryTooltip}" />
+                                </DockPanel>
                                 <sr:CrtPanel CornerRadius="24" Padding="6,14,6,10" TubeShadow="50">
                                     <DockPanel>
+                                        <!-- Type part of a name to narrow the list. Escape clears it. -->
+                                        <Grid DockPanel.Dock="Top" Margin="10,0,10,8">
+                                            <TextBlock Text="FIND" Opacity="0.4" IsHitTestVisible="False"
+                                                       Visibility="{Binding Search, Converter={StaticResource Empty}}" />
+                                            <TextBox Style="{StaticResource CrtSearch}"
+                                                     Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
+                                                     AutomationProperties.Name="Find a show by name">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Escape" Command="{Binding ClearSearchCommand}" />
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                        </Grid>
+
                                         <!-- Empty states and the scan count print here; the line is gone when there is nothing to say -->
                                         <TextBlock DockPanel.Dock="Top" Margin="10,0,10,8" Opacity="0.8" Text="{Binding MonitorMessage}"
                                                    TextTrimming="CharacterEllipsis" Visibility="{Binding MonitorMessage, Converter={StaticResource NotEmpty}}" />
@@ -235,7 +253,7 @@
                                                    TextWrapping="Wrap" MaxHeight="44" ToolTip="{Binding QueueDetail}"
                                                    Visibility="{Binding QueueLine, Converter={StaticResource NotEmpty}}" />
 
-                                        <ListBox x:Name="ShowList" Style="{StaticResource SR.CrtListBox}" ItemsSource="{Binding Shows}"
+                                        <ListBox x:Name="ShowList" Style="{StaticResource SR.CrtListBox}" ItemsSource="{Binding VisibleShows}"
                                                  PreviewMouseRightButtonDown="OnShowRightDown"
                                                  SelectedItem="{Binding SelectedShow}" AutomationProperties.Name="Shows to shrink">
                                             <ListBox.ItemContainerStyle>
@@ -264,7 +282,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="{Binding Mark}" />
                                                         <TextBlock Grid.Column="2" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Grid.Column="4" Text="{Binding SizeText}" HorizontalAlignment="Right" />
+                                                        <TextBlock Grid.Column="4" Text="{Binding ColumnText}" HorizontalAlignment="Right" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -609,6 +627,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <sr:TrackedText Style="{StaticResource SR.Silk}" Text="Originals" VerticalAlignment="Center" />
@@ -644,17 +663,22 @@
                                           Content="Restore MKV fonts if an encode drops them" IsChecked="{Binding RestoreFonts}"
                                           IsEnabled="{Binding CanEditSettings}" AutomationProperties.Name="Restore fonts" />
 
-                            <sr:TrackedText Grid.Row="3" Style="{StaticResource SR.Silk}" Text="Encode window" VerticalAlignment="Center" />
+                            <sr:TrackedText Grid.Row="3" Style="{StaticResource SR.Silk}" Text="Audio" VerticalAlignment="Center" />
                             <ToggleButton Grid.Row="3" Grid.Column="1" Style="{StaticResource SR.ToggleSwitch}" Margin="0,6" HorizontalAlignment="Left"
+                                          Content="Keep lossless tracks (FLAC, TrueHD, DTS-HD)" IsChecked="{Binding KeepLosslessAudio}"
+                                          IsEnabled="{Binding CanEditSettings}" AutomationProperties.Name="Keep lossless audio" />
+
+                            <sr:TrackedText Grid.Row="4" Style="{StaticResource SR.Silk}" Text="Encode window" VerticalAlignment="Center" />
+                            <ToggleButton Grid.Row="4" Grid.Column="1" Style="{StaticResource SR.ToggleSwitch}" Margin="0,6" HorizontalAlignment="Left"
                                           IsChecked="{Binding EncodeWindowEnabled}" IsEnabled="{Binding CanEditSettings}"
                                           AutomationProperties.Name="Only start episodes inside the encode window">
                                 <TextBlock><Run Text="Only start episodes during " /><Run Text="{Binding WindowText, Mode=OneWay}" /></TextBlock>
                             </ToggleButton>
 
                             <!-- The times only matter while the window is on -->
-                            <sr:TrackedText Grid.Row="4" Style="{StaticResource SR.Silk}" Text="Window times" VerticalAlignment="Center"
+                            <sr:TrackedText Grid.Row="5" Style="{StaticResource SR.Silk}" Text="Window times" VerticalAlignment="Center"
                                             Visibility="{Binding EncodeWindowEnabled, Converter={StaticResource Visible}}" />
-                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,6"
+                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,6"
                                         Visibility="{Binding EncodeWindowEnabled, Converter={StaticResource Visible}}">
                                 <Button Style="{StaticResource StepKey}" Command="{Binding WindowStartEarlierCommand}"
                                         AutomationProperties.Name="Open the window half an hour earlier">
@@ -685,46 +709,48 @@
                                 </Button>
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="5" Style="{StaticResource SR.Silk}" Text="Phosphor" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="6" Style="{StaticResource SR.Silk}" Text="Phosphor" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <sr:SeasonChip GroupName="phosphor" Content="AMBER" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorAmber}" />
                                 <sr:SeasonChip GroupName="phosphor" Content="GREEN" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorGreen}" />
                                 <sr:SeasonChip GroupName="phosphor" Content="ICE" Style="{StaticResource OptionChip}" MinWidth="72" IsChecked="{Binding PhosphorIce}" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="6" Style="{StaticResource SR.Silk}" Text="Chassis" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="7" Style="{StaticResource SR.Silk}" Text="Chassis" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="7" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <sr:SeasonChip GroupName="chassis" Content="BEIGE" Style="{StaticResource OptionChip}" MinWidth="96" IsChecked="{Binding ChassisBeige}" />
                                 <sr:SeasonChip GroupName="chassis" Content="GRAPHITE" Style="{StaticResource OptionChip}" MinWidth="96" IsChecked="{Binding ChassisGraphite}" />
                             </StackPanel>
 
-                            <sr:TrackedText Grid.Row="7" Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center" />
-                            <DockPanel Grid.Row="7" Grid.Column="1" Margin="0,8">
+                            <sr:TrackedText Grid.Row="8" Style="{StaticResource SR.Silk}" Text="Library" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="8" Grid.Column="1" Margin="0,8">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Command="{Binding ChooseLibraryCommand}"
                                         AutomationProperties.Name="Choose the library folder" />
                                 <TextBlock Style="{StaticResource SR.Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            Margin="0,0,10,0" Text="{Binding LibraryRoot}" ToolTip="{Binding LibraryRoot}" />
                             </DockPanel>
 
-                            <sr:TrackedText Grid.Row="8" Style="{StaticResource SR.Silk}" Text="Scratch" VerticalAlignment="Center" />
-                            <DockPanel Grid.Row="8" Grid.Column="1" Margin="0,8">
+                            <sr:TrackedText Grid.Row="9" Style="{StaticResource SR.Silk}" Text="Scratch" VerticalAlignment="Center" />
+                            <DockPanel Grid.Row="9" Grid.Column="1" Margin="0,8">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Choose" Command="{Binding ChooseScratchCommand}"
                                         AutomationProperties.Name="Choose the local scratch folder" />
                                 <TextBlock Style="{StaticResource SR.Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            Margin="0,0,10,0" Text="{Binding ScratchFolder}" ToolTip="{Binding ScratchFolder}" />
                             </DockPanel>
 
-                            <sr:TrackedText Grid.Row="9" Style="{StaticResource SR.Silk}" Text="Setup" VerticalAlignment="Center" />
-                            <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
+                            <sr:TrackedText Grid.Row="10" Style="{StaticResource SR.Silk}" Text="Setup" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="10" Grid.Column="1" Orientation="Horizontal" Margin="0,8">
                                 <Button Style="{StaticResource TextKey}" Content="Run setup again" Command="{Binding RunSetupAgainCommand}"
                                         AutomationProperties.Name="Run setup again" />
                                 <Button Style="{StaticResource TextKey}" Content="Show the tour" Margin="10,0,0,0" Command="{Binding ShowTourCommand}"
                                         AutomationProperties.Name="Show the tour" />
+                                <Button Style="{StaticResource TextKey}" Content="Open the log" Margin="10,0,0,0" Command="{Binding OpenLogCommand}"
+                                        AutomationProperties.Name="Show the log file in Explorer" />
                             </StackPanel>
 
                             <!-- What the header lamp watches, one lamp per tool -->
-                            <sr:TrackedText Grid.Row="10" Style="{StaticResource SR.Silk}" Text="System" VerticalAlignment="Top" Margin="0,14,0,0" />
-                            <ItemsControl Grid.Row="10" Grid.Column="1" Margin="0,12,0,4" Focusable="False" ItemsSource="{Binding SystemLamps}"
+                            <sr:TrackedText Grid.Row="11" Style="{StaticResource SR.Silk}" Text="System" VerticalAlignment="Top" Margin="0,14,0,0" />
+                            <ItemsControl Grid.Row="11" Grid.Column="1" Margin="0,12,0,4" Focusable="False" ItemsSource="{Binding SystemLamps}"
                                           ItemTemplate="{StaticResource LampItem}" AutomationProperties.Name="System status">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

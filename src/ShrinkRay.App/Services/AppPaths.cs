@@ -30,6 +30,9 @@ public sealed class AppPaths
     /// <summary>How fast each step has gone, so the progress readouts learn this machine.</summary>
     public string Rates => Path.Combine(DataFolder, "rates.json");
 
+    /// <summary>What each run did and why anything went wrong.</summary>
+    public string Log => Path.Combine(DataFolder, "shrinkray.log");
+
     /// <summary>The scratch folder used until the user picks one.</summary>
     public string DefaultScratch => Path.Combine(DataFolder, "Scratch");
 }

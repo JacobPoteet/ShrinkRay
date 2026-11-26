@@ -51,7 +51,7 @@ public sealed partial class MainViewModel
         }
 
         var summary = ShowSummary.From(scan, Classify);
-        var output = _settings.ReplaceOriginals ? (long)(summary.QueueableBytes * SizeEstimate.RatioFor(_settings.CqForShow(show))) : 0;
+        var output = _settings.ReplaceOriginals ? (long)(summary.QueueableBytes * RatioFor(show, _settings.CqForShow(show))) : 0;
         return EpisodeEstimate.For(summary.QueueableFrames, summary.QueueableBytes, output, _rates).TotalSeconds;
     }
 
@@ -233,6 +233,7 @@ public sealed partial class MainViewModel
             Raise(nameof(IsBrowsing), nameof(TracksHeading), nameof(BackText));
         }
 
+        LogShow(scan.Name, paths.Count);
         _prefs = _prefs with { LastShow = scan.Name };
         SavePreferences();
         _estimator = new TimeLeftEstimator(_estimator?.Speed ?? _rates.EncodeFps);
