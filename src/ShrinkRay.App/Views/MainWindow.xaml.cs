@@ -3,8 +3,10 @@ using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Shell;
 using System.Windows.Threading;
+using ShrinkRay.App.Controls;
 using ShrinkRay.App.ViewModels;
 using ShrinkRay.Theme;
 using ShrinkRay.Theme.Controls;
@@ -14,13 +16,19 @@ namespace ShrinkRay.App.Views;
 /// <summary>The main deck. Everything it shows comes from <see cref="MainViewModel"/>.</summary>
 public partial class MainWindow : Window
 {
-    private const int WmGetMinMaxInfo = 0x0024;
+    private const int WmSettingChange = 0x001A;
+    private const int WmDisplayChange = 0x007E;
+    private const int WmEnterSizeMove = 0x0231;
+    private const int WmExitSizeMove = 0x0232;
     private const uint MonitorDefaultToNearest = 2;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
 
     private static readonly TimeSpan SelfTestTime = TimeSpan.FromSeconds(1.4);
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly double _captionHeight;
+    private bool _isMoving;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -68,10 +76,9 @@ public partial class MainWindow : Window
             };
         }
 
-        // Open no larger than the work area. The deck scales down to fit a smaller window.
-        var area = SystemParameters.WorkArea;
-        Width = Math.Max(MinWidth, Math.Min(Width, area.Width));
-        Height = Math.Max(MinHeight, Math.Min(Height, area.Height));
+        // The window can land on a screen of another size: moved there, or changed under it.
+        LocationChanged += (_, _) => QueueFit();
+        StateChanged += (_, _) => QueueFit();
 
         _captionHeight = WindowChrome.GetWindowChrome(this)?.CaptionHeight ?? 0;
         Scaler.ScaleChanged += (_, _) => ScaleCaption();
@@ -118,33 +125,60 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
+        FitToScreen();
     }
 
-    // A window without a caption bar maximizes over the whole monitor, taskbar included, and
-    // past its edges. Maximize it to the monitor's work area instead.
-    private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
-        if (msg == WmGetMinMaxInfo)
+        base.OnDpiChanged(oldDpi, newDpi);
+        QueueFit();
+    }
+
+    // A drag is left alone until it ends, so the window never changes size under the pointer.
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        switch (msg)
         {
-            FitMaximizeToWorkArea(hwnd, lParam);
+            case WmEnterSizeMove:
+                _isMoving = true;
+                break;
+            case WmExitSizeMove:
+                _isMoving = false;
+                QueueFit();
+                break;
+            case WmDisplayChange:
+            case WmSettingChange:
+                QueueFit();
+                break;
         }
 
         return IntPtr.Zero;
     }
 
-    private static void FitMaximizeToWorkArea(IntPtr hwnd, IntPtr lParam)
+    // Queued, so Windows and WPF finish what they are doing before the window is measured.
+    private void QueueFit() => Dispatcher.BeginInvoke(FitToScreen, DispatcherPriority.Background);
+
+    private void FitToScreen()
     {
-        var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
-        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || _isMoving || WindowState != WindowState.Normal)
         {
             return;
         }
 
-        var limits = Marshal.PtrToStructure<MinMaxInfo>(lParam);
-        limits.MaxPosition = new NativePoint(info.Work.Left - info.Monitor.Left, info.Work.Top - info.Monitor.Top);
-        limits.MaxSize = new NativePoint(info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top);
-        Marshal.StructureToPtr(limits, lParam, false);
+        var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info) || !GetWindowRect(hwnd, out var window))
+        {
+            return;
+        }
+
+        var design = new Size(Scaler.DesignWidth, Scaler.DesignHeight);
+        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        if (WindowFit.Refit(window.ToRect(), info.Work.ToRect(), design, dpi) is { } fit)
+        {
+            SetWindowPos(hwnd, IntPtr.Zero, (int)fit.X, (int)fit.Y, (int)fit.Width, (int)fit.Height, SwpNoZOrder | SwpNoActivate);
+        }
     }
 
     // The caption drag strip is in window pixels, so it shrinks with the deck's header.
@@ -160,9 +194,6 @@ public partial class MainWindow : Window
     private void OnShowRightDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
     private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-    private void OnMaximize(object sender, RoutedEventArgs e) =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
@@ -184,12 +215,13 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativePoint(int x, int y)
-    {
-        public int X = x;
-        public int Y = y;
-    }
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
@@ -198,16 +230,8 @@ public partial class MainWindow : Window
         public int Top;
         public int Right;
         public int Bottom;
-    }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MinMaxInfo
-    {
-        public NativePoint Reserved;
-        public NativePoint MaxSize;
-        public NativePoint MaxPosition;
-        public NativePoint MinTrackSize;
-        public NativePoint MaxTrackSize;
+        public readonly Rect ToRect() => new(Left, Top, Right - Left, Bottom - Top);
     }
 
     [StructLayout(LayoutKind.Sequential)]

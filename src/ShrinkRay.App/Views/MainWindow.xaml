@@ -11,8 +11,8 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="ShrinkRay"
         Icon="pack://application:,,,/Assets/Icon/ShrinkRay.ico"
-        Width="1440" Height="900" MinWidth="1024" MinHeight="640"
-        WindowStyle="None" ResizeMode="CanResize"
+        Width="1440" Height="900"
+        WindowStyle="None" ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SR.ChassisSurface}"
         UseLayoutRounding="True"
@@ -20,7 +20,7 @@
         AllowDrop="True">
 
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="72" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+        <WindowChrome CaptionHeight="72" ResizeBorderThickness="0" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
@@ -145,7 +145,8 @@
         <KeyBinding Key="Escape" Command="{Binding DismissCardCommand}" />
     </Window.InputBindings>
 
-    <!-- The deck is drawn for 1440 by 900. A smaller window scales it down evenly instead of clipping it. -->
+    <!-- The deck is drawn for 1440 by 900 and the window stays that size. On a screen too small for it,
+         the window shrinks in the same shape and the deck scales down evenly. -->
     <ctl:DeckScaler x:Name="Scaler" DesignWidth="1440" DesignHeight="900">
     <ContentControl x:Name="Chassis" Style="{StaticResource SR.Chassis}">
         <Grid>
@@ -176,10 +177,6 @@
                         <Button Style="{StaticResource SR.HardwareKey}" Click="OnMinimize" AutomationProperties.Name="Minimize"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
                             <Path Data="{StaticResource SR.Icon.Minimize}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
-                        </Button>
-                        <Button Style="{StaticResource SR.HardwareKey}" Click="OnMaximize" Margin="7,0,0,0" AutomationProperties.Name="Maximize"
-                                WindowChrome.IsHitTestVisibleInChrome="True">
-                            <Path Data="{StaticResource SR.Icon.Maximize}" Stroke="{DynamicResource SR.Ink}" StrokeThickness="1.6" Width="12" Height="12" Stretch="None" />
                         </Button>
                         <Button Style="{StaticResource SR.HardwareKey}" Click="OnClose" Margin="7,0,0,0" AutomationProperties.Name="Close"
                                 WindowChrome.IsHitTestVisibleInChrome="True">

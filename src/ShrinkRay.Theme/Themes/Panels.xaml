@@ -207,7 +207,7 @@
         </Setter>
     </Style>
 
-    <!-- Hardware key: the small keycaps for minimize, maximize and close. Content is a 12 px icon path. -->
+    <!-- Hardware key: the small keycaps for minimize and close. Content is a 12 px icon path. -->
     <Style x:Key="SR.HardwareKey" TargetType="Button">
         <Setter Property="Foreground" Value="{DynamicResource SR.Ink}" />
         <Setter Property="Width" Value="30" />

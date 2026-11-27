@@ -124,6 +124,10 @@ against an in-memory library, a scripted episode runner and a fake gate. `Compos
 the real services. Keep logic in Core or the view model; the window's code-behind handles
 chrome, drag and drop, the half-second tick and the power-on self-test only.
 
+The window stays at 1440 by 900, the size the deck is drawn for: no resize border, maximize key or
+snapping. Keep it that way and design for that one size. On a screen too small for it, `WindowFit`
+shrinks the window in the same shape and `DeckScaler` scales the deck to match.
+
 One copy runs per data folder. `SingleInstance` claims it before anything reads it, since a
 second copy's recovery would act on the first one's encode. A refused copy brings the first one
 forward and exits.
