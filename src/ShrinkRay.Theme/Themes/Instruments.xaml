@@ -32,8 +32,9 @@
                                                FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="SemiBold" FontSize="10"
                                                Foreground="{DynamicResource SR.RedZone}" />
                                 </Grid>
-                                <Grid Canvas.Top="66" Width="160">
-                                    <sr:TrackedText HorizontalAlignment="Center" Text="{TemplateBinding Caption}"
+                                <!-- The caption sits in the lower left corner, where the needle never sweeps -->
+                                <Grid Canvas.Left="10" Canvas.Top="82">
+                                    <sr:TrackedText HorizontalAlignment="Left" Text="{TemplateBinding Caption}"
                                                     FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="11"
                                                     Tracking="0.18" Foreground="{DynamicResource SR.PrintInk}" />
                                 </Grid>

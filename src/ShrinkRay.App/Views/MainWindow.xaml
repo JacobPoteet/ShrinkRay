@@ -53,8 +53,77 @@
             </Style>
 
             <Style x:Key="PlateLabel" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.SilkOnPlate}">
-                <Setter Property="FontSize" Value="10" />
+                <Setter Property="FontSize" Value="11" />
             </Style>
+
+            <!-- The J-card's column heads -->
+            <Style x:Key="CardHead" TargetType="sr:TrackedText">
+                <Setter Property="FontFamily" Value="{DynamicResource SR.Font.Silk}" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Tracking" Value="0.16" />
+                <Setter Property="Foreground" Value="{DynamicResource SR.CardInkFaint}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <!-- Header keys: one height, so the lamp, Setup and the window keys line up -->
+            <Style x:Key="HeaderKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid SnapsToDevicePixels="True" Background="Transparent">
+                                <Border Margin="0,3,0,0" CornerRadius="4" Background="{DynamicResource SR.AbsLo}" />
+                                <Grid x:Name="Cap" Margin="0,0,0,3">
+                                    <Border CornerRadius="4" Background="{DynamicResource SR.KeyCap}" />
+                                    <Border x:Name="Highlight" CornerRadius="4" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
+                                    <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Cap" Property="RenderTransform">
+                                        <Setter.Value>
+                                            <TranslateTransform Y="3" />
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter TargetName="Highlight" Property="Visibility" Value="Collapsed" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="WindowKey" TargetType="Button" BasedOn="{StaticResource SR.HardwareKey}">
+                <Setter Property="Width" Value="34" />
+                <Setter Property="Height" Value="28" />
+            </Style>
+
+            <!-- A recessed well around the window keys -->
+            <Style x:Key="KeyWell" TargetType="ContentControl">
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ContentControl">
+                            <Grid>
+                                <Border Margin="0,0,0,-1" CornerRadius="7" Background="{DynamicResource SR.AbsHi}" />
+                                <Border CornerRadius="7" Background="{DynamicResource SR.AbsLo}" Opacity="0.55" />
+                                <sr:InsetShadow CornerRadius="7" Blur="5" OffsetY="1.5" Color="#66000000" />
+                                <ContentPresenter Margin="5,4,5,4" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Setup: three faders on a 14 by 12 grid -->
+            <Geometry x:Key="SetupIcon">M0,1.5 H14 V3 H0 Z M0,5.25 H14 V6.75 H0 Z M0,9 H14 V10.5 H0 Z M2.5,0 H5.5 V4.5 H2.5 Z M8.5,3.75 H11.5 V8.25 H8.5 Z M4,7.5 H7 V12 H4 Z</Geometry>
 
             <!-- The small lit H and M after the time-left digits, on their baseline -->
             <Style x:Key="TimeUnit" TargetType="sr:TrackedText" BasedOn="{StaticResource SR.Silk}">
@@ -148,11 +217,12 @@
     <!-- The deck is drawn for 1440 by 900 and the window stays that size. On a screen too small for it,
          the window shrinks in the same shape and the deck scales down evenly. -->
     <ctl:DeckScaler x:Name="Scaler" DesignWidth="1440" DesignHeight="900">
-    <ContentControl x:Name="Chassis" Style="{StaticResource SR.Chassis}">
+    <!-- A little more room at the top than the case's default, so the window keys clear the corner screw -->
+    <ContentControl x:Name="Chassis" Style="{StaticResource SR.Chassis}" Padding="22,24,22,18">
         <Grid>
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="60" />
+                    <RowDefinition Height="40" />
                     <RowDefinition Height="14" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="14" />
@@ -160,33 +230,42 @@
                 </Grid.RowDefinitions>
 
                 <!-- ============ HEADER ============ -->
+                <!-- One strip: the nameplate reads on a single line so the header takes little height from the panels -->
                 <DockPanel Grid.Row="0" LastChildFill="False" VerticalAlignment="Center">
-                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource SR.Nameplate}" Height="52" Padding="18,0">
+                    <ContentControl DockPanel.Dock="Left" Style="{StaticResource SR.Nameplate}" Height="40" Padding="16,0,18,0">
                         <StackPanel Orientation="Horizontal">
-                            <sr:StripeBadge StripeHeight="32" VerticalAlignment="Center" />
-                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
-                                <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="21" Tracking="0.28" Text="ShrinkRay"
-                                                Foreground="{DynamicResource SR.CreamInk}" />
-                                <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Tracking="0.3"
-                                                Text="SR-265 · HEVC transcoder unit" Margin="0,3,0,0" />
-                            </StackPanel>
+                            <sr:StripeBadge StripeHeight="22" StripeWidth="6" Gap="3" VerticalAlignment="Center" />
+                            <sr:TrackedText Style="{StaticResource SR.Wordmark}" FontSize="19" Tracking="0.28" Text="ShrinkRay" Margin="12,0,0,0"
+                                            VerticalAlignment="Center" Foreground="{DynamicResource SR.CreamInk}" />
+                            <Border Width="1" Height="18" Margin="14,0" Background="#33FFFFFF" VerticalAlignment="Center" />
+                            <sr:TrackedText Style="{StaticResource SR.SilkOnPlate}" FontSize="11" Tracking="0.24" VerticalAlignment="Center"
+                                            Text="SR-265 · HEVC transcoder unit" />
                         </StackPanel>
                     </ContentControl>
-                    <sr:VentGrille DockPanel.Dock="Left" Width="150" Height="26" Margin="18,0,0,0" />
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Style="{StaticResource SR.HardwareKey}" Click="OnMinimize" AutomationProperties.Name="Minimize"
-                                WindowChrome.IsHitTestVisibleInChrome="True">
-                            <Path Data="{StaticResource SR.Icon.Minimize}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
-                        </Button>
-                        <Button Style="{StaticResource SR.HardwareKey}" Click="OnClose" Margin="7,0,0,0" AutomationProperties.Name="Close"
-                                WindowChrome.IsHitTestVisibleInChrome="True">
-                            <Path Data="{StaticResource SR.Icon.Close}" Stroke="{DynamicResource SR.Ink}" StrokeThickness="1.8" Width="12" Height="12" Stretch="None" />
-                        </Button>
-                    </StackPanel>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource TextKey}" Content="Setup" Margin="0,0,18,0" VerticalAlignment="Center"
-                            Command="{Binding OpenSettingsCommand}" AutomationProperties.Name="Open the service panel"
-                            WindowChrome.IsHitTestVisibleInChrome="True" />
-                    <sr:Lamp DockPanel.Dock="Right" Style="{StaticResource PanelLamp}" Margin="0,0,18,0" VerticalAlignment="Center"
+                    <sr:VentGrille DockPanel.Dock="Left" Width="150" Height="22" Margin="18,0,0,0" VerticalAlignment="Center" />
+                    <!-- The window keys sit in their own recessed well at the deck's right edge, apart from the panel keys -->
+                    <ContentControl DockPanel.Dock="Right" Style="{StaticResource KeyWell}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource WindowKey}" Click="OnMinimize" AutomationProperties.Name="Minimize" ToolTip="Minimize"
+                                    WindowChrome.IsHitTestVisibleInChrome="True">
+                                <Path Data="{StaticResource SR.Icon.Minimize}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                            </Button>
+                            <Button Style="{StaticResource WindowKey}" Click="OnClose" Margin="5,0,0,0" AutomationProperties.Name="Close" ToolTip="Close"
+                                    WindowChrome.IsHitTestVisibleInChrome="True">
+                                <Path Data="{StaticResource SR.Icon.Close}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                            </Button>
+                        </StackPanel>
+                    </ContentControl>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource HeaderKey}" Margin="0,0,20,0" VerticalAlignment="Center"
+                            Command="{Binding OpenSettingsCommand}" AutomationProperties.Name="Open the service panel" ToolTip="Service panel: settings and setup"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource SetupIcon}" Fill="{DynamicResource SR.Ink}" Width="14" Height="12" Stretch="None" VerticalAlignment="Center" />
+                            <sr:TrackedText Text="Setup" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13" Tracking="0.16"
+                                            Foreground="{DynamicResource SR.Ink}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <sr:Lamp DockPanel.Dock="Right" Style="{StaticResource PanelLamp}" Margin="0,0,20,0" VerticalAlignment="Center"
                              Content="{Binding RunLamp.Label}" State="{Binding RunLamp.State}" Blink="{Binding RunLamp.Blink}"
                              ToolTip="{Binding AttentionDetail}" ToolTipService.IsEnabled="{Binding AttentionDetail, Converter={StaticResource NotEmpty}}"
                              WindowChrome.IsHitTestVisibleInChrome="True" />
@@ -221,7 +300,7 @@
                                     <DockPanel>
                                         <!-- Type part of a name to narrow the list. Escape clears it. -->
                                         <Grid DockPanel.Dock="Top" Margin="10,0,10,8">
-                                            <TextBlock Text="FIND" Opacity="0.4" IsHitTestVisible="False"
+                                            <TextBlock Text="FIND" Opacity="0.55" IsHitTestVisible="False"
                                                        Visibility="{Binding Search, Converter={StaticResource Empty}}" />
                                             <TextBox Style="{StaticResource CrtSearch}"
                                                      Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
@@ -498,14 +577,10 @@
                                                 <ColumnDefinition Width="58" />
                                                 <ColumnDefinition Width="80" />
                                             </Grid.ColumnDefinitions>
-                                            <sr:TrackedText Grid.Column="1" Text="Ep" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" />
-                                            <sr:TrackedText Grid.Column="2" Text="Title" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" />
-                                            <sr:TrackedText Grid.Column="3" Text="GB" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" HorizontalAlignment="Right" />
-                                            <sr:TrackedText Grid.Column="4" Text="Status" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                                            Tracking="0.16" Foreground="{DynamicResource SR.CardInkFaint}" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                            <sr:TrackedText Grid.Column="1" Text="Ep" Style="{StaticResource CardHead}" />
+                                            <sr:TrackedText Grid.Column="2" Text="Title" Style="{StaticResource CardHead}" />
+                                            <sr:TrackedText Grid.Column="3" Text="GB" Style="{StaticResource CardHead}" HorizontalAlignment="Right" />
+                                            <sr:TrackedText Grid.Column="4" Text="Status" Style="{StaticResource CardHead}" HorizontalAlignment="Right" />
                                         </Grid>
                                         <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource SR.JCardRule}" />
                                         <ScrollViewer VerticalScrollBarVisibility="Hidden" Focusable="False" PanningMode="VerticalOnly">
@@ -597,13 +672,19 @@
             </Grid>
 
             <!-- ============ SERVICE PANEL ============ -->
-            <Grid Visibility="{Binding IsSettingsOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
+            <Grid Visibility="{Binding IsSettingsOpen, Converter={StaticResource Visible}}" Margin="-22,-24,-22,-18">
                 <Rectangle Fill="#8C000000" MouseDown="OnScrimDown" />
                 <ContentControl Style="{StaticResource SR.Card}" Width="600" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22">
                     <StackPanel>
                         <DockPanel>
-                            <sr:PianoKey DockPanel.Dock="Right" Label="Close" MinWidth="88" Width="88"
-                                         Command="{Binding CloseSettingsCommand}" AutomationProperties.Name="Close the service panel" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource HeaderKey}" VerticalAlignment="Center"
+                                    Command="{Binding CloseSettingsCommand}" AutomationProperties.Name="Close the service panel">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource SR.Icon.Close}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" VerticalAlignment="Center" />
+                                    <sr:TrackedText Text="Close" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="13" Tracking="0.16"
+                                                    Foreground="{DynamicResource SR.Ink}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                             <sr:TrackedText Style="{StaticResource SR.Heading}" Text="Service panel" VerticalAlignment="Center" />
                         </DockPanel>
 
@@ -770,7 +851,7 @@
 
             <!-- ============ STOP CARD ============ -->
             <!-- Stop mid-episode asks first. Escape or a click outside dismisses it and changes nothing. -->
-            <Grid x:Name="StopOverlay" Visibility="{Binding IsStopCardOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
+            <Grid x:Name="StopOverlay" Visibility="{Binding IsStopCardOpen, Converter={StaticResource Visible}}" Margin="-22,-24,-22,-18">
                 <Rectangle Fill="#8C000000">
                     <Rectangle.InputBindings>
                         <MouseBinding MouseAction="LeftClick" Command="{Binding DismissCardCommand}" />
@@ -794,7 +875,7 @@
 
             <!-- ============ CLOSE CONFIRM ============ -->
             <!-- Closing during a run asks first. Escape keeps running; once confirmed, the card shows the wait. -->
-            <Grid x:Name="CloseOverlay" Visibility="{Binding IsCloseOverlayOpen, Converter={StaticResource Visible}}" Margin="-22,-18">
+            <Grid x:Name="CloseOverlay" Visibility="{Binding IsCloseOverlayOpen, Converter={StaticResource Visible}}" Margin="-22,-24,-22,-18">
                 <Rectangle Fill="#8C000000" />
                 <ContentControl Style="{StaticResource SR.Card}" Width="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26,22"
                                 KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.DirectionalNavigation="Cycle"

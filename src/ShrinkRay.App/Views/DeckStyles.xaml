@@ -100,8 +100,8 @@
         <Setter Property="ContentTemplate">
             <Setter.Value>
                 <DataTemplate>
-                    <sr:TrackedText Text="{Binding}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="10"
-                                    Tracking="0.16" Foreground="{DynamicResource SR.Ink}" Margin="10,0" />
+                    <sr:TrackedText Text="{Binding}" FontFamily="{DynamicResource SR.Font.Silk}" FontWeight="Bold" FontSize="12"
+                                    Tracking="0.14" Foreground="{DynamicResource SR.Ink}" Margin="10,0" />
                 </DataTemplate>
             </Setter.Value>
         </Setter>
