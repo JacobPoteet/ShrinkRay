@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ShrinkRay: batch H.264 to H.265 video compressor</title>
-  <meta name="description" content="ShrinkRay batch-compresses video from H.264 to H.265 with HandBrakeCLI and NVIDIA NVENC. It verifies every file and swaps it in under its original name through a crash-safe journal.">
+  <meta name="description" content="ShrinkRay converts a video library from H.264 to H.265 on an NVIDIA GPU and swaps each checked file in under its original name.">
   <meta property="og:title" content="ShrinkRay">
-  <meta property="og:description" content="Batch video compression that checks its work. A TV library of 878 GB came back as 308 GB.">
+  <meta property="og:description" content="ShrinkRay took an 878 GB TV library down to 308 GB.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://jacobpoteet.github.io/ShrinkRay/img/app/deck-encoding-amber-beige.webp">
   <meta name="color-scheme" content="light dark">
@@ -39,6 +39,7 @@
 
       --plate: #262421; --crt: #0D0A05; --silk-light: #CFC4AB;
       --cream: #EFE7D4; --jcard-rule: #D8CEB8; --paper-ink: #3B352A; --paper-ink-soft: #5B5344; --marker: #1F3B73;
+      --card: #EFE7D4; --card-rule: #D8CEB8; --card-ink: #2F2A21; --card-ink-soft: #5B5344; --card-marker: #1F3B73;
       --red-top: #E3603F; --red-bot: #B8381F; --red-side: #7A2414; --red-ink: #FFF1E4;
       --lamp-green: #A6D651; --lamp-off: #3A3226;
       --stripe1: #F0B43C; --stripe2: #E2862F; --stripe3: #CF5A2A; --stripe4: #A73A22;
@@ -61,6 +62,7 @@
         --ink: #E4DDCC; --ink-soft: #D8D2C4; --marker-ink: #A9BFF0;
         --groove-dark: rgba(0, 0, 0, .38); --groove-light: rgba(255, 255, 255, .07);
         --key-top: #67635C; --key-bot: #55514B; --key-side: #2E2B28; --key-ink: #E4DDCC;
+        --card: #2E2B26; --card-rule: #45413A; --card-ink: #ECE4D2; --card-ink-soft: #C9C0AC; --card-marker: #A9BFF0;
         color-scheme: dark;
       }
     }
@@ -69,6 +71,7 @@
       --ink: #E4DDCC; --ink-soft: #D8D2C4; --marker-ink: #A9BFF0;
       --groove-dark: rgba(0, 0, 0, .38); --groove-light: rgba(255, 255, 255, .07);
       --key-top: #67635C; --key-bot: #55514B; --key-side: #2E2B28; --key-ink: #E4DDCC;
+      --card: #2E2B26; --card-rule: #45413A; --card-ink: #ECE4D2; --card-ink-soft: #C9C0AC; --card-marker: #A9BFF0;
       color-scheme: dark;
     }
     :root[data-phosphor="green"] { --ph: #4DFF8F; --ph-dim: #0C3A1F; --ph-glow: rgba(77, 255, 143, .5); --ph-tint: rgba(77, 255, 143, .26); }
@@ -378,18 +381,18 @@
     .readouts { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 14px 16px; margin-top: 14px; }
     .readouts div { display: flex; flex-direction: column; gap: 6px; }
     .readouts .silk { color: var(--ph); opacity: .75; }
-    .jcard { background: var(--cream); color: var(--paper-ink); border-radius: 6px; padding: 6px 0 2px; margin-top: 18px; overflow-x: auto; box-shadow: 0 2px 0 rgba(0,0,0,.1), 0 8px 18px rgba(0,0,0,.12); }
+    .jcard { background: var(--card); color: var(--card-ink); border-radius: 6px; padding: 6px 0 2px; margin-top: 18px; overflow-x: auto; box-shadow: 0 2px 0 rgba(0,0,0,.1), 0 8px 18px rgba(0,0,0,.12); }
     .jcard table { border-collapse: collapse; width: 100%; min-width: 600px; }
-    .jcard th, .jcard td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--jcard-rule); vertical-align: top; }
+    .jcard th, .jcard td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--card-rule); vertical-align: top; }
     .jcard th:first-child, .jcard td:first-child { text-align: left; }
-    .jcard thead th { font: 600 .72rem/1.2 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .jcard thead th { font: 600 .72rem/1.2 var(--silk); letter-spacing: .16em; text-transform: uppercase; color: var(--card-ink-soft); }
     .jcard tbody tr:last-child td, .jcard tbody tr:last-child th { border-bottom: 0; }
-    .jcard .clip { font: 400 1.1rem/1.2 var(--typed); color: var(--marker); }
-    .jcard .clip small { display: block; font: 600 .66rem/1.4 var(--silk); letter-spacing: .14em; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .jcard .clip { font: 400 1.1rem/1.2 var(--typed); color: var(--card-marker); }
+    .jcard .clip small { display: block; font: 600 .66rem/1.4 var(--silk); letter-spacing: .14em; text-transform: uppercase; color: var(--card-ink-soft); }
     .jcard .pct { font: 700 22px/22px var(--pixel); -webkit-font-smoothing: none; }
-    .jcard .sub { display: block; font-size: .95rem; color: var(--paper-ink-soft); margin-top: 4px; white-space: nowrap; }
+    .jcard .sub { display: block; font-size: .95rem; color: var(--card-ink-soft); margin-top: 4px; white-space: nowrap; }
     .jcard .pick { background: var(--ph-tint); }
-    .jcard thead .pick { color: var(--paper-ink); }
+    .jcard thead .pick { color: var(--card-ink); }
 
     /* ---- Design ---- */
     .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
@@ -443,7 +446,7 @@
           <p class="eyebrow silk">Batch video compressor · H.264 to H.265</p>
           <h1>Shrink a whole library overnight.</h1>
         </div>
-        <p class="lead">ShrinkRay re-encodes video with HandBrakeCLI and NVIDIA NVENC, checks every result, and swaps it in under the original filename, so a media server keeps its metadata and watch history. TV libraries gain the most: hundreds of gigabytes come back.</p>
+        <p class="lead">ShrinkRay re-encodes your video on an NVIDIA GPU and renames each checked file over the original, so your media server keeps its metadata and watch history. Queue a few shows before bed. If something keeps failing, ShrinkRay stops and tells you why.</p>
       </div>
 
       <div class="stage" id="stage">
@@ -542,7 +545,7 @@
     <section class="module" id="system" aria-labelledby="sys-h">
       <div class="wrap">
         <h2 class="heading" id="sys-h">System design</h2>
-        <p class="lead">Core is pure logic. Every process call and file operation sits behind an interface, so tests run on fakes. Select a part.</p>
+        <p class="lead">The engine in ShrinkRay.Core starts processes and touches files only through interfaces, and the tests swap in fakes. Click a box to read about it.</p>
         <div class="arch" id="arch">
           <div class="tier apps">
             <button class="node" type="button" data-n="theme" aria-pressed="false">ShrinkRay.Theme<small>control kit</small></button>
@@ -585,14 +588,15 @@
     <section class="module" id="swap" aria-labelledby="swap-h">
       <div class="wrap">
         <h2 class="heading" id="swap-h">Crash-safe swap</h2>
-        <p class="lead">The journal writes each state to disk before the step runs. On startup, recovery reads the disk and settles whatever is left. Slide the crash.</p>
+        <p class="lead">ShrinkRay writes each step to a journal on disk before it runs the step. After a crash, it reads the journal and the files at startup and finishes or undoes the swap. Press a check to fail it, or drag the slider to pick when the power goes out.</p>
 
-        <div class="gate" role="group" aria-label="The five checks before the swap. Press one to make it fail.">
+        <div class="gate" role="group" aria-label="The six checks before the swap. Press one to make it fail.">
           <button class="check" type="button" data-c="Duration" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Duration<small>PASS</small></span></button>
           <button class="check" type="button" data-c="Streams" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Streams<small>PASS</small></span></button>
           <button class="check" type="button" data-c="Full decode" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Full decode<small>PASS</small></span></button>
           <button class="check" type="button" data-c="Captions" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Captions<small>PASS</small></span></button>
           <button class="check" type="button" data-c="Min. savings" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Min. savings<small>PASS</small></span></button>
+          <button class="check" type="button" data-c="Unchanged" aria-pressed="false"><span class="lamp ok" aria-hidden="true"></span><span>Unchanged<small>PASS</small></span></button>
           <span class="gate-status silk" aria-live="polite"><span class="lamp ok" id="gate-lamp" aria-hidden="true"></span><span id="gate-word">All pass: swap may start</span></span>
         </div>
 
@@ -620,7 +624,7 @@
             </div>
           </div>
         </div>
-        <p class="fine">CrashRecoveryTests kills the swap after every durable operation, and again during recovery.</p>
+        <p class="fine">Unchanged means the original still has the size and write time it had when the encode started. If you edit or replace the file mid-run, ShrinkRay leaves it alone. CrashRecoveryTests kills the swap after each file operation, and again partway through recovery.</p>
       </div>
     </section>
 
@@ -629,7 +633,7 @@
     <section class="module" id="quality" aria-labelledby="q-h">
       <div class="wrap">
         <h2 class="heading" id="q-h">Quality</h2>
-        <p class="lead">Four 3-minute clips from commercial TV, each encoded at CQ 22, 25 and 28 and scored with VMAF. Drag the line to compare.</p>
+        <p class="lead">I encoded four 3-minute TV clips at CQ 22, 25 and 28 and scored each with VMAF. Drag the line to compare source and encode.</p>
         <div class="tapes" id="tapes" role="radiogroup" aria-label="Test clip"></div>
 
         <div class="plate monitor">
@@ -656,7 +660,7 @@
         <noscript><p class="fine">The comparison needs JavaScript.</p></noscript>
 
         <div class="jcard"><table id="results"><caption class="sr-only">File size saved and VMAF for each clip at each CQ. CQ 28 is the default.</caption><thead></thead><tbody></tbody></table></div>
-        <p class="fine">CQ 28 is the default: every clip shrank 60 to 70% with a mean VMAF above 95. Raise it per show on the deck.</p>
+        <p class="fine">CQ 28 is the default. At 28 the clips shrank 60 to 70% and kept a mean VMAF above 95. You can change it per show on the deck.</p>
       </div>
     </section>
 
@@ -665,13 +669,13 @@
     <section class="module" id="design" aria-labelledby="des-h">
       <div class="wrap">
         <h2 class="heading" id="des-h">Design</h2>
-        <p class="lead">Cassette futurism, built as a working machine from one control kit. Pick a theme and the page follows.</p>
+        <p class="lead">The look is cassette futurism: a tape deck with CRT readouts, built from one WPF control kit. Picking a theme here switches this page too.</p>
         <div class="themes" id="themes"></div>
         <figure class="plate shot-frame">
           <img data-shot="kit" src="img/app/kit-amber-beige.webp" width="1802" height="1180" loading="lazy"
                alt="The component gallery: panels for materials, house rules, type, controls, lamps and readouts, surface detail, instruments, reels as data, and a live deck.">
         </figure>
-        <p class="caption">The kit in ShrinkRay.Gallery, one window with every control.</p>
+        <p class="caption">ShrinkRay.Gallery shows every control in the kit in one window.</p>
       </div>
     </section>
 
@@ -803,7 +807,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
     var LINES = [
       ['> PROBE  H.264 1080P', '  1.8 GB · 43 MIN'],
       ['> ENCODE  HEVC 10-BIT', '  CQ 28 · 166 FPS'],
-      ['> VERIFY  5 CHECKS', '  FULL DECODE'],
+      ['> VERIFY  6 CHECKS', '  FULL DECODE'],
       ['> SWAP  RENAME OVER', '  ORIGINAL, SAME NAME'],
       ['> DONE  -67%', '  1.8 GB TO 0.6 GB']
     ];
@@ -849,6 +853,8 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       var phase = t < T.probe ? 0 : t < T.encode ? 1 : t < T.verify ? 2 : t < T.swap ? 3 : 4;
       var p = t < T.probe ? 0 : t < T.encode ? ease((t - T.probe) / (T.encode - T.probe)) : 1;
       var size = 1.8 - 1.2 * p;
+      // Like the deck, the episode percent counts every step, not the encode alone.
+      var whole = Math.min(1, t / T.swap);
       phaseEls.forEach(function (li, i) {
         li.className = i < phase ? 'done' : i === phase ? 'now' : '';
       });
@@ -856,8 +862,8 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       $('state-lamp').className = 'lamp' + (running ? ' on' : ' ok');
       $('state-word').textContent = STATE_WORDS[phase];
       drawSeg($('seg-size'), size.toFixed(1));
-      drawSeg($('seg-pct'), String(Math.round(p * 100)));
-      $('pbar').style.width = (p * 100) + '%';
+      drawSeg($('seg-pct'), String(Math.round(whole * 100)));
+      $('pbar').style.width = (whole * 100) + '%';
       $('line1').textContent = LINES[phase][0];
       $('line2').textContent = LINES[phase][1];
       // Reels: the source reel unwinds as the output reel fills.
@@ -899,23 +905,23 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
 
     // ---- System design diagram ----
     var NODES = {
-      app: ['ShrinkRay.App', 'The WPF deck. MainViewModel holds the state and reaches the engine only through DeckServices.'],
-      theme: ['ShrinkRay.Theme', 'The control kit: reels, keys, meters, lamps. Geometry lives in plain classes with unit tests.'],
-      services: ['DeckServices', 'The one seam between deck and engine. Tests hand it an in-memory library and a scripted runner.'],
-      core: ['ShrinkRay.Core', 'The engine. Logic stays pure, and every process call and file operation sits behind an interface.'],
-      media: ['Core / Media', 'Parses ffprobe output and applies the eligibility rules: is it H.264, and is it worth encoding.'],
-      encode: ['Core / Encode', 'Plans the HandBrakeCLI arguments and audio, and parses its progress.'],
-      verify: ['Core / Verification', 'Decides one of three outcomes for a new file: pass, keep the original, or fail with reasons.'],
-      swap: ['Core / Swap', 'The journal state machine, the executor and startup recovery. Crash tests cover each step.'],
-      pipeline: ['Core / Pipeline', 'Runs one episode from probe to swap, and a queue that runs a show’s episodes one at a time.'],
-      library: ['Core / Library', 'Scans a show, caches probes, estimates savings and keeps the ledger of space freed.'],
+      app: ['ShrinkRay.App', 'The WPF deck. MainViewModel holds its state and talks to the engine through DeckServices. One copy runs per data folder, and the first launch checks that your tools are installed.'],
+      theme: ['ShrinkRay.Theme', 'Reels, keys, meters and lamps. Their geometry sits in plain C# classes, so unit tests cover it without a window.'],
+      services: ['DeckServices', 'The deck reaches the engine through this class alone. App tests give it an in-memory library and a scripted runner.'],
+      core: ['ShrinkRay.Core', 'The engine. It calls processes and the file system through interfaces, so its tests run without either.'],
+      media: ['Core / Media', 'Parses ffprobe output and decides whether a file is H.264 and worth encoding.'],
+      encode: ['Core / Encode', 'Builds the HandBrakeCLI command and audio plan, and reads HandBrake’s progress. A setting keeps lossless audio tracks as they are.'],
+      verify: ['Core / Verification', 'Gives each new file one of three results: pass, keep the original, or fail with reasons.'],
+      swap: ['Core / Swap', 'Holds the journal, the swap itself and startup recovery. A crash test covers each step.'],
+      pipeline: ['Core / Pipeline', 'Runs each episode from probe to swap, then moves to the next queued show. Three failures in a row or a full scratch disk end the run.'],
+      library: ['Core / Library', 'Scans and searches shows, caches probes and keeps a ledger of space saved. It estimates sizes from the episodes it has already shrunk in that show.'],
       runner: ['IProcessRunner', 'Every external process starts here. Tests swap in a fake that never launches a tool.'],
       iprobe: ['IMediaProbe', 'Reads streams, duration and captions. Tests feed it synthetic ffprobe JSON.'],
       ifs: ['IFileSystem', 'Every copy, rename and delete in the swap goes through it, so crash tests can stop after each one.'],
-      hb: ['HandBrakeCLI + NVENC', 'Does the encode, H.264 to H.265 on the GPU, in a local scratch folder.'],
+      hb: ['HandBrakeCLI + NVENC', 'Runs the encode on the GPU, in a local scratch folder.'],
       ffprobe: ['ffprobe', 'Scans each file and re-reads the output for the checks.'],
       ffmpeg: ['ffmpeg', 'Runs the full-decode check and copies MKV font attachments back when an encode drops them.'],
-      disk: ['File system', 'The library is touched only by the final rename. Scratch is local.']
+      disk: ['File system', 'ShrinkRay writes to the library only to copy in the finished file and rename it. Encodes run in a local scratch folder.']
     };
     var arch = $('arch');
     function pick(id) {
@@ -933,7 +939,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
     // ---- Swap scrubber ----
     var POS = [
       { at: 'Before the copy', jl: 'Verified', files: [['ep.mkv', 'H.264', 'old']],
-        rec: 'The share never changed. The episode goes back in the queue.', out: 'Original kept', ok: true },
+        rec: 'Nothing on the share changed. The episode goes back in the queue.', out: 'Original kept', ok: true },
       { at: 'During the copy to temp', jl: 'UploadedTemp', files: [['ep.mkv', 'H.264', 'old'], ['ep.mkv.shrinkray.tmp', 'HEVC', 'new']],
         rec: 'Deletes the temp file. The original never moved.', out: 'Original kept', ok: true },
       { at: 'After the original went aside', jl: 'OriginalRenamedAside', files: [['ep.mkv.shrinkray.bak', 'H.264', 'old'], ['ep.mkv.shrinkray.tmp', 'HEVC', 'new']],
@@ -949,7 +955,7 @@ powershell -ExecutionPolicy Bypass -File tools/install-local.ps1</pre>
       var nFail = Object.keys(failed).length;
       var hold = nFail > 0;
       var d = hold ? { at: 'No swap starts', jl: 'Failed', files: [['ep.mkv', 'H.264', 'old']],
-        rec: 'A failed check keeps the original and leaves the share untouched.', out: 'Original kept', ok: true } : POS[+crash.value];
+        rec: failed.Unchanged ? 'The original changed during the run, so ShrinkRay leaves it in place.' : 'The original stays and nothing on the share changes.', out: 'Original kept', ok: true } : POS[+crash.value];
       crash.disabled = hold;
       $('crash-at').textContent = 'On disk · ' + d.at;
       $('jlast').textContent = d.jl;
