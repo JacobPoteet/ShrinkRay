@@ -2,11 +2,11 @@ using System.Windows;
 using System.Windows.Media;
 using ShrinkRay.Theme.Mechanics;
 
-namespace ShrinkRay.App.Controls;
+namespace ShrinkRay.Theme.Controls;
 
 /// <summary>
 /// The tape run from the source pack, past the guides and the head, to the output pack. Its
-/// ends follow the pack radii, in the deck's 640 by 256 design space.
+/// ends follow the pack radii, in <see cref="TapeDeckMath"/>'s 640 by 256 design space.
 /// </summary>
 public sealed class TapePath : FrameworkElement
 {
@@ -30,23 +30,9 @@ public sealed class TapePath : FrameworkElement
         set => SetValue(OutputPackProperty, value);
     }
 
-    /// <summary>The four points of the run for two pack fills, as the design draws them.</summary>
-    public static Point[] Points(double sourcePack, double outputPack)
-    {
-        var left = ReelMath.PackRadius(sourcePack);
-        var right = ReelMath.PackRadius(outputPack);
-        return
-        [
-            new Point(180 - left * 0.5, 150 + left * 0.86),
-            new Point(252, 251),
-            new Point(388, 251),
-            new Point(460 + right * 0.5, 150 + right * 0.86),
-        ];
-    }
-
     protected override void OnRender(DrawingContext dc)
     {
-        var p = Points(SourcePack, OutputPack);
+        var p = TapeDeckMath.TapeRun(SourcePack, OutputPack).Select(q => new Point(q.X, q.Y)).ToArray();
         var figure = new PathFigure { StartPoint = p[0] };
         figure.Segments.Add(new PolyLineSegment(p[1..], true));
         dc.DrawGeometry(null, Tape, new PathGeometry([figure]));

@@ -63,8 +63,8 @@ public partial class MainWindow : Window
     private void Render()
     {
         var ratio = Ratios[Math.Clamp(QualityKnob.SelectedIndex, 0, Ratios.Length - 1)];
-        SourceReel.Pack = ReelMath.SourceFill(_progress);
-        OutputReel.Pack = ReelMath.OutputFill(_progress, ratio);
+        Deck.SourcePack = ReelMath.SourceFill(_progress);
+        Deck.OutputPack = ReelMath.OutputFill(_progress, ratio);
 
         var seconds = (int)Math.Round(_progress * EpisodeSeconds);
         TapeTime.Text = string.Create(CultureInfo.InvariantCulture, $"{seconds / 60}:{seconds % 60:00}").PadLeft(5);
@@ -73,7 +73,7 @@ public partial class MainWindow : Window
 
         SourceText.Text = string.Create(CultureInfo.InvariantCulture, $"Source {SourceGigabytes * (1 - _progress):0.00} GB left");
         OutputText.Text = string.Create(CultureInfo.InvariantCulture, $"Output {SourceGigabytes * ratio * _progress:0.00} GB");
-        DeckLabel.Episode = string.Create(CultureInfo.InvariantCulture, $"S01E{_episode:00}");
+        Deck.Episode = string.Create(CultureInfo.InvariantCulture, $"S01E{_episode:00}");
 
         if (!IsRunning)
         {
@@ -85,8 +85,8 @@ public partial class MainWindow : Window
     private void SetRunning()
     {
         var running = IsRunning;
-        SourceReel.IsSpinning = running;
-        OutputReel.IsSpinning = running;
+        Deck.IsSpinning = running;
+        Deck.HeadLamp = running ? LampState.Active : LampState.Off;
         EncodeKey.Lamp = running ? LampState.Red : LampState.Off;
         EncodeKey.LampBlink = running;
 
