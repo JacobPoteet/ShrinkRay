@@ -246,6 +246,11 @@
                     <!-- The window keys sit in their own recessed well at the deck's right edge, apart from the panel keys -->
                     <ContentControl DockPanel.Dock="Right" Style="{StaticResource KeyWell}">
                         <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource WindowKey}" Command="{Binding ShowMiniCommand}" Margin="0,0,5,0"
+                                    AutomationProperties.Name="Mini cassette" ToolTip="Mini cassette: a small deck that stays on top"
+                                    WindowChrome.IsHitTestVisibleInChrome="True">
+                                <Path Data="{StaticResource MiniIcon}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                            </Button>
                             <Button Style="{StaticResource WindowKey}" Click="OnMinimize" AutomationProperties.Name="Minimize" ToolTip="Minimize"
                                     WindowChrome.IsHitTestVisibleInChrome="True">
                                 <Path Data="{StaticResource SR.Icon.Minimize}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
@@ -388,6 +393,7 @@
                                              SourcePack="{Binding SourcePack}" OutputPack="{Binding OutputPack}" IsSpinning="{Binding IsSpinning}"
                                              Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}" EpisodeTitle="{Binding LabelEpisodeTitle}"
                                              HeadLamp="{Binding HeadLamp}"
+                                             SourceSecondsPerTurn="{Binding SourceSecondsPerTurn}" OutputSecondsPerTurn="{Binding OutputSecondsPerTurn}"
                                              SourceCaption="{Binding SourceCaption}" SourceDetail="{Binding SourceDetail}"
                                              OutputCaption="{Binding OutputCaption}" OutputDetail="{Binding OutputDetail}" />
                                 <Border CornerRadius="16" Background="{DynamicResource SR.DeckWindow}" BorderBrush="Black" BorderThickness="2"

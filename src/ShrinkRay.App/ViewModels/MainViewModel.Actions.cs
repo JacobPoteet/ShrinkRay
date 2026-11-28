@@ -848,6 +848,7 @@ public sealed partial class MainViewModel
         {
             // The counter counts down with the clock, so it reads again on every tick.
             Raise(nameof(ShowLeftHourDigits), nameof(ShowLeftMinuteDigits), nameof(ShowLeftDetail), nameof(ShowLeftName));
+            RaiseRunLeft();
         }
 
         if (_current is null || _runSettings is null || !IsSpinning)
@@ -1036,13 +1037,17 @@ public sealed partial class MainViewModel
         RefreshReadouts();
     }
 
-    private void RefreshReadouts() =>
+    private void RefreshReadouts()
+    {
         Raise(nameof(SourceCaption), nameof(SourceDetail), nameof(OutputCaption), nameof(OutputDetail), nameof(SourcePack),
             nameof(OutputPack), nameof(IsSpinning), nameof(EpisodeDigits), nameof(TapeTimeDigits), nameof(TapeTotalText),
             nameof(FpsDigits), nameof(PercentDigits), nameof(EpisodeDetail), nameof(EpisodeCounterName), nameof(ShowLeftHourDigits),
             nameof(ShowLeftMinuteDigits), nameof(ShowLeftDetail), nameof(ShowLeftName), nameof(DeckAutomationName), nameof(SizeCaption),
             nameof(SizeBeforeText), nameof(SizeAfterText), nameof(AfterFraction),
             nameof(EncodeLampBlink), nameof(EpisodeFraction), nameof(HeadLamp));
+        RaiseRunLeft();
+        RaiseReelSpeed();
+    }
 
     /// <summary>Marks the chosen and the recommended CQ on the Quality chips.</summary>
     private void RefreshCqChips()
@@ -1075,6 +1080,7 @@ public sealed partial class MainViewModel
         }
         Raise(nameof(IsEncoding), nameof(IsPaused), nameof(EncodeLamp), nameof(EncodeLampBlink), nameof(IsSpinning),
             nameof(CanEditQuality), nameof(CanEditSettings), nameof(FpsDigits), nameof(HeadLamp));
+        RaiseReelSpeed();
         RefreshRunLamp();
         RefreshSeasonLamps();
         EncodeCommand.Refresh();
@@ -1134,6 +1140,8 @@ public sealed partial class MainViewModel
         {
             RunLamp.Show(_loaded is null ? "No show" : "Ready", _loaded is null ? LampState.Off : LampState.Ok);
         }
+
+        Raise(nameof(MiniLampState));
     }
 
     private void RefreshSeasonLamps()

@@ -117,6 +117,7 @@ public sealed partial class MainViewModel
 
         Raise(nameof(QueuedShows), nameof(HasQueue), nameof(QueueLine), nameof(QueueDetail), nameof(CanQueueShown),
             nameof(QueueKeyText), nameof(ShowLeftDetail));
+        RaiseRunLeft();
         ToggleQueueCommand.Refresh();
     }
 
