@@ -42,6 +42,30 @@ public class ReelMathTests
     [InlineData(-5, 0)]
     public void Scale_maps_the_flange_to_the_element(double diameter, double scale) =>
         Assert.Equal(scale, ReelMath.Scale(diameter), 6);
+
+    [Theory]
+    [InlineData(200, 200, 3.2)]
+    [InlineData(400, 200, 1.6)]
+    [InlineData(1000, 200, 1.6)]
+    [InlineData(100, 200, 6.4)]
+    [InlineData(10, 200, 6.4)]
+    [InlineData(300, 200, 3.2 / 1.5)]
+    public void Reel_speed_follows_the_frame_rate_between_half_and_double(double fps, double usual, double seconds) =>
+        Assert.Equal(seconds, ReelMath.SecondsPerTurn(3.2, fps, usual), 6);
+
+    [Theory]
+    [InlineData(205)]
+    [InlineData(194)]
+    public void Small_wobbles_in_the_frame_rate_keep_the_usual_speed(double fps) =>
+        Assert.Equal(3.2, ReelMath.SecondsPerTurn(3.2, fps, 200), 6);
+
+    [Theory]
+    [InlineData(null, 200)]
+    [InlineData(0.0, 200)]
+    [InlineData(double.NaN, 200)]
+    [InlineData(150.0, 0)]
+    public void No_reading_keeps_the_usual_speed(double? fps, double usual) =>
+        Assert.Equal(2.1, ReelMath.SecondsPerTurn(2.1, fps, usual), 6);
 }
 
 public class VuMathTests

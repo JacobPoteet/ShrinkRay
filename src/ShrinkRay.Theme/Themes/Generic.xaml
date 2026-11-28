@@ -10,6 +10,7 @@
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Readouts.xaml" />
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Instruments.xaml" />
         <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/Labels.xaml" />
+        <ResourceDictionary Source="/ShrinkRay.Theme;component/Themes/TapeDeck.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
 </ResourceDictionary>

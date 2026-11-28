@@ -35,6 +35,11 @@
         </Setter>
     </Style>
 
+    <!-- Window keys for the mini cassette, on the 12 by 12 grid of the theme's window icons:
+         a small cassette with its two hubs, and a frame that opens out to the deck -->
+    <Geometry x:Key="MiniIcon">M0.5,2 H11.5 V10 H0.5 Z M3.5,4.75 A1.25,1.25 0 1 0 3.5,7.25 A1.25,1.25 0 1 0 3.5,4.75 Z M8.5,4.75 A1.25,1.25 0 1 0 8.5,7.25 A1.25,1.25 0 1 0 8.5,4.75 Z</Geometry>
+    <Geometry x:Key="OpenDeckIcon">M1,1 H11 V11 H1 Z M2.5,4 V9.5 H9.5 V4 Z</Geometry>
+
     <!-- A lamp with a silkscreen word, as printed on the panel -->
     <DataTemplate x:Key="SilkWord">
         <sr:TrackedText Text="{Binding}" Style="{StaticResource SR.Silk}" FontSize="11" Tracking="0.12"

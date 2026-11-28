@@ -856,9 +856,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private TimeSpan TimeLeft => TimeSpan.FromMinutes(ShowLeftMinutes);
 
-    private int ShowLeftMinutes => Math.Min(99 * 60 + 59, _estimator is { } e
+    private int ShowLeftMinutes => Math.Min(99 * 60 + 59, ShowLeftMinutesUncapped);
+
+    /// <summary>The show's minutes left before the deck counter's 99:59 cap. The mini cassette shows more.</summary>
+    private int ShowLeftMinutesUncapped => _estimator is { } e
         ? e.DisplayMinutes(_s.Now())
-        : TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(FramesLeft(), _rates.EncodeFps) + OtherLeft()));
+        : TimeLeftEstimator.RoundForDisplay(SizeEstimate.EncodeTime(FramesLeft(), _rates.EncodeFps) + OtherLeft());
 
     private long After(TrackViewModel t) => t.Kind switch
     {

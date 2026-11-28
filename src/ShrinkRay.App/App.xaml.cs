@@ -20,10 +20,12 @@ public partial class App : Application
     private SingleInstance? _instance;
     private TrayModel? _trayModel;
     private TrayIcon? _tray;
+    private MiniDeckSwitch? _mini;
 
     // The tray icon goes with the app, so no ghost icon stays behind in the notification area.
     protected override void OnExit(ExitEventArgs e)
     {
+        _mini?.Dispose();
         _tray?.Dispose();
         _trayModel?.Dispose();
         _instance?.Dispose();
@@ -98,6 +100,7 @@ public partial class App : Application
         MainWindow = window;
         _trayModel = new TrayModel(viewModel);
         _tray = new TrayIcon(window, _trayModel);
+        _mini = new MiniDeckSwitch(window, viewModel, _tray.Open);
         window.Show();
         _instance.OnShowRequested(() => Dispatcher.BeginInvoke(_tray.Open));
 

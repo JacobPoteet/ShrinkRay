@@ -347,26 +347,20 @@
                     <!-- The deck window -->
                     <ContentControl Style="{StaticResource SR.Plate}" Margin="0,18,0,0" Padding="10">
                         <StackPanel>
-                            <sr:CassetteLabel x:Name="DeckLabel" Title="SINTEL" Side="Side A · 9 seasons" Episode="S01E03"
-                                              EpisodeTitle="The Long Way Round to a Title That Will Not Fit" Padding="12,4,12,6" />
-                            <Border Margin="0,10,0,0" Height="150" CornerRadius="12" Background="{DynamicResource SR.DeckWindow}"
-                                    BorderBrush="Black" BorderThickness="2">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <sr:TapeReel x:Name="SourceReel" Width="124" Height="124" SecondsPerTurn="3.2"
-                                                 VerticalAlignment="Top" Margin="0,2,0,0" />
-                                    <sr:TapeReel x:Name="OutputReel" Grid.Column="1" Width="124" Height="124" SecondsPerTurn="2.1"
-                                                 VerticalAlignment="Top" Margin="0,2,0,0" />
-                                    <sr:TrackedText x:Name="SourceText" Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Tracking="0.14"
-                                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5" />
-                                    <sr:TrackedText x:Name="OutputText" Grid.Column="1" Style="{StaticResource SR.Silk}" FontSize="10" Tracking="0.14"
-                                                    Foreground="{DynamicResource SR.Phosphor}"
-                                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5" />
-                                </Grid>
-                            </Border>
+                            <!-- The shared cassette at the mini player's size: compact, so no codec captions on it -->
+                            <sr:TapeDeck x:Name="Deck" Density="Compact" Title="SINTEL" Episode="S01E03"
+                                         EpisodeTitle="The Long Way Round to a Title That Will Not Fit"
+                                         AutomationProperties.Name="Tape deck" />
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <sr:TrackedText x:Name="SourceText" Style="{StaticResource SR.SilkOnPlate}" FontSize="10" Tracking="0.14"
+                                                HorizontalAlignment="Center" />
+                                <sr:TrackedText x:Name="OutputText" Grid.Column="1" Style="{StaticResource SR.Silk}" FontSize="10" Tracking="0.14"
+                                                Foreground="{DynamicResource SR.Phosphor}" HorizontalAlignment="Center" />
+                            </Grid>
                         </StackPanel>
                     </ContentControl>
 

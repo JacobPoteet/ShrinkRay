@@ -246,6 +246,11 @@
                     <!-- The window keys sit in their own recessed well at the deck's right edge, apart from the panel keys -->
                     <ContentControl DockPanel.Dock="Right" Style="{StaticResource KeyWell}">
                         <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource WindowKey}" Command="{Binding ShowMiniCommand}" Margin="0,0,5,0"
+                                    AutomationProperties.Name="Mini cassette" ToolTip="Mini cassette: a small deck that stays on top"
+                                    WindowChrome.IsHitTestVisibleInChrome="True">
+                                <Path Data="{StaticResource MiniIcon}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
+                            </Button>
                             <Button Style="{StaticResource WindowKey}" Click="OnMinimize" AutomationProperties.Name="Minimize" ToolTip="Minimize"
                                     WindowChrome.IsHitTestVisibleInChrome="True">
                                 <Path Data="{StaticResource SR.Icon.Minimize}" Fill="{DynamicResource SR.Ink}" Width="12" Height="12" Stretch="None" />
@@ -384,35 +389,13 @@
 
                         <ContentControl Style="{StaticResource SR.Plate}" Padding="12,12">
                             <Grid Width="640" Height="256" AutomationProperties.Name="{Binding DeckAutomationName}">
-                                <Canvas Visibility="{Binding IsTapeLoaded, Converter={StaticResource Visible}}">
-                                    <Rectangle Canvas.Left="40" Canvas.Top="66" Width="560" Height="168" RadiusX="16" RadiusY="16"
-                                               Fill="{DynamicResource SR.DeckWindow}" Stroke="Black" StrokeThickness="2" />
-                                    <Rectangle Canvas.Left="44" Canvas.Top="70" Width="552" Height="40" RadiusX="12" RadiusY="12" Fill="#09FFFFFF" />
-                                    <sr:TapeReel Canvas.Left="96" Canvas.Top="66" Width="168" Height="168" SecondsPerTurn="3.2"
-                                                 Pack="{Binding SourcePack}" IsSpinning="{Binding IsSpinning}" AutomationProperties.Name="Source reel" />
-                                    <sr:TapeReel Canvas.Left="376" Canvas.Top="66" Width="168" Height="168" SecondsPerTurn="2.1"
-                                                 Pack="{Binding OutputPack}" IsSpinning="{Binding IsSpinning}" AutomationProperties.Name="Output reel" />
-                                    <ctl:TapePath Width="640" Height="256" SourcePack="{Binding SourcePack}" OutputPack="{Binding OutputPack}" IsHitTestVisible="False" />
-                                    <Ellipse Canvas.Left="245" Canvas.Top="237" Width="14" Height="14" Fill="{DynamicResource SR.Roller}" Stroke="#3A3833" />
-                                    <Ellipse Canvas.Left="381" Canvas.Top="237" Width="14" Height="14" Fill="{DynamicResource SR.Roller}" Stroke="#3A3833" />
-                                    <!-- The encoder head on the tape run; its lamp lights while NVENC is working -->
-                                    <Grid Canvas.Left="282" Canvas.Top="237" Width="76" Height="19">
-                                        <Border CornerRadius="3" Background="{DynamicResource SR.PartFill}" BorderBrush="#3A3833" BorderThickness="1" />
-                                        <Border Margin="1" CornerRadius="2" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
-                                        <sr:Lamp Style="{StaticResource PanelLamp}" Diameter="8" Spacing="6" Content="NVENC" Foreground="{DynamicResource SR.PartInk}"
-                                                 State="{Binding HeadLamp}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Grid>
-                                    <sr:CassetteLabel Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
-                                                      Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}"
-                                                      EpisodeTitle="{Binding LabelEpisodeTitle}" />
-                                    <sr:TrackedText Canvas.Left="58" Canvas.Top="210" Style="{StaticResource SR.SilkOnPlate}" FontSize="12" Tracking="0.16"
-                                                    Text="{Binding SourceCaption}" ToolTip="{Binding SourceDetail}" />
-                                    <Grid Canvas.Left="0" Canvas.Top="210" Width="582">
-                                        <sr:TrackedText HorizontalAlignment="Right" Style="{StaticResource SR.Silk}" FontSize="12" Tracking="0.16"
-                                                        Foreground="{DynamicResource SR.Phosphor}" Effect="{DynamicResource SR.PhosphorTextGlow}"
-                                                        Text="{Binding OutputCaption}" ToolTip="{Binding OutputDetail}" />
-                                    </Grid>
-                                </Canvas>
+                                <sr:TapeDeck Visibility="{Binding IsTapeLoaded, Converter={StaticResource Visible}}"
+                                             SourcePack="{Binding SourcePack}" OutputPack="{Binding OutputPack}" IsSpinning="{Binding IsSpinning}"
+                                             Title="{Binding LabelTitle}" Episode="{Binding LabelEpisode}" EpisodeTitle="{Binding LabelEpisodeTitle}"
+                                             HeadLamp="{Binding HeadLamp}"
+                                             SourceSecondsPerTurn="{Binding SourceSecondsPerTurn}" OutputSecondsPerTurn="{Binding OutputSecondsPerTurn}"
+                                             SourceCaption="{Binding SourceCaption}" SourceDetail="{Binding SourceDetail}"
+                                             OutputCaption="{Binding OutputCaption}" OutputDetail="{Binding OutputDetail}" />
                                 <Border CornerRadius="16" Background="{DynamicResource SR.DeckWindow}" BorderBrush="Black" BorderThickness="2"
                                         Visibility="{Binding IsTapeLoaded, Converter={StaticResource Hidden}}">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">

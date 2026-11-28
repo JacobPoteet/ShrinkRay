@@ -27,6 +27,11 @@ public sealed record DeckPreferences
     /// <summary>The library lists the most to save first, rather than by name.</summary>
     public bool SortBySavings { get; init; }
 
+    /// <summary>Where the mini cassette was last left, in screen units. Unset puts it above the tray.</summary>
+    public double? MiniLeft { get; init; }
+
+    public double? MiniTop { get; init; }
+
     public static DeckPreferences Load(string path)
     {
         try
