@@ -9,7 +9,10 @@ public enum TapeDeckDensity
     /// <summary>Everything, with the codec captions under the reels. The main deck's cassette.</summary>
     Full,
 
-    /// <summary>No codec captions, for a small cassette where they would be too fine to read.</summary>
+    /// <summary>
+    /// For a small cassette: no codec captions or head lamp, and a label with only the show and
+    /// the episode code, set larger so they read at about 270 pixels wide.
+    /// </summary>
     Compact,
 }
 

@@ -26,6 +26,28 @@ public static class ReelMath
     /// </summary>
     public static double OutputFill(double progress, double ratio) => Clamp01(progress) * Clamp01(ratio);
 
+    /// <summary>The fastest and slowest a reel turns, as a multiple of its usual speed.</summary>
+    public const double MaxSpeedUp = 2;
+
+    public const double MaxSlowDown = 0.5;
+
+    /// <summary>
+    /// Seconds per turn for a reel whose usual turn takes <paramref name="usualSeconds"/>, while
+    /// the encoder runs at <paramref name="fps"/> against its usual <paramref name="usualFps"/>.
+    /// The speed moves in quarter steps between half and double, like a deck's capstan settling,
+    /// so small wobbles in the frame rate leave the reel alone. No reading keeps the usual speed.
+    /// </summary>
+    public static double SecondsPerTurn(double usualSeconds, double? fps, double usualFps)
+    {
+        if (fps is not { } f || double.IsNaN(f) || f <= 0 || double.IsNaN(usualFps) || usualFps <= 0)
+        {
+            return usualSeconds;
+        }
+
+        var speed = System.Math.Clamp(f / usualFps, MaxSlowDown, MaxSpeedUp);
+        return usualSeconds / (System.Math.Round(speed * 4, System.MidpointRounding.AwayFromZero) / 4);
+    }
+
     /// <summary>Scale from design units to an element of <paramref name="diameter"/> pixels.</summary>
     public static double Scale(double diameter) => diameter <= 0 ? 0 : diameter / (2 * FlangeRadius);
 

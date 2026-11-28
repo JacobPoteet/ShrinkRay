@@ -37,13 +37,36 @@
                             <Grid Canvas.Left="282" Canvas.Top="237" Width="76" Height="19">
                                 <Border CornerRadius="3" Background="{DynamicResource SR.PartFill}" BorderBrush="#3A3833" BorderThickness="1" />
                                 <Border Margin="1" CornerRadius="2" BorderThickness="0,1,0,0" BorderBrush="#80FFFFFF" />
-                                <sr:Lamp Diameter="8" Spacing="6" Content="NVENC" Foreground="{DynamicResource SR.PartInk}"
+                                <sr:Lamp x:Name="HeadLamp" Diameter="8" Spacing="6" Content="NVENC" Foreground="{DynamicResource SR.PartInk}"
                                          ContentTemplate="{StaticResource SR.TapeDeck.HeadWord}" AutomationProperties.Name="NVENC"
                                          State="{TemplateBinding HeadLamp}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
-                            <sr:CassetteLabel Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
+                            <sr:CassetteLabel x:Name="FullLabel" Canvas.Left="56" Canvas.Top="4" Width="528" Height="56" Padding="16,4,14,4"
                                               Title="{TemplateBinding Title}" Episode="{TemplateBinding Episode}"
                                               EpisodeTitle="{TemplateBinding EpisodeTitle}" />
+                            <!--
+                                The compact label: the same cream stock and stripes, with the show and the episode
+                                code in marker about half again as large, and no scrolling episode title.
+                            -->
+                            <Grid x:Name="CompactLabel" Canvas.Left="56" Canvas.Top="2" Width="528" Height="60" Visibility="Collapsed">
+                                <Border Margin="0,1,0,-1" CornerRadius="3" Background="#66000000">
+                                    <Border.Effect>
+                                        <BlurEffect Radius="4" />
+                                    </Border.Effect>
+                                </Border>
+                                <Border CornerRadius="3" Background="{DynamicResource SR.Cream}" sr:RoundClip.Radius="3">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Bottom" Height="4" Background="{DynamicResource SR.Stripe1}" />
+                                        <Border DockPanel.Dock="Bottom" Height="7" Background="{DynamicResource SR.Stripe3}" />
+                                        <DockPanel Margin="16,0,14,0">
+                                            <TextBlock DockPanel.Dock="Right" Text="{TemplateBinding Episode}" Style="{DynamicResource SR.Text.Label}"
+                                                       FontSize="30" VerticalAlignment="Center" Margin="16,0,0,0" />
+                                            <TextBlock Text="{TemplateBinding Title}" Style="{DynamicResource SR.Text.Label}" FontSize="36"
+                                                       VerticalAlignment="Center" />
+                                        </DockPanel>
+                                    </DockPanel>
+                                </Border>
+                            </Grid>
                             <sr:TrackedText x:Name="SourceCaption" Canvas.Left="58" Canvas.Top="210" Style="{DynamicResource SR.SilkOnPlate}"
                                             FontSize="12" Tracking="0.16"
                                             Text="{TemplateBinding SourceCaption}" ToolTip="{TemplateBinding SourceDetail}" />
@@ -58,6 +81,10 @@
                         <Trigger Property="Density" Value="Compact">
                             <Setter TargetName="SourceCaption" Property="Visibility" Value="Collapsed" />
                             <Setter TargetName="OutputCaption" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="FullLabel" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="CompactLabel" Property="Visibility" Value="Visible" />
+                            <!-- Too small to read its word at this size, and a lamp never goes without one -->
+                            <Setter TargetName="HeadLamp" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
